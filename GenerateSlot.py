@@ -10,7 +10,7 @@ def play():
     
     timestamp = str(time.time())
 
-    with open("slot_template.svg", "r", encoding="utf-8") as f:
+    with open("SlotTemplate.svg", "r", encoding="utf-8") as f:
         template = f.read()
 
     # Sostituiamo i segnaposto uno per uno
