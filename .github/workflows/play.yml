@@ -22,6 +22,10 @@ jobs:
 
       - name: Execute Slot Script
         run: python GenerateSlot.py
+        
+      - name: Purge GitHub Cache
+        run: |
+          curl -X PURGE https://camo.githubusercontent.com/$(echo -n "https://raw.githubusercontent.com/${{ github.repository }}/main/slot.svg" | openssl sha1 | sed 's/^.* //')
 
       - name: Commit and Push changes
         run: |
