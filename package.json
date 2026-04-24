@@ -1,0 +1,22 @@
+{
+  "name": "github-slot-machine",
+  "version": "1.0.0",
+  "description": "An animated, recruiter-friendly slot machine for your GitHub profile README. Reels of your stack, fun facts, and auto-redirect to your best repo in the winning language.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "github",
+    "profile-readme",
+    "slot-machine",
+    "svg",
+    "vercel",
+    "portfolio"
+  ],
+  "license": "MIT"
+}

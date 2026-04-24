@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "functions": {
+    "api/spin.js": { "runtime": "nodejs20.x" },
+    "api/image.js": { "runtime": "nodejs20.x" },
+    "api/lever.js": { "runtime": "nodejs20.x" }
+  },
+  "rewrites": []
+}
