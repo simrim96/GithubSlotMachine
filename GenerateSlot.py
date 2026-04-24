@@ -2,7 +2,11 @@ import random
 import time
 
 def play():
+    # Forza il randomizzatore a usare il tempo attuale come base
+    random.seed(time.time())
+    
     icons = ["🍒", "💎", "🍋", "7️⃣", "🔔", "⭐"]
+    # Scegliamo 3 icone in modo indipendente
     res = [random.choice(icons) for _ in range(3)]
     
     is_win = res[0] == res[1] == res[2]
