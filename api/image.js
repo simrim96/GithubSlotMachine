@@ -1,11 +1,14 @@
 export default async function handler(req, res) {
-  const url = "https://raw.githubusercontent.com/simrim96/GithubSlotMachine/main/slot.svg";
+  // Aggiungiamo un timestamp per "fregare" la cache di GitHub a monte
+  const url = `https://raw.githubusercontent.com/simrim96/GithubSlotMachine/main/slot.svg?t=${Date.now()}`;
+  
   const response = await fetch(url);
   const svg = await response.text();
 
-  // Questi header dicono a GitHub: "NON SALVARE QUESTA IMMAGINE"
   res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  // Header anti-cache estremi
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate');
+  res.setHeader('Surrogate-Control', 'no-store');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
