@@ -1,6 +1,33 @@
-<svg width="400" height="150" viewBox="0 0 400 150" xmlns="http://www.w3.org/2000/svg">
-  <rect width="400" height="150" rx="20" fill="#222" />
-  <text x="50%" y="50%" font-family="Arial" font-size="30" fill="gold" text-anchor="middle" dominant-baseline="central">
-    🎰 IN ATTESA DELLO SPIN...
-  </text>
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="slot-clip">
+      <rect x="50" y="50" width="300" height="100" rx="10" />
+    </clipPath>
+  </defs>
+
+<style>
+  @keyframes spin {
+    0% { transform: translateY(-300px); } /* Parte dall'alto (movimento) */
+    100% { transform: translateY(0); }    /* Arriva alla posizione finale */
+  }
+  .rullo { 
+    animation: spin 2s cubic-bezier(0.1, 0.7, 1.0, 0.1) both; 
+  }
+</style>
+
+  <rect width="400" height="200" fill="#333" rx="15" />
+  <rect x="50" y="50" width="300" height="100" fill="#111" rx="10" />
+
+  <g clip-path="url(#slot-clip)">
+    <g class="rullo">
+      <text x="80" y="115">🍋</text>
+      <text x="80" y="415">🍋</text>
+      <text x="175" y="115">⭐</text>
+      <text x="175" y="415">⭐</text>
+      <text x="270" y="115">💎</text>
+      <text x="270" y="415">💎</text>
+    </g>
+  </g>
+  
+  <text x="150" y="180" class="win-text">Riprova! 🎰</text>
 </svg>
