@@ -8,15 +8,18 @@ def play():
     is_win = res[0] == res[1] == res[2]
     status = "JACKPOT! 🎉" if is_win else "Riprova! 🎰"
     
-    # Generiamo un timestamp per rendere il file unico
     timestamp = str(time.time())
 
     with open("slot_template.svg", "r", encoding="utf-8") as f:
         template = f.read()
 
-    # Aggiungiamo il timestamp come commento XML alla fine dell'SVG
-    # e popoliamo i placeholder
-    new_svg = template.format(s1=res[0], s2=res[1], s3=res[2], status=status)
+    # Sostituiamo i segnaposto uno per uno
+    new_svg = template.replace("{s1}", res[0])
+    new_svg = new_svg.replace("{s2}", res[1])
+    new_svg = new_svg.replace("{s3}", res[2])
+    new_svg = new_svg.replace("{status}", status)
+    
+    # Aggiungiamo il cache buster come commento
     new_svg += f""
 
     with open("slot.svg", "w", encoding="utf-8") as f:
