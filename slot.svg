@@ -20,12 +20,12 @@
 
   <g clip-path="url(#slot-clip)">
     <g class="rullo">
-      <text x="80" y="115">7️⃣</text>
-      <text x="80" y="415">7️⃣</text>
-      <text x="175" y="115">🍋</text>
-      <text x="175" y="415">🍋</text>
-      <text x="270" y="115">7️⃣</text>
-      <text x="270" y="415">7️⃣</text>
+      <text x="80" y="115">🍋</text>
+      <text x="80" y="415">🍋</text>
+      <text x="175" y="115">🔔</text>
+      <text x="175" y="415">🔔</text>
+      <text x="270" y="115">⭐</text>
+      <text x="270" y="415">⭐</text>
     </g>
   </g>
   
