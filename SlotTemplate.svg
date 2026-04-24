@@ -1,0 +1,36 @@
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="slot-clip">
+      <rect x="50" y="50" width="300" height="100" rx="10" />
+    </clipPath>
+  </defs>
+
+  <style>
+    @keyframes spin {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-300px); }
+    }
+    .rullo { animation: spin 2s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards; font-size: 50px; }
+    .win-text { 
+      animation: fadeIn 0.5s ease-in 2.5s forwards; 
+      opacity: 0; fill: #FFD700; font-family: sans-serif; font-weight: bold;
+    }
+    @keyframes fadeIn { to { opacity: 1; } }
+  </style>
+
+  <rect width="400" height="200" fill="#333" rx="15" />
+  <rect x="50" y="50" width="300" height="100" fill="#111" rx="10" />
+
+  <g clip-path="url(#slot-clip)">
+    <g class="rullo">
+      <text x="80" y="115">{s1}</text>
+      <text x="80" y="415">{s1}</text>
+      <text x="175" y="115">{s2}</text>
+      <text x="175" y="415">{s2}</text>
+      <text x="270" y="115">{s3}</text>
+      <text x="270" y="415">{s3}</text>
+    </g>
+  </g>
+  
+  <text x="150" y="180" class="win-text">{status}</text>
+</svg>
