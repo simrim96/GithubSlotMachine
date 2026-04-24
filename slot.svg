@@ -1,1 +1,6 @@
-<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg"/>
+<svg width="400" height="150" viewBox="0 0 400 150" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="150" rx="20" fill="#222" />
+  <text x="50%" y="50%" font-family="Arial" font-size="30" fill="gold" text-anchor="middle" dominant-baseline="central">
+    🎰 IN ATTESA DELLO SPIN...
+  </text>
+</svg>
