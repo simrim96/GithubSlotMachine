@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  const url = "https://raw.githubusercontent.com/TUO_USER/github-slot-machine/main/slot.svg";
+  const url = "https://raw.githubusercontent.com/simrim96/GithubSlotMachine/main/slot.svg";
   const response = await fetch(url);
   const svg = await response.text();
 
