@@ -1,24 +1,10 @@
-name: Play Slot Machine
 on:
-  issues:
-    types: [opened]
+  repository_dispatch:
+    types: [remote_spin] # Risponde a un segnale esterno chiamato 'remote_spin'
 
 jobs:
   spin:
-    if: github.event.issue.title == 'spin'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run logic
-        run: python generate_slot.py
-      - name: Commit changes
-        run: |
-          git config --global user.name "SlotBot"
-          git config --global user.email "bot@github.com"
-          git add slot.svg
-          git commit -m "Slot machine spin: $(date)"
-          git push
-      - name: Close Issue
-        run: gh issue close ${{ github.event.issue.number }} --comment "Giocata effettuata! Torna al profilo."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ... (il resto del codice rimane uguale: python, commit, push)
