@@ -26,8 +26,11 @@ def play():
     # Aggiungiamo il cache buster come commento
     new_svg += f""
 
+   # ... dopo le sostituzioni ...
+    print(f"Risultato generato: {res}") # Questo apparirà nei log di GitHub
+    
     with open("slot.svg", "w", encoding="utf-8") as f:
         f.write(new_svg)
-
+        f.flush() # Forza il passaggio dei dati su disco
 if __name__ == "__main__":
     play()
