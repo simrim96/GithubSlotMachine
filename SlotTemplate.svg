@@ -1,16 +1,16 @@
-<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
+<svg width="400" height="150" xmlns="http://www.w3.org/2000/svg">
   <style>
-    @keyframes slot-spin {
-      0% { transform: translateY(-20px); opacity: 0; }
-      100% { transform: translateY(0); opacity: 1; }
+    @keyframes slot_anim {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
     }
-    .emoji { 
-      animation: slot-spin 0.5s ease-out forwards; 
+    .symbol { 
+      animation: slot_anim 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       font-size: 60px;
     }
   </style>
-  <rect width="400" height="200" rx="15" fill="#1a1a1a"/>
-  <text x="100" y="110" text-anchor="middle" class="emoji">{s1}</text>
-  <text x="200" y="110" text-anchor="middle" class="emoji">{s2}</text>
-  <text x="300" y="110" text-anchor="middle" class="emoji">{s3}</text>
+  <rect width="400" height="150" rx="15" fill="#111" />
+  <text x="70" y="90" text-anchor="middle" class="symbol">{s1}</text>
+  <text x="200" y="90" text-anchor="middle" class="symbol">{s2}</text>
+  <text x="330" y="90" text-anchor="middle" class="symbol">{s3}</text>
 </svg>
