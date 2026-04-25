@@ -29,16 +29,14 @@ jobs:
 
       - name: Update README Cache Buster
         run: |
-          # Questo comando cerca il link della slot nel README e aggiorna il numero della versione
-          # Esempio: cambia slot.svg?v=123 in slot.svg?v=456
-          TIMESTAMP=$(date +%s)
-          sed -i "s/slot.svg?v=[0-9]*/slot.svg?v=$TIMESTAMP/g" README.md
-          
-      - name: Commit and Push changes
+          # Sostituisce la versione v=... con il timestamp attuale nel README
+          sed -i "s/v=[0-9]*/v=$(date +%s)/g" README.md
+
+      - name: Commit and Push
         run: |
           git config --global user.name "SlotBot"
-          git config --global user.email "actions@github.com"
-          git add slot.svg
-          # Il comando || exit 0 evita che la Action fallisca se non ci sono cambiamenti
-          git commit -m "🎰 Slot Machine Spin: $(date)" || exit 0
+          git config --global user.email "bot@github.com"
+          git add slot.svg README.md
+          git commit -m "🎰 Spin: $(date)" || exit 0
           git push
+          
