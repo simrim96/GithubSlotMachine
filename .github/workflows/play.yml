@@ -27,6 +27,13 @@ jobs:
         run: |
           curl -X PURGE https://camo.githubusercontent.com/$(echo -n "https://raw.githubusercontent.com/${{ github.repository }}/main/slot.svg" | openssl sha1 | sed 's/^.* //')
 
+      - name: Update README Cache Buster
+        run: |
+          # Questo comando cerca il link della slot nel README e aggiorna il numero della versione
+          # Esempio: cambia slot.svg?v=123 in slot.svg?v=456
+          TIMESTAMP=$(date +%s)
+          sed -i "s/slot.svg?v=[0-9]*/slot.svg?v=$TIMESTAMP/g" README.md
+          
       - name: Commit and Push changes
         run: |
           git config --global user.name "SlotBot"
