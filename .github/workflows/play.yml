@@ -27,16 +27,19 @@ jobs:
         run: |
           curl -X PURGE https://camo.githubusercontent.com/$(echo -n "https://raw.githubusercontent.com/${{ github.repository }}/main/slot.svg" | openssl sha1 | sed 's/^.* //')
 
-      - name: Update README Cache Buster
+      - name: Update README
         run: |
-          # Sostituisce la versione v=... con il timestamp attuale nel README
-          sed -i "s/v=[0-9]*/v=$(date +%s)/g" README.md
-
+          # Genera un numero unico basato sui secondi
+          TIMESTAMP=$(date +%s)
+          # Cerca il link della slot e cambia il valore dopo v=
+          sed -i "s/slot.svg?v=[0-9]*/slot.svg?v=${TIMESTAMP}/g" README.md
+          
       - name: Commit and Push
         run: |
           git config --global user.name "SlotBot"
           git config --global user.email "bot@github.com"
           git add slot.svg README.md
-          git commit -m "🎰 Spin: $(date)" || exit 0
+          # Se non ci sono modifiche, non fallire
+          git commit -m "🎰 Spin $TIMESTAMP" || exit 0
           git push
           
