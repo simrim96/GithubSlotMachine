@@ -1,16 +1,16 @@
 <svg width="400" height="150" xmlns="http://www.w3.org/2000/svg">
   <style>
-    @keyframes anim_1777154004 {
+    @keyframes anim_1777154012 {
       0% { transform: scale(0.5); opacity: 0; }
       100% { transform: scale(1); opacity: 1; }
     }
     .symbol { 
-      animation: anim_1777154004 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+      animation: anim_1777154012 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       font-size: 60px;
     }
   </style>
   <rect width="400" height="150" rx="15" fill="#111" />
-  <text x="70" y="90" text-anchor="middle" class="symbol">⭐</text>
-  <text x="200" y="90" text-anchor="middle" class="symbol">🍒</text>
-  <text x="330" y="90" text-anchor="middle" class="symbol">7️⃣</text>
+  <text x="70" y="90" text-anchor="middle" class="symbol">🍒</text>
+  <text x="200" y="90" text-anchor="middle" class="symbol">🍋</text>
+  <text x="330" y="90" text-anchor="middle" class="symbol">💎</text>
 </svg>
