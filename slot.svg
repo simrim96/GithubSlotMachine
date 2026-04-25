@@ -1,17 +1,17 @@
 <svg width="400" height="150" xmlns="http://www.w3.org/2000/svg">
   <style>
-    @keyframes anim_1777156005 {
+    @keyframes anim_1777156016 {
       0% { transform: translateY(-50px); opacity: 0; }
       100% { transform: translateY(0); opacity: 1; }
     }
     .symbol { 
-      animation: anim_1777156005 0.8s ease-out both;
+      animation: anim_1777156016 0.8s ease-out both;
       font-size: 60px;
       font-family: sans-serif;
     }
   </style>
   <rect width="400" height="150" rx="15" fill="#111" />
-  <text x="70" y="90" text-anchor="middle" class="symbol">🍋</text>
+  <text x="70" y="90" text-anchor="middle" class="symbol">⭐</text>
   <text x="200" y="90" text-anchor="middle" class="symbol">🍒</text>
-  <text x="330" y="90" text-anchor="middle" class="symbol">🔔</text>
+  <text x="330" y="90" text-anchor="middle" class="symbol">🍋</text>
 </svg>
