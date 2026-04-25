@@ -11,7 +11,7 @@ def play():
     unique_id = int(time.time())
     
     # 2. Carica il template (assicurati che il percorso sia corretto)
-    with open("slot_template.svg", "r", encoding="utf-8") as f:
+    with open("SlotTemplate.svg", "r", encoding="utf-8") as f:
         content = f.read()
 
     # 3. Sostituzioni (usa nomi univoci per l'animazione)
