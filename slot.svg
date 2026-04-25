@@ -1,16 +1,32 @@
-<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="200" rx="20" fill="#1a1a1a" stroke="#FFD700" stroke-width="4"/>
+  
+  <line x1="133" y1="20" x2="133" y2="140" stroke="#333" stroke-width="2" />
+  <line x1="266" y1="20" x2="266" y2="140" stroke="#333" stroke-width="2" />
+
   <style>
     @keyframes slot-spin {
       0% { transform: translateY(-20px); opacity: 0; }
+      50% { opacity: 1; }
       100% { transform: translateY(0); opacity: 1; }
     }
     .emoji { 
-      animation: slot-spin 0.5s ease-out forwards; 
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
       font-size: 60px;
+      animation: slot-spin 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    .status-text {
+      font-family: sans-serif;
+      font-weight: bold;
+      fill: #FFD700;
+      font-size: 20px;
     }
   </style>
-  <rect width="400" height="200" rx="15" fill="#1a1a1a"/>
-  <text x="100" y="110" text-anchor="middle" class="emoji">{s1}</text>
-  <text x="200" y="110" text-anchor="middle" class="emoji">{s2}</text>
-  <text x="300" y="110" text-anchor="middle" class="emoji">{s3}</text>
+
+  <text x="66" y="100" text-anchor="middle" dominant-baseline="central" class="emoji">🍒</text>
+  <text x="200" y="100" text-anchor="middle" dominant-baseline="central" class="emoji">7️⃣</text>
+  <text x="333" y="100" text-anchor="middle" dominant-baseline="central" class="emoji">💎</text>
+
+  <rect x="0" y="150" width="400" height="50" fill="#222" rx="0" ry="0" />
+  <text x="200" y="182" text-anchor="middle" class="status-text">Riprova! 🎰</text>
 </svg>
