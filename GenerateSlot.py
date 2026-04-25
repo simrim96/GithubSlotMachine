@@ -3,28 +3,38 @@ import time
 import os
 
 def play():
-    # 1. Forza la generazione di numeri casuali veri
+    # Forza la generazione casuale
     random.seed(time.time())
     icons = ["🍒", "💎", "🍋", "7️⃣", "🔔", "⭐"]
-    res = random.sample(icons, 3) # Usa sample per avere icone diverse
+    # Scegliamo 3 icone (possono anche essere uguali, come in una slot vera)
+    res = [random.choice(icons) for _ in range(3)]
     
     unique_id = int(time.time())
     
-    # 2. Carica il template (assicurati che il percorso sia corretto)
-    with open("SlotTemplate.svg", "r", encoding="utf-8") as f:
-        content = f.read()
+    # Carichiamo il template
+    try:
+        with open("slot_template.svg", "r", encoding="utf-8") as f:
+            content = f.read()
+    except FileNotFoundError:
+        print("ERRORE: slot_template.svg non trovato!")
+        return
 
-    # 3. Sostituzioni (usa nomi univoci per l'animazione)
-    content = content.replace("{s1}", res[0])
-    content = content.replace("{s2}", res[1])
-    content = content.replace("{s3}", res[2])
+    # Debug: stampiamo cosa abbiamo scelto (lo vedrai nei log di GitHub)
+    print(f"Icone estratte: {res}")
+
+    # Eseguiamo le sostituzioni
+    content = content.replace("{s1}", str(res[0]))
+    content = content.replace("{s2}", str(res[1]))
+    content = content.replace("{s3}", str(res[2]))
+    
+    # Sostituiamo il segnaposto dell'animazione con un nome unico
     content = content.replace("slot_anim", f"anim_{unique_id}")
 
-    # 4. Scrittura atomica
+    # Scriviamo il file finale
     with open("slot.svg", "w", encoding="utf-8") as f:
         f.write(content)
-        f.flush()
-        os.fsync(f.fileno())
+    
+    print("File slot.svg aggiornato con successo.")
 
 if __name__ == "__main__":
     play()
