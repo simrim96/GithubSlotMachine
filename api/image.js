@@ -1,25 +1,23 @@
 export default async function handler(req, res) {
-  // 1. URL diretto del file su GitHub con cache-buster temporale
-  const githubRawUrl = `https://raw.githubusercontent.com/simrim96/GithubSlotMachine/main/slot.svg?t=${Date.now()}`;
+  // Cambia TUO_USER e NOME_REPO con i tuoi dati reali
+  const user = "simrim96";
+  const repo = "GithubSlotMachine";
   
+  // Il timestamp forza GitHub a scaricare il file nuovo dalla repo
+  const githubUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/slot.svg?t=${Date.now()}`;
+
   try {
-    const response = await fetch(githubRawUrl);
-    
-    if (!response.ok) {
-      return res.status(404).send("Immagine non trovata su GitHub");
-    }
+    const response = await fetch(githubUrl);
+    const svg = await response.text();
 
-    const svgData = await response.text();
-
-    // 2. Imposta gli header per distruggere la cache a ogni livello
+    // Diciamo al browser (e a GitHub) di NON memorizzare nulla
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // 3. Invia il contenuto dell'SVG
-    return res.status(200).send(svgData);
-  } catch (error) {
-    return res.status(500).send("<svg><text y='20'>Errore di connessione a GitHub</text></svg>");
+    res.status(200).send(svg);
+  } catch (e) {
+    res.status(500).send("<svg><text y='20'>Errore caricamento</text></svg>");
   }
 }
