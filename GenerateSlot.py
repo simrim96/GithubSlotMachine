@@ -2,35 +2,20 @@ import random
 import time
 
 def play():
-    # Forza il randomizzatore a usare il tempo attuale come base
-    random.seed(time.time())
-    
     icons = ["🍒", "💎", "🍋", "7️⃣", "🔔", "⭐"]
-    # Scegliamo 3 icone in modo indipendente
     res = [random.choice(icons) for _ in range(3)]
     
-    is_win = res[0] == res[1] == res[2]
-    status = "JACKPOT! 🎉" if is_win else "Riprova! 🎰"
-    
-    timestamp = str(time.time())
+    # Creiamo un ID unico basato sul tempo (es. spin17140800)
+    spin_id = f"spin{int(time.time())}"
 
-    with open("SlotTemplate.svg", "r", encoding="utf-8") as f:
+    with open("slot_template.svg", "r", encoding="utf-8") as f:
         template = f.read()
 
-    # Sostituiamo i segnaposto uno per uno
+    # Sostituiamo i simboli E il nome dell'animazione
     new_svg = template.replace("{s1}", res[0])
     new_svg = new_svg.replace("{s2}", res[1])
     new_svg = new_svg.replace("{s3}", res[2])
-    new_svg = new_svg.replace("{status}", status)
-    
-    # Aggiungiamo il cache buster come commento
-    new_svg += f""
+    new_svg = new_svg.replace("spin_placeholder", spin_id) # Cambiamo il nome dell'animazione
 
-   # ... dopo le sostituzioni ...
-    print(f"Risultato generato: {res}") # Questo apparirà nei log di GitHub
-    
     with open("slot.svg", "w", encoding="utf-8") as f:
         f.write(new_svg)
-        f.flush() # Forza il passaggio dei dati su disco
-if __name__ == "__main__":
-    play()
