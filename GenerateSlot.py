@@ -13,10 +13,10 @@ def play():
     
     # Carichiamo il template
     try:
-        with open("slot_template.svg", "r", encoding="utf-8") as f:
+        with open("SlotTemplate.svg", "r", encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
-        print("ERRORE: slot_template.svg non trovato!")
+        print("ERRORE: SlotTemplate.svg non trovato!")
         return
 
     # Debug: stampiamo cosa abbiamo scelto (lo vedrai nei log di GitHub)
