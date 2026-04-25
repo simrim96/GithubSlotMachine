@@ -6,12 +6,12 @@
   </defs>
 
 <style>
-  @keyframes spin {
-    0% { transform: translateY(-300px); } /* Parte dall'alto (movimento) */
-    100% { transform: translateY(0); }    /* Arriva alla posizione finale */
+  @keyframes spin_placeholder {
+    0% { transform: translateY(-100px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
   }
   .rullo { 
-    animation: spin 2s cubic-bezier(0.1, 0.7, 1.0, 0.1) both; 
+    animation: spin_placeholder 1.5s ease-out forwards; 
   }
 </style>
 
