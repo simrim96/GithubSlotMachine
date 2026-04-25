@@ -18,6 +18,10 @@ def play():
     new_svg = new_svg.replace("{s2}", res[1])
     new_svg = new_svg.replace("{s3}", res[2])
     new_svg = new_svg.replace("spin_placeholder", spin_name)
-
+    
+    # Alla fine del tuo script Python, prima di scrivere il file:
+    timestamp_comment = f"\n"
+    new_svg += timestamp_comment
+    
     with open("slot.svg", "w", encoding="utf-8") as f:
         f.write(new_svg)
