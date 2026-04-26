@@ -23,23 +23,43 @@ jobs:
       - name: Execute Slot Script
         run: python GenerateSlot.py
         
-      - name: Purge GitHub Cache
-        run: |
-          curl -X PURGE https://camo.githubusercontent.com/$(echo -n "https://raw.githubusercontent.com/${{ github.repository }}/main/slot.svg" | openssl sha1 | sed 's/^.* //')
-
-      - name: Update README
-        run: |
-          # Genera un numero unico basato sui secondi
-          TIMESTAMP=$(date +%s)
-          # Cerca il link della slot e cambia il valore dopo v=
-          sed -i "s/slot.svg?v=[0-9]*/slot.svg?v=${TIMESTAMP}/g" README.md
-          
       - name: Commit and Push
         run: |
           git config --global user.name "SlotBot"
           git config --global user.email "bot@github.com"
-          git add slot.svg README.md
+          git add slot.svg
           # Se non ci sono modifiche, non fallire
-          git commit -m "🎰 Spin $TIMESTAMP" || exit 0
+          git commit -m "🎰 Spin $(date +%s)" || exit 0
           git push
+
+      - name: Update Profile README cache buster
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          TIMESTAMP=$(date +%s)
+          
+          # Scarica il README attuale del profilo (simrim96/simrim96)
+          RESPONSE=$(curl -sf \
+            -H "Authorization: token $PAT" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/simrim96/simrim96/contents/README.md")
+          
+          SHA=$(echo "$RESPONSE" | jq -r '.sha')
+          
+          # Decodifica il contenuto attuale
+          echo "$RESPONSE" | jq -r '.content' | base64 -d > /tmp/profile_readme.md
+          
+          # Aggiorna il timestamp nell'URL dell'immagine della slot
+          # Gestisce sia ?v=NUMERO che ?cache_buster=NUMERO (per la prima migrazione)
+          sed -i "s|api/image?v=[0-9]*|api/image?v=${TIMESTAMP}|g" /tmp/profile_readme.md
+          sed -i "s|api/image?cache_buster=[0-9]*|api/image?v=${TIMESTAMP}|g" /tmp/profile_readme.md
+          
+          # Codifica in base64 e invia al profilo
+          CONTENT_B64=$(base64 -w 0 < /tmp/profile_readme.md)
+          
+          curl -sf -X PUT \
+            -H "Authorization: token $PAT" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/simrim96/simrim96/contents/README.md" \
+            -d "{\"message\":\"🎰 Update slot display\",\"content\":\"${CONTENT_B64}\",\"sha\":\"${SHA}\"}"
           
