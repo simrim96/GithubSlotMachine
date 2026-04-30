@@ -18,12 +18,10 @@ const PROFILE_REPO = 'simrim96';
 
 // ─── Slot config ─────────────────────────────────────────────────────────────
 const SYMBOL_IDS = LANGUAGES.map((l) => l.id);
-// Reel "weights": ogni linguaggio appare N volte, wild/scatter più rari.
-// Wild count maggiore = più chance di completare combo (slot "recruiter-friendly").
+// Reel: linguaggi più wild. SCATTER non viene più inserito (free-spin rimosso).
 const REEL = [
   ...LANGUAGES.flatMap((l) => Array(5).fill(l.id)),
   WILD_ID, WILD_ID, WILD_ID, WILD_ID,
-  SCATTER_ID,
 ];
 // Probabilità di forzare una vincita garantita su una payline (post-RNG rigging).
 const FORCED_WIN_PROB = 0.35;
@@ -112,8 +110,19 @@ export default async function handler(req, res) {
 
     await Promise.all(updates);
 
-    // Su vincita: redirect alla repo del linguaggio. Altrimenti al profilo.
-    const dest = repoMatch?.url || `https://github.com/${OWNER}`;
+    // Redirect:
+    //  • Jackpot (5 in fila): porta alla lista filtrata di TUTTE le repo dell'utente
+    //    in quel linguaggio → "discover all my projects".
+    //  • Win normale: porta alla repo migliore per quel linguaggio.
+    //  • Niente win: porta al profilo.
+    const isJackpot = wins.some((w) => w.count === 5);
+    let dest;
+    if (winningLang && isJackpot) {
+      const ghLang = encodeURIComponent(winningLang.githubLang || winningLang.name);
+      dest = `https://github.com/${OWNER}?tab=repositories&language=${ghLang}`;
+    } else {
+      dest = repoMatch?.url || `https://github.com/${OWNER}`;
+    }
     res.redirect(302, dest);
   } catch (err) {
     res.status(500).send('Errore: ' + err.message);
@@ -131,10 +140,11 @@ function updateReadmeMarkers(readme, state, lang, repoMatch, fact) {
   let block = `${START}\n`;
   block += `> 🎰 **Total community spins:** \`${total.toLocaleString('en-US')}\` · **Wins:** \`${wins.toLocaleString('en-US')}\`\n`;
   // Helper: estrae le due lingue dal fact (string o {it,en}) per retro-compat.
+  // Output ordinato: EN primario, IT secondario (linea successiva).
   const factLines = (f) => {
     if (!f) return [];
     if (typeof f === 'string') return [f];
-    return [f.it, f.en].filter(Boolean);
+    return [f.en, f.it].filter(Boolean);
   };
   if (lang && repoMatch) {
     block += `>\n> 🏆 **Last win:** \`${lang.name}\` → [${repoMatch.name}](${repoMatch.url})  \n`;
@@ -351,17 +361,23 @@ function wrap(text, maxChars) {
 
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
-  const CW = 78, CH = 56, GAP = 6;
-  const SVG_W = 560, SVG_H = 470;
+  const CW = 84, CH = 84, GAP = 8;
+  const SVG_W = 600, SVG_H = 580;
   const HDR_H = 92;
-  const GY = HDR_H + 12;
+  const GY = HDR_H + 14;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
-  const FILLERS = 14;
-  const DUR = [1.4, 1.9, 2.4, 2.9, 3.4];
+  const FILLERS = 18;
+  // Durate "reel" più lunghe: la slot resta visibile più a lungo a fronte
+  // del refresh della pagina che può nascondere parte dell'animazione.
+  const DUR = [3.0, 3.8, 4.6, 5.4, 6.2];
   const LDUR = DUR[COLS - 1];
   const scroll = FILLERS * CH;
+  // Near-miss: scroll più lungo (=> animazione più veloce a parità di tempo)
+  // e durata estesa per amplificare la suspense.
+  const NM_FILLERS_EXTRA = 14;
+  const NM_DUR_EXTRA = 1.6;
 
   const colL = (c) => MX + c * (CW + GAP);
   const colC = (c) => colL(c) + CW / 2;
@@ -369,8 +385,6 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const cellCY = (r) => GY + r * CH + CH / 2;
 
   const wins = checkWins(grid);
-  const scatPos = countScatters(grid);
-  const isFreeSpins = scatPos.length >= 3;
   const nearMissCol = detectNearMiss(grid, wins);
   const maxWin = wins.length > 0 ? Math.max(...wins.map((w) => w.count)) : 0;
   const isJackpot = wins.some((w) => w.count === 5);
@@ -379,7 +393,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const winCells = new Set();
   for (const w of wins) for (const p of w.positions) winCells.add(`${p.c},${p.r}`);
 
-  const ED = LDUR + 0.4;
+  // ED = end-of-spin time (quando il rullo più lento + eventuale extra near-miss
+  // si ferma). Tutte le animazioni post-spin partono da qui.
+  const ED = LDUR + (nearMissCol === COLS - 1 ? NM_DUR_EXTRA : 0) + 0.4;
 
   // ── CSS / animations ──
   let css = '';
@@ -390,23 +406,32 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   for (let c = 0; c < COLS; c++) {
     const a = `rs${uid}c${c}`;
     if (c === nearMissCol) {
-      css += `@keyframes ${a}{0%{transform:translateY(-${scroll}px)}` +
-        `65%{transform:translateY(22px)}75%{transform:translateY(-16px)}` +
-        `84%{transform:translateY(9px)}92%{transform:translateY(-4px)}100%{transform:translateY(0)}}`;
+      // Near-miss: scroll più lungo (più veloce per la maggior parte del tempo)
+      // + finale a 4-step di rimbalzo per fingere quasi-vincita.
+      const nmScroll = scroll + NM_FILLERS_EXTRA * CH;
+      css += `@keyframes ${a}{0%{transform:translateY(-${nmScroll}px)}` +
+        `60%{transform:translateY(-${Math.round(scroll * 0.18)}px)}` +
+        `72%{transform:translateY(28px)}80%{transform:translateY(-20px)}` +
+        `88%{transform:translateY(11px)}95%{transform:translateY(-5px)}100%{transform:translateY(0)}}`;
     } else {
       css += `@keyframes ${a}{0%{transform:translateY(-${scroll}px)}` +
-        `85%{transform:translateY(10px)}94%{transform:translateY(-3px)}100%{transform:translateY(0)}}`;
+        `85%{transform:translateY(12px)}94%{transform:translateY(-4px)}100%{transform:translateY(0)}}`;
     }
   }
   css += `@keyframes wp${uid}{0%,100%{opacity:0}50%{opacity:.55}}`;
   css += `@keyframes pf${uid}{from{opacity:0;stroke-width:1}to{opacity:.9;stroke-width:3}}`;
   css += `@keyframes ov${uid}{from{opacity:0}to{opacity:.92}}`;
   css += `@keyframes ot${uid}{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`;
-  css += `@keyframes sg${uid}{0%,100%{opacity:0;transform:scale(1)}50%{opacity:.6;transform:scale(1.08)}}`;
   css += `@keyframes fi${uid}{from{opacity:0}to{opacity:1}}`;
   css += `@keyframes jb${uid}{0%,100%{stroke:#ffd700}50%{stroke:#e94560}}`;
   css += `@keyframes nm${uid}{0%,100%{opacity:0}30%{opacity:.4}60%{opacity:0}}`;
-  css += `@keyframes cf${uid}{0%{transform:translateY(-20px);opacity:1}100%{transform:translateY(180px);opacity:0}}`;
+  css += `@keyframes cf${uid}{0%{transform:translateY(-20px);opacity:1}100%{transform:translateY(220px);opacity:0}}`;
+  // Shine animato attorno al rullo near-miss durante la rotazione.
+  css += `@keyframes sh${uid}{0%{opacity:0;stroke-width:1}` +
+    `15%{opacity:.95;stroke-width:4}50%{opacity:.6;stroke-width:3}` +
+    `85%{opacity:.95;stroke-width:5}100%{opacity:0;stroke-width:1}}`;
+  // Shimmer interno (gradient sweep) per il rullo near-miss.
+  css += `@keyframes shm${uid}{0%{transform:translateY(-100%)}100%{transform:translateY(${GH + 20}px)}}`;
 
   // ── Defs ──
   let defs = '';
@@ -414,6 +439,12 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   defs += `<linearGradient id="hdr${uid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="33%" stop-color="#ffd700"/><stop offset="66%" stop-color="#4ecdc4"/><stop offset="100%" stop-color="#a855f7"/></linearGradient>`;
   defs += `<linearGradient id="reelbg${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0b0b1f"/><stop offset="100%" stop-color="#1a1a35"/></linearGradient>`;
   defs += `<filter id="glow${uid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  // Gradient orizzontale per lo shimmer del near-miss.
+  defs += `<linearGradient id="shg${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#ffd700" stop-opacity="0"/>` +
+    `<stop offset="50%" stop-color="#ffd700" stop-opacity=".55"/>` +
+    `<stop offset="100%" stop-color="#ffd700" stop-opacity="0"/>` +
+    `</linearGradient>`;
   for (let c = 0; c < COLS; c++) {
     defs += `<clipPath id="cp${uid}c${c}"><rect x="${colL(c)}" y="${GY}" width="${CW}" height="${GH}"/></clipPath>`;
   }
@@ -430,22 +461,39 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }).join('');
 
   // ── Reels ──
-  let colBGs = '', reelsSvg = '', colBordersSvg = '';
+  let colBGs = '', reelsSvg = '', colBordersSvg = '', nmShineSvg = '';
   for (let c = 0; c < COLS; c++) {
     const x = colL(c);
-    colBGs += `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="9" fill="url(#reelbg${uid})"/>`;
+    const isNm = c === nearMissCol;
+    colBGs += `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="11" fill="url(#reelbg${uid})"/>`;
     let cells = '';
     for (let r = 0; r < ROWS; r++) {
       cells += symbolUse(uid, grid[c][r], x, GY + r * CH);
     }
-    for (let f = 0; f < FILLERS; f++) {
+    // Near-miss: più fillers (scroll più lungo) per dare l'effetto "più veloce".
+    const fillerCount = isNm ? FILLERS + NM_FILLERS_EXTRA : FILLERS;
+    for (let f = 0; f < fillerCount; f++) {
       const y = GY + (ROWS + f) * CH;
       const fid = REEL[Math.floor(Math.random() * REEL.length)];
       cells += symbolUse(uid, fid, x, y);
     }
-    const dur = c === nearMissCol ? DUR[c] + 0.7 : DUR[c];
+    const dur = isNm ? DUR[c] + NM_DUR_EXTRA : DUR[c];
     reelsSvg += `<g clip-path="url(#cp${uid}c${c})"><g style="animation:rs${uid}c${c} ${dur}s cubic-bezier(.1,.7,.3,1) forwards">${cells}</g></g>`;
-    colBordersSvg += `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="9" fill="none" stroke="#e94560" stroke-width="1.4" opacity="0.55"/>`;
+    colBordersSvg += `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="11" fill="none" stroke="#e94560" stroke-width="1.4" opacity="0.55"/>`;
+
+    // Near-miss shine: bordo dorato pulsante + shimmer verticale all'interno
+    // del rullo, attivi durante la rotazione.
+    if (isNm) {
+      nmShineSvg +=
+        `<rect x="${x - 2}" y="${GY - 2}" width="${CW + 4}" height="${GH + 4}" rx="13" fill="none"
+               stroke="#ffd700" filter="url(#glow${uid})"
+               style="animation:sh${uid} ${dur}s ease-in-out forwards;opacity:0"/>` +
+        `<g clip-path="url(#cp${uid}c${c})" style="opacity:.85">
+           <rect x="${x}" y="${GY}" width="${CW}" height="${Math.round(CH * 1.2)}"
+                 fill="url(#shg${uid})"
+                 style="animation:shm${uid} ${(dur / 2.2).toFixed(2)}s linear infinite"/>
+         </g>`;
+    }
   }
 
   // ── Payline markers ──
@@ -466,25 +514,19 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   let winGlowSvg = '';
   for (const key of winCells) {
     const [c, r] = key.split(',').map(Number);
-    winGlowSvg += `<rect x="${colL(c)}" y="${cellY(r)}" width="${CW}" height="${CH}" rx="9" fill="#ffd700" style="animation:wp${uid} .7s ${ED}s infinite;opacity:0"/>`;
-  }
-  let scatGlowSvg = '';
-  if (isFreeSpins) {
-    for (const p of scatPos) {
-      scatGlowSvg += `<rect x="${colL(p.c)}" y="${cellY(p.r)}" width="${CW}" height="${CH}" rx="9" fill="#a855f7" style="animation:sg${uid} .5s ${ED}s infinite;opacity:0"/>`;
-    }
+    winGlowSvg += `<rect x="${colL(c)}" y="${cellY(r)}" width="${CW}" height="${CH}" rx="11" fill="#ffd700" style="animation:wp${uid} .7s ${ED}s infinite;opacity:0"/>`;
   }
   let nearMissSvg = '';
   if (nearMissCol >= 0) {
-    nearMissSvg = `<rect x="${colL(nearMissCol)}" y="${GY}" width="${CW}" height="${GH}" rx="9" fill="#f59e0b" style="animation:nm${uid} 1.2s ${ED}s 2;opacity:0"/>`;
+    nearMissSvg = `<rect x="${colL(nearMissCol)}" y="${GY}" width="${CW}" height="${GH}" rx="11" fill="#f59e0b" style="animation:nm${uid} 1.2s ${ED}s 2;opacity:0"/>`;
   }
   let coinsSvg = '';
   if (isBigWin || isJackpot) {
-    const coinCount = isJackpot ? 14 : 8;
+    const coinCount = isJackpot ? 16 : 9;
     for (let i = 0; i < coinCount; i++) {
-      const cx = MX + 20 + Math.floor(Math.random() * (GW - 40));
+      const cx = MX + 24 + Math.floor(Math.random() * (GW - 48));
       const dl = ED + 0.2 + i * 0.12;
-      coinsSvg += `<text x="${cx}" y="${GY}" font-size="20" font-family="sans-serif" style="animation:cf${uid} 1.5s ${dl}s forwards;opacity:0">🪙</text>`;
+      coinsSvg += `<text x="${cx}" y="${GY}" font-size="24" font-family="sans-serif" style="animation:cf${uid} 1.6s ${dl}s forwards;opacity:0">🪙</text>`;
     }
   }
 
@@ -493,62 +535,69 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const PH = SVG_H - PY - 32;
   let panelSvg = '';
   if (isWin && winningLang) {
-    const factIt = (fact && fact.it) || '';
     const factEn = (fact && fact.en) || '';
-    const linesIt = wrap(factIt, 78).slice(0, 2);
-    const linesEn = wrap(factEn, 78).slice(0, 2);
+    const factIt = (fact && fact.it) || '';
+    const linesEn = wrap(factEn, 86).slice(0, 2);
+    const linesIt = wrap(factIt, 86).slice(0, 2);
     const headLine = isJackpot ? `🏆 JACKPOT — ${winningLang.name}!`
                   : isBigWin ? `💰 BIG WIN — ${winningLang.name}!`
                   : `🎉 ${winningLang.name} WIN!`;
     const headColor = isJackpot ? '#ffd700' : isBigWin ? '#ffb84d' : '#4ade80';
 
     panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${headColor}" stroke-width="1.5" opacity="0.95" style="animation:fi${uid} .5s ${ED}s forwards;opacity:0"/>`;
-    panelSvg += `<text x="${SVG_W / 2}" y="${PY + 22}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="16" font-weight="700" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}</text>`;
-    let yy = PY + 42;
-    // Italiano
-    if (linesIt.length) {
-      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.18}s forwards;opacity:0">IT</text>`;
-      for (const line of linesIt) {
-        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#e2e2f0" style="animation:fi${uid} .5s ${ED + 0.2}s forwards;opacity:0">${escapeXml(line)}</text>`;
-        yy += 13;
-      }
-      yy += 2;
-    }
-    // English
+    panelSvg += `<text x="${SVG_W / 2}" y="${PY + 24}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}</text>`;
+    let yy = PY + 46;
+    // English (primary)
     if (linesEn.length) {
-      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.28}s forwards;opacity:0">EN</text>`;
+      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.18}s forwards;opacity:0">EN</text>`;
       for (const line of linesEn) {
+        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="#e8e8f4" style="animation:fi${uid} .5s ${ED + 0.2}s forwards;opacity:0">${escapeXml(line)}</text>`;
+        yy += 15;
+      }
+      yy += 4;
+    }
+    // Italiano (secondary)
+    if (linesIt.length) {
+      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.28}s forwards;opacity:0">IT</text>`;
+      for (const line of linesIt) {
         panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#b8b8d0" font-style="italic" style="animation:fi${uid} .5s ${ED + 0.3}s forwards;opacity:0">${escapeXml(line)}</text>`;
-        yy += 13;
+        yy += 14;
       }
     }
     if (repoMatch) {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 14}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">→ github.com/${escapeXml(OWNER)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}</text>`;
+      const ctaEn = isJackpot
+        ? `🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos`
+        : `→ github.com/${escapeXml(OWNER)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}`;
+      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">${ctaEn}</text>`;
+    } else if (isJackpot) {
+      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos</text>`;
     }
     // Se non c'è una repo pubblica con ≥30% del linguaggio: silenzio totale.
   } else {
-    const msg = nearMissCol >= 0 ? '😱 Così vicino! Ritenta!' : 'Ritenta, sarai più fortunato!';
+    const msgEn = nearMissCol >= 0 ? '😱 So close — try again!' : 'Try again, better luck next time!';
+    const msgIt = nearMissCol >= 0 ? 'Così vicino, ritenta!' : 'Ritenta, sarai più fortunato!';
     const col = nearMissCol >= 0 ? '#f59e0b' : '#e94560';
     panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${col}" stroke-width="1" opacity="0.9"/>`;
-    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 5}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="${col}" style="animation:fi${uid} .4s ${ED}s forwards;opacity:0">${escapeXml(msg)}</text>`;
+    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 - 4}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="15" font-weight="700" fill="${col}" style="animation:fi${uid} .4s ${ED}s forwards;opacity:0">${escapeXml(msgEn)}</text>`;
+    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-style="italic" fill="#8b8baf" style="animation:fi${uid} .4s ${ED + 0.1}s forwards;opacity:0">${escapeXml(msgIt)}</text>`;
   }
 
-  // ── Overlay sopra griglia (jackpot / freespin) ──
+  // ── Overlay sopra griglia: solo per JACKPOT (5-in-a-row).
+  // Free-spin/scatter rimossi: il jackpot ora ha utilità reale (redirect alla
+  // lista filtrata di tutte le repo dell'utente in quel linguaggio).
   let overlaySvg = '';
   if (isJackpot) {
     overlaySvg =
-      `<rect x="${MX}" y="${GY}" width="${GW}" height="${GH}" rx="10" fill="#1a1a2e" style="animation:ov${uid} .4s ${ED}s forwards;opacity:0"/>` +
-      `<rect x="${MX + 2}" y="${GY + 2}" width="${GW - 4}" height="${GH - 4}" rx="9" fill="none" stroke="#ffd700" stroke-width="2" style="animation:jb${uid} .3s ${ED}s infinite;opacity:0"/>` +
-      `<text x="${SVG_W / 2}" y="${GY + GH / 2 + 6}" text-anchor="middle" font-size="34" font-weight="800" fill="#ffd700" font-family="'Segoe UI',sans-serif" filter="url(#glow${uid})" style="animation:ot${uid} .5s ${ED + 0.15}s forwards;opacity:0">🏆 JACKPOT 🏆</text>`;
-  } else if (isFreeSpins && !isWin) {
-    overlaySvg =
-      `<rect x="${MX}" y="${GY}" width="${GW}" height="${GH}" rx="10" fill="#6d28d9" style="animation:ov${uid} .4s ${ED}s forwards;opacity:0"/>` +
-      `<text x="${SVG_W / 2}" y="${GY + GH / 2 + 8}" text-anchor="middle" font-size="28" font-weight="800" fill="#fff" font-family="'Segoe UI',sans-serif" style="animation:ot${uid} .5s ${ED + 0.15}s forwards;opacity:0">⭐ FREE SPIN ⭐</text>`;
+      `<rect x="${MX}" y="${GY}" width="${GW}" height="${GH}" rx="11" fill="#1a1a2e" style="animation:ov${uid} .4s ${ED}s forwards;opacity:0"/>` +
+      `<rect x="${MX + 2}" y="${GY + 2}" width="${GW - 4}" height="${GH - 4}" rx="10" fill="none" stroke="#ffd700" stroke-width="2" style="animation:jb${uid} .3s ${ED}s infinite;opacity:0"/>` +
+      `<text x="${SVG_W / 2}" y="${GY + GH / 2 - 8}" text-anchor="middle" font-size="38" font-weight="800" fill="#ffd700" font-family="'Segoe UI',sans-serif" filter="url(#glow${uid})" style="animation:ot${uid} .5s ${ED + 0.15}s forwards;opacity:0">🏆 JACKPOT 🏆</text>` +
+      `<text x="${SVG_W / 2}" y="${GY + GH / 2 + 16}" text-anchor="middle" font-size="13" font-weight="700" fill="#ffd700" font-family="'Segoe UI',sans-serif" style="animation:ot${uid} .5s ${ED + 0.3}s forwards;opacity:0">Discover ALL my ${escapeXml(winningLang ? winningLang.name : '')} projects →</text>` +
+      `<text x="${SVG_W / 2}" y="${GY + GH / 2 + 34}" text-anchor="middle" font-size="11" fill="#ffe88a" font-family="'Segoe UI',sans-serif" font-style="italic" style="animation:ot${uid} .5s ${ED + 0.4}s forwards;opacity:0">Scopri TUTTI i miei progetti ${escapeXml(winningLang ? winningLang.name : '')}</text>`;
   }
 
   // ── Header ──
-  // Layout verticale: titolo → sottotitolo → (label + numero) sulla stessa riga,
-  // ma con il numero spostato più in basso rispetto al label per evitare sovrapposizioni.
+  // Etichette EN "primarie" + IT in piccolo sotto. I numeri sono allineati
+  // verso l'esterno (sinistra/destra) per non sovrapporsi al titolo centrato.
   const total = (state.totalSpins || 0).toLocaleString('en-US');
   const wonTotal = (state.totalWins || 0).toLocaleString('en-US');
   const headerSvg = `
@@ -556,10 +605,12 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 <text x="${SVG_W / 2}" y="40" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
 <text x="${SVG_W / 2}" y="58" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
 <g font-family="'Segoe UI',sans-serif">
-  <text x="32" y="72" font-size="9" fill="#6d6d8e" letter-spacing="1.2">COMMUNITY SPINS</text>
-  <text x="32" y="88" font-size="14" font-weight="700" fill="#ffd700">${total}</text>
-  <text x="${SVG_W - 32}" y="72" text-anchor="end" font-size="9" fill="#6d6d8e" letter-spacing="1.2">WINS</text>
-  <text x="${SVG_W - 32}" y="88" text-anchor="end" font-size="14" font-weight="700" fill="#4ade80">${wonTotal}</text>
+  <text x="32" y="73" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>
+  <text x="32" y="84" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">giri totali</text>
+  <text x="32" y="100" font-size="15" font-weight="800" fill="#ffd700">${total}</text>
+  <text x="${SVG_W - 32}" y="73" text-anchor="end" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>
+  <text x="${SVG_W - 32}" y="84" text-anchor="end" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">vincite</text>
+  <text x="${SVG_W - 32}" y="100" text-anchor="end" font-size="15" font-weight="800" fill="#4ade80">${wonTotal}</text>
 </g>`;
 
   // ── Border ──
@@ -570,7 +621,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       : `stroke="#3a3666" stroke-width="2"`;
 
   const footer = `
-<text x="${SVG_W / 2}" y="${SVG_H - 14}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="9" fill="#5d5d80">★ Wild  ·  ✦ Scatter (3+ = Free Spin)  ·  5 paylines  ·  github.com/${escapeXml(OWNER)}</text>`;
+<text x="${SVG_W / 2}" y="${SVG_H - 14}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="9" fill="#5d5d80">★ Wild  ·  5 paylines  ·  5-in-a-row = JACKPOT (all my repos)  ·  github.com/${escapeXml(OWNER)}</text>`;
 
   return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>${defs}</defs>
@@ -581,11 +632,11 @@ ${lightsSvg}
 ${headerSvg}
 ${colBGs}
 ${reelsSvg}
+${nmShineSvg}
 ${colBordersSvg}
 ${plMarkers}
 ${winLinesSvg}
 ${winGlowSvg}
-${scatGlowSvg}
 ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}

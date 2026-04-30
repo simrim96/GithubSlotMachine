@@ -24,11 +24,11 @@ export const LANGUAGES = [
     text: '#ffffff',
     githubLang: 'C++',
     icon: `
-      <g transform="translate(39,22)">
-        <path d="M0,-15 L13,-7.5 L13,7.5 L0,15 L-13,7.5 L-13,-7.5 Z"
-              fill="#004482" stroke="#9FD3F0" stroke-width="1.2"/>
-        <text x="0" y="4" text-anchor="middle" font-family="'Segoe UI',sans-serif"
-              font-size="11" font-weight="900" fill="#ffffff" letter-spacing="-0.5">C++</text>
+      <g transform="translate(42,38)">
+        <path d="M0,-22 L19,-11 L19,11 L0,22 L-19,11 L-19,-11 Z"
+              fill="#004482" stroke="#9FD3F0" stroke-width="1.4"/>
+        <text x="0" y="6" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+              font-size="16" font-weight="900" fill="#ffffff" letter-spacing="-0.5">C++</text>
       </g>`,
     facts: [
       {
@@ -54,13 +54,13 @@ export const LANGUAGES = [
     text: '#ffffff',
     githubLang: 'GLSL',
     icon: `
-      <g transform="translate(39,22)">
-        <polygon points="0,-15 13,-7.5 13,7.5 0,15 -13,7.5 -13,-7.5"
-                 fill="#3a6178" stroke="#F5B642" stroke-width="1.5"/>
-        <polygon points="0,-9 8,-4.5 8,4.5 0,9 -8,4.5 -8,-4.5"
-                 fill="none" stroke="#F5B642" stroke-width="1" opacity="0.6"/>
-        <text x="0" y="3.5" text-anchor="middle" font-family="'Segoe UI',sans-serif"
-              font-size="9" font-weight="900" fill="#ffffff">GL</text>
+      <g transform="translate(42,38)">
+        <polygon points="0,-22 19,-11 19,11 0,22 -19,11 -19,-11"
+                 fill="#3a6178" stroke="#F5B642" stroke-width="1.8"/>
+        <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5"
+                 fill="none" stroke="#F5B642" stroke-width="1.2" opacity="0.6"/>
+        <text x="0" y="5" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+              font-size="13" font-weight="900" fill="#ffffff">GL</text>
       </g>`,
     facts: [
       {
@@ -87,11 +87,11 @@ export const LANGUAGES = [
     githubLang: 'JavaScript',
     topic: 'react',
     icon: `
-      <g transform="translate(39,22)">
-        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4"/>
-        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4" transform="rotate(60)"/>
-        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4" transform="rotate(120)"/>
-        <circle cx="0" cy="0" r="2.4" fill="#61DAFB"/>
+      <g transform="translate(42,38)">
+        <ellipse cx="0" cy="0" rx="20" ry="7.5" fill="none" stroke="#61DAFB" stroke-width="1.8"/>
+        <ellipse cx="0" cy="0" rx="20" ry="7.5" fill="none" stroke="#61DAFB" stroke-width="1.8" transform="rotate(60)"/>
+        <ellipse cx="0" cy="0" rx="20" ry="7.5" fill="none" stroke="#61DAFB" stroke-width="1.8" transform="rotate(120)"/>
+        <circle cx="0" cy="0" r="3.6" fill="#61DAFB"/>
       </g>`,
     facts: [
       {
@@ -117,10 +117,10 @@ export const LANGUAGES = [
     text: '#1a1a1a',
     githubLang: 'JavaScript',
     icon: `
-      <g transform="translate(39,22)">
-        <rect x="-15" y="-15" width="30" height="30" rx="3" fill="#F7DF1E" stroke="#1a1a1a" stroke-width="1"/>
-        <text x="11" y="11" text-anchor="end" font-family="'Segoe UI',sans-serif"
-              font-size="13" font-weight="900" fill="#1a1a1a" letter-spacing="-0.3">JS</text>
+      <g transform="translate(42,38)">
+        <rect x="-22" y="-22" width="44" height="44" rx="4" fill="#F7DF1E" stroke="#1a1a1a" stroke-width="1.2"/>
+        <text x="16" y="16" text-anchor="end" font-family="'Segoe UI',sans-serif"
+              font-size="19" font-weight="900" fill="#1a1a1a" letter-spacing="-0.5">JS</text>
       </g>`,
     facts: [
       {
@@ -146,7 +146,7 @@ export const LANGUAGES = [
     text: '#ffffff',
     githubLang: 'Python',
     icon: `
-      <g transform="translate(39,22)">
+      <g transform="translate(42,38) scale(1.45)">
         <path d="M-2,-14 Q-9,-14 -9,-7 V-3 H1 V-1 H-11 Q-15,-1 -15,5 V9 Q-15,14 -10,14 H-6 V8 Q-6,4 -1,4 H7 Q12,4 12,-1 V-7 Q12,-14 5,-14 Z"
               fill="#3776AB" stroke="#ffffff" stroke-width="0.6"/>
         <circle cx="-5" cy="-10" r="1.4" fill="#ffffff"/>
@@ -178,12 +178,14 @@ export const WILD = {
   accent: '#a16207',
   text: '#1a1a2e',
   icon: `
-    <g transform="translate(39,22)">
-      <polygon points="0,-13 3.5,-4 13,-4 5.5,1.5 8.5,11 0,5.5 -8.5,11 -5.5,1.5 -13,-4 -3.5,-4"
-               fill="#1a1a2e" stroke="#a16207" stroke-width="1"/>
+    <g transform="translate(42,38)">
+      <polygon points="0,-19 5.2,-6 19,-6 8,2.2 12.5,16 0,8 -12.5,16 -8,2.2 -19,-6 -5.2,-6"
+               fill="#1a1a2e" stroke="#a16207" stroke-width="1.2"/>
     </g>`,
 };
 
+// SCATTER (BONUS) — mantenuto come export per retro-compat ma non più inserito
+// nel reel né usato per logiche di gioco (free spin rimosso in favore del JACKPOT).
 export const SCATTER = {
   id: 'scatter',
   short: 'BONUS',
@@ -191,9 +193,9 @@ export const SCATTER = {
   accent: '#f0abfc',
   text: '#ffffff',
   icon: `
-    <g transform="translate(39,22)">
-      <path d="M0,-13 L3.5,-3.5 L13,0 L3.5,3.5 L0,13 L-3.5,3.5 L-13,0 L-3.5,-3.5 Z"
-            fill="#ffffff" stroke="#f0abfc" stroke-width="1"/>
+    <g transform="translate(42,38)">
+      <path d="M0,-19 L5,-5 L19,0 L5,5 L0,19 L-5,5 L-19,0 L-5,-5 Z"
+            fill="#ffffff" stroke="#f0abfc" stroke-width="1.2"/>
     </g>`,
 };
 
@@ -205,7 +207,7 @@ export const WILD_ID = WILD.id;
 export const SCATTER_ID = SCATTER.id;
 
 // ─── Symbol renderer ──────────────────────────────────────────────────────────
-// Layout: icona "ufficiale" centrata in alto (y≈22) + label compatto in basso (y≈49).
+// Cella quadrata 84×84: icona centrata in alto (y≈38) + label compatto in basso (y≈73).
 export function buildSymbolDefs(uid) {
   return ALL_SYMBOLS.map((s) => {
     const grad = `g_${uid}_${s.id}`;
@@ -214,18 +216,18 @@ export function buildSymbolDefs(uid) {
   <stop offset="0%" stop-color="${s.color}" stop-opacity="1"/>
   <stop offset="100%" stop-color="${shade(s.color, -0.25)}" stop-opacity="1"/>
 </linearGradient>
-<symbol id="sym_${uid}_${s.id}" viewBox="0 0 78 56">
-  <rect x="3" y="3" width="72" height="50" rx="9" fill="url(#${grad})"/>
-  <rect x="3" y="3" width="72" height="50" rx="9" fill="none" stroke="${s.accent}" stroke-width="1.6" opacity="0.85"/>
-  <rect x="6" y="6" width="66" height="10" rx="4" fill="#ffffff" opacity="0.08"/>
+<symbol id="sym_${uid}_${s.id}" viewBox="0 0 84 84">
+  <rect x="4" y="4" width="76" height="76" rx="11" fill="url(#${grad})"/>
+  <rect x="4" y="4" width="76" height="76" rx="11" fill="none" stroke="${s.accent}" stroke-width="1.6" opacity="0.85"/>
+  <rect x="7" y="7" width="70" height="14" rx="5" fill="#ffffff" opacity="0.07"/>
   ${s.icon || ''}
-  <text x="39" y="49" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif"
-        font-size="9" font-weight="700" fill="${s.text}" letter-spacing="0.6" opacity="0.95">${escapeXml(s.short)}</text>
+  <text x="42" y="73" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif"
+        font-size="10" font-weight="700" fill="${s.text}" letter-spacing="0.7" opacity="0.95">${escapeXml(s.short)}</text>
 </symbol>`;
   }).join('');
 }
 
-export function symbolUse(uid, id, x, y, w = 78, h = 56) {
+export function symbolUse(uid, id, x, y, w = 84, h = 84) {
   return `<use href="#sym_${uid}_${id}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
 }
 
