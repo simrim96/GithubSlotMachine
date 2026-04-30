@@ -1,16 +1,16 @@
 {
-  "totalSpins": 70,
-  "totalWins": 39,
+  "totalSpins": 71,
+  "totalWins": 40,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
-      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777585811267
+    "ts": 1777586383767
   }
 }
