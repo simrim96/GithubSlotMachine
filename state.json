@@ -1,16 +1,16 @@
 {
-  "totalSpins": 115,
-  "totalWins": 73,
+  "totalSpins": 116,
+  "totalWins": 74,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "typescript",
+    "langName": "TypeScript",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.",
+      "en": "TypeScript's type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777588005768
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777588012099
   }
 }
