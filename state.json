@@ -1,16 +1,16 @@
 {
-  "totalSpins": 125,
-  "totalWins": 79,
+  "totalSpins": 126,
+  "totalWins": 80,
   "lastWin": {
     "langId": "react",
     "langName": "React",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
+      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588349001
+    "ts": 1777588357664
   }
 }
