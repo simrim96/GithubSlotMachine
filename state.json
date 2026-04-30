@@ -1,16 +1,16 @@
 {
-  "totalSpins": 79,
-  "totalWins": 46,
+  "totalSpins": 80,
+  "totalWins": 47,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
-      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586615495
+    "ts": 1777586672369
   }
 }
