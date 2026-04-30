@@ -1,16 +1,16 @@
 {
-  "totalSpins": 74,
-  "totalWins": 43,
+  "totalSpins": 75,
+  "totalWins": 44,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
-      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
+      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard.",
+      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586589068
+    "ts": 1777586596065
   }
 }
