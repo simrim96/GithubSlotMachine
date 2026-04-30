@@ -1,16 +1,16 @@
 {
-  "totalSpins": 110,
-  "totalWins": 69,
+  "totalSpins": 111,
+  "totalWins": 70,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587481136
+    "ts": 1777587938357
   }
 }
