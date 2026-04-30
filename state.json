@@ -1,16 +1,16 @@
 {
-  "totalSpins": 53,
-  "totalWins": 26,
+  "totalSpins": 54,
+  "totalWins": 27,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
-      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
+      "it": "C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio \"moderno\" (Python, Ruby, PHP, Lua…).",
+      "en": "C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it's the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every \"modern\" language (Python, Ruby, PHP, Lua…)."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777584018544
+    "ts": 1777584951342
   }
 }
