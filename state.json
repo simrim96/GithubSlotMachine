@@ -1,16 +1,16 @@
 {
-  "totalSpins": 140,
-  "totalWins": 94,
+  "totalSpins": 141,
+  "totalWins": 95,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
-      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777590062525
+    "ts": 1777590063439
   }
 }
