@@ -1,16 +1,16 @@
 {
-  "totalSpins": 65,
-  "totalWins": 36,
+  "totalSpins": 66,
+  "totalWins": 37,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
-      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
+      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt.",
+      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777585783462
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777585795105
   }
 }
