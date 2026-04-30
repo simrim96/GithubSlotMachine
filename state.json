@@ -1,16 +1,16 @@
 {
-  "totalSpins": 130,
-  "totalWins": 84,
+  "totalSpins": 133,
+  "totalWins": 87,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
-      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588485508
+    "ts": 1777589272027
   }
 }
