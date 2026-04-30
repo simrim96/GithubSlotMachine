@@ -1,13 +1,13 @@
 {
-  "totalSpins": 6,
-  "totalWins": 2,
+  "totalSpins": 7,
+  "totalWins": 3,
   "lastWin": {
     "langId": "python",
     "langName": "Python",
-    "fact": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
+    "fact": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777578235347
+    "ts": 1777578306716
   }
 }
