@@ -1,16 +1,16 @@
 {
-  "totalSpins": 71,
-  "totalWins": 40,
+  "totalSpins": 72,
+  "totalWins": 41,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
-      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586383767
+    "ts": 1777586394824
   }
 }
