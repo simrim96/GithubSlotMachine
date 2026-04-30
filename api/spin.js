@@ -382,13 +382,18 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 700;
+  const SVG_W = 600, SVG_H = 740;
   const HDR_H = 92;
+  // Top offset: lasciamo spazio in cima per il "crown" della cabinet
+  // (la marquee dorata stile slot vintage che svetta sopra il corpo).
+  const HDR_TOP = 44;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
   const PT_H = 112;
-  const PT_Y = HDR_H + 12;
-  const GY = PT_Y + PT_H + 14;
+  const PT_Y = HDR_TOP + HDR_H + 4;
+  // Margine extra prima dei rulli per ospitare la cornice gialla a lampadine
+  // attorno allo "screen" (FRAME_PAD viene definito più in basso).
+  const GY = PT_Y + PT_H + 36;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -483,35 +488,31 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   defs += `<linearGradient id="hdr${uid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="33%" stop-color="#ffd700"/><stop offset="66%" stop-color="#4ecdc4"/><stop offset="100%" stop-color="#a855f7"/></linearGradient>`;
   defs += `<linearGradient id="reelbg${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0b0b1f"/><stop offset="100%" stop-color="#1a1a35"/></linearGradient>`;
   defs += `<filter id="glow${uid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
-  // Classic slot-machine cabinet: red lacquered side rails + polished chrome bezel.
-  defs += `<linearGradient id="cab${uid}" x1="0" y1="0" x2="1" y2="0">` +
-    `<stop offset="0%" stop-color="#5a0f0f"/>` +
-    `<stop offset="15%" stop-color="#a82020"/>` +
-    `<stop offset="50%" stop-color="#7a1414"/>` +
-    `<stop offset="85%" stop-color="#a82020"/>` +
-    `<stop offset="100%" stop-color="#5a0f0f"/>` +
+  // Classic cartoon slot-machine palette: flat lacquered red cabinet,
+  // thick golden marquee frame, glowing yellow bulbs.
+  defs += `<linearGradient id="cab${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#e8331f"/>` +
+    `<stop offset="50%" stop-color="#c41e1e"/>` +
+    `<stop offset="100%" stop-color="#7a0f0f"/>` +
     `</linearGradient>`;
-  defs += `<linearGradient id="chrome${uid}" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0%" stop-color="#f4f4f6"/>` +
-    `<stop offset="25%" stop-color="#9a9aa3"/>` +
-    `<stop offset="55%" stop-color="#3a3a44"/>` +
-    `<stop offset="80%" stop-color="#9a9aa3"/>` +
-    `<stop offset="100%" stop-color="#f4f4f6"/>` +
+  defs += `<linearGradient id="cabHi${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#ff6a4a" stop-opacity=".55"/>` +
+    `<stop offset="100%" stop-color="#ff6a4a" stop-opacity="0"/>` +
     `</linearGradient>`;
-  defs += `<radialGradient id="bulbOn${uid}" cx="50%" cy="40%" r="55%">` +
+  defs += `<linearGradient id="frame${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#ffd84a"/>` +
+    `<stop offset="50%" stop-color="#f5a623"/>` +
+    `<stop offset="100%" stop-color="#c47a07"/>` +
+    `</linearGradient>`;
+  defs += `<radialGradient id="bulbOn${uid}" cx="35%" cy="30%" r="70%">` +
     `<stop offset="0%" stop-color="#fffbe6"/>` +
-    `<stop offset="35%" stop-color="#ffe066"/>` +
-    `<stop offset="75%" stop-color="#f5a300"/>` +
-    `<stop offset="100%" stop-color="#7a3b00"/>` +
+    `<stop offset="40%" stop-color="#ffd84a"/>` +
+    `<stop offset="100%" stop-color="#a85a00"/>` +
     `</radialGradient>`;
-  defs += `<radialGradient id="bulbOff${uid}" cx="50%" cy="40%" r="55%">` +
-    `<stop offset="0%" stop-color="#4a3a18"/>` +
-    `<stop offset="100%" stop-color="#1a1208"/>` +
-    `</radialGradient>`;
-  defs += `<linearGradient id="tray${uid}" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0%" stop-color="#080614"/>` +
-    `<stop offset="50%" stop-color="#1a1530"/>` +
-    `<stop offset="100%" stop-color="#080614"/>` +
+  defs += `<linearGradient id="goldBar${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#ffe066"/>` +
+    `<stop offset="55%" stop-color="#f5a623"/>` +
+    `<stop offset="100%" stop-color="#a86610"/>` +
     `</linearGradient>`;
   // Gradient orizzontale per lo shimmer del near-miss.
   defs += `<linearGradient id="shg${uid}" x1="0" y1="0" x2="0" y2="1">` +
@@ -524,30 +525,43 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
   defs += buildSymbolDefs(uid);
 
-  // ── Cabinet bulbs (classic slot-machine side lighting) ──
-  // Lampadine sui montanti laterali della cabinet: simulano l'illuminazione
-  // incandescente delle slot machine vintage. Sono incorniciate sopra il
-  // contenuto interno (header / paytable / panel) per dare un'idea di
-  // "luminarie" che corrono lungo i lati della macchina.
+  // ── Marquee bulbs (golden frame around the reel screen) ──
+  // Stile cartoon classico: una cornice gialla spessa attorno ai SOLI rulli
+  // (lo "schermo" della slot) con lampadine dorate distribuite uniformemente
+  // sui quattro lati. È la firma visiva delle slot machine vintage.
   // In stato "win" pulsano rapidamente; in idle scorrono in chase sequenziale.
-  const bulbR = 4.5;
-  const bulbStep = 28;
-  const bulbX_L = 22;
-  const bulbX_R = SVG_W - 22;
-  const yMin = 24;
-  const yMax = SVG_H - 24;
+  const FRAME_PAD = 26;            // spessore della cornice gialla
+  const SCR_X = MX - FRAME_PAD;
+  const SCR_Y = GY - FRAME_PAD;
+  const SCR_W = GW + 2 * FRAME_PAD;
+  const SCR_H = GH + 2 * FRAME_PAD;
+  const bulbR = 5.5;
+  const bulbStep = 26;
+  const bulbInset = FRAME_PAD / 2; // lampadine al centro della cornice
   const bulbs = [];
-  for (let y = yMin; y <= yMax; y += bulbStep) {
-    bulbs.push({ x: bulbX_L, y });
-    bulbs.push({ x: bulbX_R, y });
+  // Top + bottom rows
+  const colsCount = Math.max(2, Math.round((SCR_W - 2 * bulbInset) / bulbStep));
+  const colDx = (SCR_W - 2 * bulbInset) / colsCount;
+  for (let i = 0; i <= colsCount; i++) {
+    const x = SCR_X + bulbInset + i * colDx;
+    bulbs.push({ x, y: SCR_Y + bulbInset });
+    bulbs.push({ x, y: SCR_Y + SCR_H - bulbInset });
+  }
+  // Left + right columns (skip corners, already added)
+  const rowsCount = Math.max(2, Math.round((SCR_H - 2 * bulbInset) / bulbStep));
+  const rowDy = (SCR_H - 2 * bulbInset) / rowsCount;
+  for (let i = 1; i < rowsCount; i++) {
+    const y = SCR_Y + bulbInset + i * rowDy;
+    bulbs.push({ x: SCR_X + bulbInset,           y });
+    bulbs.push({ x: SCR_X + SCR_W - bulbInset,   y });
   }
   const lightsSvg = bulbs.map((b, i) => {
-    const dur = isWin ? 0.45 : 1.6;
-    const dl = isWin ? ED + (i % 4) * 0.09 : (i * 0.07) % 1.6;
+    const dur = isWin ? 0.45 : 1.4;
+    const dl = isWin ? ED + (i % 4) * 0.09 : (i * 0.06) % 1.4;
     return `<g style="animation:${bln} ${dur}s ${dl.toFixed(2)}s infinite">` +
-      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR + 1.8}" fill="#ffd700" opacity="0.18"/>` +
-      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR}" fill="url(#bulbOn${uid})" stroke="#3a2a10" stroke-width="0.6"/>` +
-      `<circle cx="${b.x - 1.2}" cy="${b.y - 1.4}" r="1.1" fill="#ffffff" opacity="0.85"/>` +
+      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR + 2.2}" fill="#ffd84a" opacity="0.22"/>` +
+      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR}" fill="url(#bulbOn${uid})" stroke="#7a3a00" stroke-width="0.9"/>` +
+      `<circle cx="${b.x - 1.6}" cy="${b.y - 1.8}" r="1.4" fill="#ffffff" opacity="0.9"/>` +
       `</g>`;
   }).join('');
 
@@ -624,9 +638,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Pannello in basso. Lasciamo spazio in fondo per footer + coin tray.
-  const PY = GY + GH + 14;
-  const PH = SVG_H - PY - 44;
+  // Pannello in basso, sopra al coin tray (trayY = SVG_H - 56).
+  const PY = GY + GH + FRAME_PAD + 12;
+  const PH = (SVG_H - 56) - PY - 8;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -695,16 +709,16 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const total = (state.totalSpins || 0).toLocaleString('en-US');
   const wonTotal = (state.totalWins || 0).toLocaleString('en-US');
   const headerSvg = `
-<rect x="14" y="14" width="${SVG_W - 28}" height="${HDR_H - 6}" rx="14" fill="#13122d" opacity="0.85"/>
-<text x="${SVG_W / 2}" y="40" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
-<text x="${SVG_W / 2}" y="58" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
+<rect x="32" y="${HDR_TOP}" width="${SVG_W - 64}" height="${HDR_H - 6}" rx="14" fill="#13122d" opacity="0.92" stroke="#7a4400" stroke-width="1.2"/>
+<text x="${SVG_W / 2}" y="${HDR_TOP + 26}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
+<text x="${SVG_W / 2}" y="${HDR_TOP + 44}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
 <g font-family="'Segoe UI',sans-serif">
-  <text x="32" y="73" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>
-  <text x="32" y="84" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">giri totali</text>
-  <text x="32" y="100" font-size="15" font-weight="800" fill="#ffd700">${total}</text>
-  <text x="${SVG_W - 32}" y="73" text-anchor="end" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>
-  <text x="${SVG_W - 32}" y="84" text-anchor="end" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">vincite</text>
-  <text x="${SVG_W - 32}" y="100" text-anchor="end" font-size="15" font-weight="800" fill="#4ade80">${wonTotal}</text>
+  <text x="50" y="${HDR_TOP + 59}" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>
+  <text x="50" y="${HDR_TOP + 70}" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">giri totali</text>
+  <text x="50" y="${HDR_TOP + 84}" font-size="15" font-weight="800" fill="#ffd700">${total}</text>
+  <text x="${SVG_W - 50}" y="${HDR_TOP + 59}" text-anchor="end" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>
+  <text x="${SVG_W - 50}" y="${HDR_TOP + 70}" text-anchor="end" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">vincite</text>
+  <text x="${SVG_W - 50}" y="${HDR_TOP + 84}" text-anchor="end" font-size="15" font-weight="800" fill="#4ade80">${wonTotal}</text>
 </g>`;
 
   // ── Border ──
@@ -714,51 +728,112 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       ? `stroke="#16a34a" stroke-width="2.5"`
       : `stroke="#3a3666" stroke-width="2"`;
 
-  // ── Classic slot-machine cabinet ──
-  // 1. Outer red lacquered shell
-  // 2. Polished chrome bezel
-  // 3. Inner dark "playfield" hairline
-  // 4. Side rivets (decorative)
-  // 5. Coin tray slot at the bottom
+  // ── Classic cartoon slot-machine cabinet ──
+  // Layout (cartoon vector style, ispirato alle slot vintage):
+  //   1. Crown rettangolare sulla cima (piccola "marquee" sopra il corpo)
+  //   2. Corpo rosso laccato con spalle arrotondate
+  //   3. Cornice gialla spessa attorno allo "screen" (rulli) con lampadine
+  //   4. Coin tray rosso scuro alla base con tre lingotti dorati + moneta
+  // I bulbs (lightsSvg) e lo screen vengono renderizzati sopra questo cabinet.
+  const CROWN_W = 220;
+  const CROWN_H = 30;
+  const CROWN_X = (SVG_W - CROWN_W) / 2;
+  const CROWN_Y = 4;
+  const BODY_Y = CROWN_Y + CROWN_H - 2;
+  // Spalle arrotondate: path con curve in alto a sinistra/destra che si
+  // allargano verso il basso, dando il profilo "fungo" della slot classica.
   const cabinetSvg =
-    `<rect x="0" y="0" width="${SVG_W}" height="${SVG_H}" rx="26" fill="url(#cab${uid})"/>` +
-    `<rect x="6" y="6" width="${SVG_W - 12}" height="${SVG_H - 12}" rx="22" fill="none" stroke="url(#chrome${uid})" stroke-width="4"/>` +
-    `<rect x="11" y="11" width="${SVG_W - 22}" height="${SVG_H - 22}" rx="19" fill="none" stroke="#1a0606" stroke-width="1.2" opacity="0.9"/>`;
-  let rivetsSvg = '';
-  for (const rx of [16, SVG_W - 16]) {
-    for (let ry = 70; ry < SVG_H - 60; ry += 80) {
-      rivetsSvg +=
-        `<circle cx="${rx}" cy="${ry}" r="2.6" fill="#1a0606"/>` +
-        `<circle cx="${rx - 0.6}" cy="${ry - 0.7}" r="1" fill="#f0c0c0" opacity="0.7"/>`;
-    }
+    // Crown decorativo
+    `<rect x="${CROWN_X}" y="${CROWN_Y}" width="${CROWN_W}" height="${CROWN_H}" rx="6"
+           fill="url(#frame${uid})" stroke="#7a4400" stroke-width="2"/>` +
+    `<rect x="${CROWN_X + 6}" y="${CROWN_Y + 4}" width="${CROWN_W - 12}" height="6" rx="2"
+           fill="#ffffff" opacity="0.35"/>` +
+    // Corpo principale: rettangolo arrotondato rosso
+    `<path d="
+       M 24 ${BODY_Y + 28}
+       Q 24 ${BODY_Y} 56 ${BODY_Y}
+       L ${SVG_W - 56} ${BODY_Y}
+       Q ${SVG_W - 24} ${BODY_Y} ${SVG_W - 24} ${BODY_Y + 28}
+       L ${SVG_W - 24} ${SVG_H - 30}
+       Q ${SVG_W - 24} ${SVG_H - 6} ${SVG_W - 48} ${SVG_H - 6}
+       L 48 ${SVG_H - 6}
+       Q 24 ${SVG_H - 6} 24 ${SVG_H - 30}
+       Z"
+       fill="url(#cab${uid})" stroke="#5a0606" stroke-width="2"/>` +
+    // Highlight superiore (riflesso del corpo lacca)
+    `<path d="
+       M 36 ${BODY_Y + 28}
+       Q 36 ${BODY_Y + 8} 60 ${BODY_Y + 8}
+       L ${SVG_W - 60} ${BODY_Y + 8}
+       Q ${SVG_W - 36} ${BODY_Y + 8} ${SVG_W - 36} ${BODY_Y + 28}
+       L ${SVG_W - 36} ${BODY_Y + 56}
+       L 36 ${BODY_Y + 56} Z"
+       fill="url(#cabHi${uid})"/>`;
+
+  // Cornice gialla attorno allo schermo (i rulli) — è il telaio della
+  // marquee dove vivono le lampadine.
+  const screenFrameSvg =
+    `<rect x="${SCR_X - 4}" y="${SCR_Y - 4}" width="${SCR_W + 8}" height="${SCR_H + 8}" rx="14"
+           fill="#7a4400"/>` +
+    `<rect x="${SCR_X}" y="${SCR_Y}" width="${SCR_W}" height="${SCR_H}" rx="12"
+           fill="url(#frame${uid})"/>` +
+    // Inner black bezel (lo "schermo" effettivo dove scorrono i rulli)
+    `<rect x="${MX - 8}" y="${GY - 8}" width="${GW + 16}" height="${GH + 16}" rx="6"
+           fill="#0a0612"/>` +
+    `<rect x="${MX - 6}" y="${GY - 6}" width="${GW + 12}" height="${GH + 12}" rx="5"
+           fill="none" stroke="#3a1a05" stroke-width="1.4" opacity="0.9"/>`;
+
+  // Coin tray: piattaforma rossa scura sotto il corpo della slot, con tre
+  // "lingotti" dorati (slot di payout) e una moneta a destra.
+  const trayY = SVG_H - 56;
+  const trayH = 38;
+  const trayInset = 60;
+  const trayW = SVG_W - 2 * trayInset;
+  const barW = 64, barH = 14, barGap = 14;
+  const barsTotalW = 3 * barW + 2 * barGap;
+  const barsX0 = trayInset + 28;
+  let coinTraySvg =
+    `<rect x="${trayInset}" y="${trayY}" width="${trayW}" height="${trayH}" rx="6"
+           fill="#5a0606" stroke="#3a0404" stroke-width="1.5"/>` +
+    `<rect x="${trayInset + 4}" y="${trayY + 4}" width="${trayW - 8}" height="6" rx="2"
+           fill="#ff6a4a" opacity="0.45"/>`;
+  for (let i = 0; i < 3; i++) {
+    const bx = barsX0 + i * (barW + barGap);
+    const by = trayY + (trayH - barH) / 2 + 2;
+    coinTraySvg +=
+      `<rect x="${bx}" y="${by}" width="${barW}" height="${barH}" rx="2"
+             fill="url(#goldBar${uid})" stroke="#7a4400" stroke-width="1"/>` +
+      `<rect x="${bx + 3}" y="${by + 2}" width="${barW - 6}" height="2.5" rx="1"
+             fill="#fff5b8" opacity="0.7"/>`;
   }
-  const trayY = SVG_H - 22;
-  const coinTraySvg =
-    `<rect x="48" y="${trayY - 4}" width="${SVG_W - 96}" height="3" rx="1" fill="#1a0606"/>` +
-    `<rect x="48" y="${trayY}" width="${SVG_W - 96}" height="13" rx="3" fill="url(#tray${uid})" stroke="#000" stroke-width="0.8"/>` +
-    `<rect x="48" y="${trayY}" width="${SVG_W - 96}" height="3" fill="#000" opacity="0.75"/>` +
-    `<rect x="${SVG_W / 2 - 30}" y="${trayY + 3.5}" width="60" height="7" rx="2" fill="#000" opacity="0.9"/>` +
-    `<rect x="${SVG_W / 2 - 28}" y="${trayY + 4.5}" width="56" height="1.4" fill="#3a2a10" opacity="0.6"/>`;
+  // Coin (rotonda) sul lato destro del tray
+  const coinCx = trayInset + trayW - 30;
+  const coinCy = trayY + trayH / 2 + 1;
+  coinTraySvg +=
+    `<circle cx="${coinCx}" cy="${coinCy}" r="11" fill="url(#goldBar${uid})" stroke="#7a4400" stroke-width="1.2"/>` +
+    `<circle cx="${coinCx}" cy="${coinCy}" r="7"  fill="none" stroke="#7a4400" stroke-width="0.8" opacity="0.65"/>` +
+    `<text x="${coinCx}" y="${coinCy + 3}" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+           font-size="9" font-weight="900" fill="#7a4400">$</text>`;
 
   // ── Paytable (TOP) ──
   // Sezione in alto, sotto l'header e prima dei rulli. Comunica esplicitamente
   // che si tratta delle competenze del proprietario: più pallini = miglior
   // padronanza = simbolo che "paga di più" nella slot.
   const ptCount = LANGUAGES.length;
-  const ptInner = SVG_W - 28;
+  const ptInner = SVG_W - 64;
   const ptCellW = ptInner / ptCount;
   const ptIconSize = 38;
   const PT_MAX = 5;
   let paytableSvg = '';
-  paytableSvg += `<rect x="14" y="${PT_Y}" width="${SVG_W - 28}" height="${PT_H}" rx="14"
-                         fill="#13122d" stroke="#26244a" stroke-width="1" opacity="0.92"/>`;
-  paytableSvg += `<text x="28" y="${PT_Y + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#ffd700" letter-spacing="2">PAYTABLE \u00b7 HIGHER MASTERY = HIGHER PAYOUT</text>`;
-  paytableSvg += `<text x="28" y="${PT_Y + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#8b8baf" letter-spacing="0.5">Più pallini = livello di padronanza dell'owner = simbolo che paga di più nella slot</text>`;
-  paytableSvg += `<text x="${SVG_W - 28}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">EXPERT</text>`;
-  paytableSvg += `<text x="${SVG_W - 28 - 88}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">FAMILIAR</text>`;
+  paytableSvg += `<rect x="32" y="${PT_Y}" width="${SVG_W - 64}" height="${PT_H}" rx="14"
+                         fill="#13122d" stroke="#7a4400" stroke-width="1.2" opacity="0.92"/>`;
+  paytableSvg += `<text x="46" y="${PT_Y + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#ffd700" letter-spacing="2">PAYTABLE \u00b7 HIGHER MASTERY = HIGHER PAYOUT</text>`;
+  paytableSvg += `<text x="46" y="${PT_Y + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#8b8baf" letter-spacing="0.5">Più pallini = livello di padronanza dell'owner = simbolo che paga di più nella slot</text>`;
+  paytableSvg += `<text x="${SVG_W - 46}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">EXPERT</text>`;
+  paytableSvg += `<text x="${SVG_W - 46 - 88}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">FAMILIAR</text>`;
   for (let i = 0; i < ptCount; i++) {
     const lang = LANGUAGES[i];
-    const cx = 14 + ptCellW * i + ptCellW / 2;
+    const cx = 32 + ptCellW * i + ptCellW / 2;
     const iconX = cx - ptIconSize / 2;
     const iconY = PT_Y + 36;
     paytableSvg += symbolUse(uid, lang.id, iconX, iconY, ptIconSize, ptIconSize);
@@ -778,17 +853,15 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   const footer = `
-<text x="${SVG_W / 2}" y="${SVG_H - 32}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#5d5d80">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
+<text x="${SVG_W / 2}" y="${SVG_H - 6}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#3a0404">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
 
   return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>${defs}</defs>
 <style>${css}</style>
 ${cabinetSvg}
-<rect x="22" y="22" width="${SVG_W - 44}" height="${SVG_H - 44}" rx="14" fill="url(#bg${uid})"/>
-<rect x="22" y="22" width="${SVG_W - 44}" height="${SVG_H - 44}" rx="14" fill="none" ${borderAttr}/>
-${rivetsSvg}
 ${headerSvg}
 ${paytableSvg}
+${screenFrameSvg}
 ${colBGs}
 ${reelsSvg}
 ${nmShineSvg}
@@ -797,8 +870,8 @@ ${winGlowSvg}
 ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}
-${panelSvg}
 ${lightsSvg}
+${panelSvg}
 ${coinTraySvg}
 ${footer}
 </svg>`;
