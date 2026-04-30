@@ -1,16 +1,16 @@
 {
-  "totalSpins": 93,
-  "totalWins": 56,
+  "totalSpins": 94,
+  "totalWins": 57,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
-      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
+      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777587190124
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777587197792
   }
 }
