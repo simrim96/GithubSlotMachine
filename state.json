@@ -1,13 +1,13 @@
 {
-  "totalSpins": 2,
-  "totalWins": 1,
+  "totalSpins": 3,
+  "totalWins": 2,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
-    "fact": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+    "langId": "python",
+    "langName": "Python",
+    "fact": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777578102986
+    "ts": 1777578235347
   }
 }
