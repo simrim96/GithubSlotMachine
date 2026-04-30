@@ -19,11 +19,14 @@ const PROFILE_REPO = 'simrim96';
 // ─── Slot config ─────────────────────────────────────────────────────────────
 const SYMBOL_IDS = LANGUAGES.map((l) => l.id);
 // Reel "weights": ogni linguaggio appare N volte, wild/scatter più rari.
+// Wild count maggiore = più chance di completare combo (slot "recruiter-friendly").
 const REEL = [
-  ...LANGUAGES.flatMap((l) => Array(6).fill(l.id)),
-  WILD_ID, WILD_ID,
+  ...LANGUAGES.flatMap((l) => Array(5).fill(l.id)),
+  WILD_ID, WILD_ID, WILD_ID, WILD_ID,
   SCATTER_ID,
 ];
+// Probabilità di forzare una vincita garantita su una payline (post-RNG rigging).
+const FORCED_WIN_PROB = 0.35;
 const COLS = 5;
 const ROWS = 3;
 const PAYLINES = [
@@ -64,7 +67,7 @@ export default async function handler(req, res) {
     const winningLang = isWin ? LANGUAGE_BY_ID[winningLangId(wins)] : null;
 
     let repoMatch = null;
-    let fact = '';
+    let fact = { it: '', en: '' };
     if (winningLang) {
       state.totalWins = (state.totalWins || 0) + 1;
       fact = pickFact(winningLang);
@@ -127,13 +130,29 @@ function updateReadmeMarkers(readme, state, lang, repoMatch, fact) {
   const wins = state.totalWins || 0;
   let block = `${START}\n`;
   block += `> 🎰 **Total community spins:** \`${total.toLocaleString('en-US')}\` · **Wins:** \`${wins.toLocaleString('en-US')}\`\n`;
+  // Helper: estrae le due lingue dal fact (string o {it,en}) per retro-compat.
+  const factLines = (f) => {
+    if (!f) return [];
+    if (typeof f === 'string') return [f];
+    return [f.it, f.en].filter(Boolean);
+  };
   if (lang && repoMatch) {
     block += `>\n> 🏆 **Last win:** \`${lang.name}\` → [${repoMatch.name}](${repoMatch.url})  \n`;
-    block += `> _${escapeMarkdown(fact)}_\n`;
+    for (const line of factLines(fact)) {
+      block += `> _${escapeMarkdown(line)}_  \n`;
+    }
+  } else if (lang) {
+    // Win senza repo pubblica ≥30%: mostriamo solo il fact, niente messaggi sospetti.
+    block += `>\n> 🏆 **Last win:** \`${lang.name}\`  \n`;
+    for (const line of factLines(fact)) {
+      block += `> _${escapeMarkdown(line)}_  \n`;
+    }
   } else if (state.lastWin) {
     const lw = state.lastWin;
     block += `>\n> 🏆 **Last win:** \`${lw.langName}\`${lw.repoUrl ? ` → [${lw.repoName}](${lw.repoUrl})` : ''}  \n`;
-    if (lw.fact) block += `> _${escapeMarkdown(lw.fact)}_\n`;
+    for (const line of factLines(lw.fact)) {
+      block += `> _${escapeMarkdown(line)}_  \n`;
+    }
   }
   block += END;
 
@@ -195,12 +214,36 @@ function generateGrid() {
       grid[c][r] = REEL[Math.floor(Math.random() * REEL.length)];
     }
   }
-  const wins = checkWins(grid);
+  let wins = checkWins(grid);
   const scatCnt = countScatters(grid).length;
+
+  // Forza una vincita con probabilità configurabile, per non frustrare i recruiter.
+  if (wins.length === 0 && scatCnt < 3 && Math.random() < FORCED_WIN_PROB) {
+    engineerWin(grid);
+    wins = checkWins(grid);
+  }
+
+  // Altrimenti, ogni tanto regaliamo un near-miss (suspense).
   if (wins.length === 0 && scatCnt < 3 && Math.random() < 0.25) {
     engineerNearMiss(grid);
   }
   return grid;
+}
+
+// Forza 3-4 simboli uguali sulla payline centrale per garantire una win.
+function engineerWin(grid) {
+  const pl = PAYLINES[0];
+  const lang = SYMBOL_IDS[Math.floor(Math.random() * SYMBOL_IDS.length)];
+  // 3 di base; con 30% chance ne aggiunge un 4°.
+  const count = Math.random() < 0.3 ? 4 : 3;
+  for (let c = 0; c < count; c++) grid[c][pl[c]] = lang;
+  // Spezza la sequenza con un simbolo diverso per evitare 5-in-a-row accidentale.
+  if (count < COLS) {
+    const others = SYMBOL_IDS.filter((i) => i !== lang);
+    if (others.length) {
+      grid[count][pl[count]] = others[Math.floor(Math.random() * others.length)];
+    }
+  }
 }
 
 function engineerNearMiss(grid) {
@@ -309,8 +352,8 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 78, CH = 56, GAP = 6;
-  const SVG_W = 560, SVG_H = 420;
-  const HDR_H = 78;
+  const SVG_W = 560, SVG_H = 470;
+  const HDR_H = 92;
   const GY = HDR_H + 12;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
@@ -379,7 +422,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   // ── Border bulbs ──
   const bulbs = [];
   for (let i = 0; i < 11; i++) { bulbs.push({ x: 25 + i * 51, y: 8 }); bulbs.push({ x: 25 + i * 51, y: SVG_H - 8 }); }
-  for (let i = 0; i < 6; i++) { bulbs.push({ x: 8, y: 50 + i * 60 }); bulbs.push({ x: SVG_W - 8, y: 50 + i * 60 }); }
+  for (let i = 0; i < 7; i++) { bulbs.push({ x: 8, y: 50 + i * 60 }); bulbs.push({ x: SVG_W - 8, y: 50 + i * 60 }); }
   const lightsSvg = bulbs.map((b, i) => {
     const dur = isWin ? 0.35 : 1.8;
     const dl = isWin ? ED + (i % 3) * 0.08 : i * (1.8 / bulbs.length);
@@ -450,7 +493,10 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const PH = SVG_H - PY - 32;
   let panelSvg = '';
   if (isWin && winningLang) {
-    const factLines = wrap(fact, 78);
+    const factIt = (fact && fact.it) || '';
+    const factEn = (fact && fact.en) || '';
+    const linesIt = wrap(factIt, 78).slice(0, 2);
+    const linesEn = wrap(factEn, 78).slice(0, 2);
     const headLine = isJackpot ? `🏆 JACKPOT — ${winningLang.name}!`
                   : isBigWin ? `💰 BIG WIN — ${winningLang.name}!`
                   : `🎉 ${winningLang.name} WIN!`;
@@ -458,16 +504,28 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 
     panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${headColor}" stroke-width="1.5" opacity="0.95" style="animation:fi${uid} .5s ${ED}s forwards;opacity:0"/>`;
     panelSvg += `<text x="${SVG_W / 2}" y="${PY + 22}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="16" font-weight="700" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}</text>`;
-    let yy = PY + 44;
-    for (const line of factLines.slice(0, 3)) {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#d4d4e8" style="animation:fi${uid} .5s ${ED + 0.2}s forwards;opacity:0">${escapeXml(line)}</text>`;
-      yy += 14;
+    let yy = PY + 42;
+    // Italiano
+    if (linesIt.length) {
+      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.18}s forwards;opacity:0">IT</text>`;
+      for (const line of linesIt) {
+        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#e2e2f0" style="animation:fi${uid} .5s ${ED + 0.2}s forwards;opacity:0">${escapeXml(line)}</text>`;
+        yy += 13;
+      }
+      yy += 2;
+    }
+    // English
+    if (linesEn.length) {
+      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.28}s forwards;opacity:0">EN</text>`;
+      for (const line of linesEn) {
+        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#b8b8d0" font-style="italic" style="animation:fi${uid} .5s ${ED + 0.3}s forwards;opacity:0">${escapeXml(line)}</text>`;
+        yy += 13;
+      }
     }
     if (repoMatch) {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 8}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">→ github.com/${escapeXml(OWNER)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}</text>`;
-    } else {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 8}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#888" font-style="italic" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">Nessun repo pubblico (≥30%) trovato per ${escapeXml(winningLang.name)}</text>`;
+      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 14}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">→ github.com/${escapeXml(OWNER)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}</text>`;
     }
+    // Se non c'è una repo pubblica con ≥30% del linguaggio: silenzio totale.
   } else {
     const msg = nearMissCol >= 0 ? '😱 Così vicino! Ritenta!' : 'Ritenta, sarai più fortunato!';
     const col = nearMissCol >= 0 ? '#f59e0b' : '#e94560';
@@ -489,17 +547,19 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Header ──
+  // Layout verticale: titolo → sottotitolo → (label + numero) sulla stessa riga,
+  // ma con il numero spostato più in basso rispetto al label per evitare sovrapposizioni.
   const total = (state.totalSpins || 0).toLocaleString('en-US');
   const wonTotal = (state.totalWins || 0).toLocaleString('en-US');
   const headerSvg = `
 <rect x="14" y="14" width="${SVG_W - 28}" height="${HDR_H - 6}" rx="14" fill="#13122d" opacity="0.85"/>
-<text x="${SVG_W / 2}" y="42" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
-<text x="${SVG_W / 2}" y="60" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
+<text x="${SVG_W / 2}" y="40" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
+<text x="${SVG_W / 2}" y="58" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
 <g font-family="'Segoe UI',sans-serif">
-  <text x="32" y="80" font-size="10" fill="#6d6d8e">COMMUNITY SPINS</text>
-  <text x="32" y="${HDR_H - 2}" font-size="14" font-weight="700" fill="#ffd700">${total}</text>
-  <text x="${SVG_W - 32}" y="80" text-anchor="end" font-size="10" fill="#6d6d8e">WINS</text>
-  <text x="${SVG_W - 32}" y="${HDR_H - 2}" text-anchor="end" font-size="14" font-weight="700" fill="#4ade80">${wonTotal}</text>
+  <text x="32" y="72" font-size="9" fill="#6d6d8e" letter-spacing="1.2">COMMUNITY SPINS</text>
+  <text x="32" y="88" font-size="14" font-weight="700" fill="#ffd700">${total}</text>
+  <text x="${SVG_W - 32}" y="72" text-anchor="end" font-size="9" fill="#6d6d8e" letter-spacing="1.2">WINS</text>
+  <text x="${SVG_W - 32}" y="88" text-anchor="end" font-size="14" font-weight="700" fill="#4ade80">${wonTotal}</text>
 </g>`;
 
   // ── Border ──

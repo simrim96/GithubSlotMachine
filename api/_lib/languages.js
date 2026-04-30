@@ -5,13 +5,13 @@
 //    id          chiave interna unica
 //    name        nome mostrato all'utente
 //    short       label compatto sulla slot (max ~5 chars)
-//    glyph       glyph decorativo (unicode) accanto al short
 //    color       colore di sfondo del simbolo
 //    accent      colore secondario (bordo / highlight)
 //    text        colore del testo sul simbolo
 //    githubLang  nome esatto come riportato dalla GitHub Languages API
 //    topic       (opzionale) topic richiesto sul repo (utile per framework)
-//    facts       lista di descrizioni / fun-fact (ne viene scelto uno random)
+//    icon        SVG markup interno (centrato in viewBox 78x56) col logo "ufficiale"
+//    facts       lista di fun-fact in formato { it, en } — uno scelto random
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const LANGUAGES = [
@@ -19,76 +19,154 @@ export const LANGUAGES = [
     id: 'cpp',
     name: 'C++',
     short: 'C++',
-    glyph: '',
     color: '#00599C',
     accent: '#9FD3F0',
     text: '#ffffff',
     githubLang: 'C++',
+    icon: `
+      <g transform="translate(39,22)">
+        <path d="M0,-15 L13,-7.5 L13,7.5 L0,15 L-13,7.5 L-13,-7.5 Z"
+              fill="#004482" stroke="#9FD3F0" stroke-width="1.2"/>
+        <text x="0" y="4" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+              font-size="11" font-weight="900" fill="#ffffff" letter-spacing="-0.5">C++</text>
+      </g>`,
     facts: [
-      'C++ è nato nel 1985 da Bjarne Stroustrup come "C with Classes": oggi alimenta Unreal Engine, Chrome, MongoDB e quasi tutti i motori grafici AAA.',
-      'Il principio "zero-cost abstraction" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.',
-      "C++20 ha introdotto i Concepts, le Coroutines, i Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      {
+        it: 'C++ è nato nel 1985 da Bjarne Stroustrup come "C with Classes": oggi alimenta Unreal Engine, Chrome e MongoDB.',
+        en: 'C++ was created in 1985 by Bjarne Stroustrup as "C with Classes": today it powers Unreal Engine, Chrome and MongoDB.',
+      },
+      {
+        it: 'Il principio "zero-cost abstraction" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.',
+        en: 'C++\'s "zero-cost abstraction" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use.',
+      },
+      {
+        it: "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+        en: 'C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11.',
+      },
     ],
   },
   {
     id: 'glsl',
     name: 'GLSL',
     short: 'GLSL',
-    glyph: '◈',
     color: '#5586A4',
     accent: '#F5B642',
     text: '#ffffff',
     githubLang: 'GLSL',
+    icon: `
+      <g transform="translate(39,22)">
+        <polygon points="0,-15 13,-7.5 13,7.5 0,15 -13,7.5 -13,-7.5"
+                 fill="#3a6178" stroke="#F5B642" stroke-width="1.5"/>
+        <polygon points="0,-9 8,-4.5 8,4.5 0,9 -8,4.5 -8,-4.5"
+                 fill="none" stroke="#F5B642" stroke-width="1" opacity="0.6"/>
+        <text x="0" y="3.5" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+              font-size="9" font-weight="900" fill="#ffffff">GL</text>
+      </g>`,
     facts: [
-      'GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.',
-      'In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.',
-      "Con un solo fragment shader e una funzione di distanza si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demo-scene moderno.",
+      {
+        it: 'GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.',
+        en: 'GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions.',
+      },
+      {
+        it: 'In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.',
+        en: 'GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation.',
+      },
+      {
+        it: "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+        en: 'With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene.',
+      },
     ],
   },
   {
     id: 'react',
     name: 'React',
     short: 'React',
-    glyph: '⚛',
     color: '#20232A',
     accent: '#61DAFB',
     text: '#61DAFB',
     githubLang: 'JavaScript',
     topic: 'react',
+    icon: `
+      <g transform="translate(39,22)">
+        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4"/>
+        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4" transform="rotate(60)"/>
+        <ellipse cx="0" cy="0" rx="14" ry="5" fill="none" stroke="#61DAFB" stroke-width="1.4" transform="rotate(120)"/>
+        <circle cx="0" cy="0" r="2.4" fill="#61DAFB"/>
+      </g>`,
     facts: [
-      'React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.',
-      'React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.',
-      'Il Virtual DOM non è "veloce di per sé": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.',
+      {
+        it: 'React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.',
+        en: 'React was created in 2013 by Jordan Walke (Facebook), inspired by PHP\'s XHP. Today it\'s the most-used UI framework in the world.',
+      },
+      {
+        it: 'React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.',
+        en: 'React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible.',
+      },
+      {
+        it: 'Il Virtual DOM non è "veloce di per sé": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.',
+        en: 'The Virtual DOM isn\'t "inherently fast": it\'s a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM.',
+      },
     ],
   },
   {
     id: 'javascript',
     name: 'JavaScript',
     short: 'JS',
-    glyph: '{ }',
     color: '#F7DF1E',
     accent: '#000000',
     text: '#1a1a1a',
     githubLang: 'JavaScript',
+    icon: `
+      <g transform="translate(39,22)">
+        <rect x="-15" y="-15" width="30" height="30" rx="3" fill="#F7DF1E" stroke="#1a1a1a" stroke-width="1"/>
+        <text x="11" y="11" text-anchor="end" font-family="'Segoe UI',sans-serif"
+              font-size="13" font-weight="900" fill="#1a1a1a" letter-spacing="-0.3">JS</text>
+      </g>`,
     facts: [
-      'JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.',
-      'Il nome originale era "Mocha", poi "LiveScript" e infine "JavaScript" — una scelta puramente di marketing per cavalcare l\'hype di Java.',
-      "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.",
+      {
+        it: 'JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.',
+        en: 'JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape.',
+      },
+      {
+        it: 'Il nome originale era "Mocha", poi "LiveScript" e infine "JavaScript" — una scelta di marketing per cavalcare l\'hype di Java.',
+        en: 'The original name was "Mocha", then "LiveScript" and finally "JavaScript" — a marketing move to ride the Java hype wave.',
+      },
+      {
+        it: 'ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.',
+        en: 'ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year.',
+      },
     ],
   },
   {
     id: 'python',
     name: 'Python',
     short: 'Py',
-    glyph: '🐍',
     color: '#3776AB',
     accent: '#FFD43B',
     text: '#ffffff',
     githubLang: 'Python',
+    icon: `
+      <g transform="translate(39,22)">
+        <path d="M-2,-14 Q-9,-14 -9,-7 V-3 H1 V-1 H-11 Q-15,-1 -15,5 V9 Q-15,14 -10,14 H-6 V8 Q-6,4 -1,4 H7 Q12,4 12,-1 V-7 Q12,-14 5,-14 Z"
+              fill="#3776AB" stroke="#ffffff" stroke-width="0.6"/>
+        <circle cx="-5" cy="-10" r="1.4" fill="#ffffff"/>
+        <path d="M2,14 Q9,14 9,7 V3 H-1 V1 H11 Q15,1 15,-5 V-9 Q15,-14 10,-14 H6 V-8 Q6,-4 1,-4 H-7 Q-12,-4 -12,1 V7 Q-12,14 -5,14 Z"
+              fill="#FFD43B" stroke="#ffffff" stroke-width="0.6"/>
+        <circle cx="5" cy="10" r="1.4" fill="#ffffff"/>
+      </g>`,
     facts: [
-      'Python prende il nome dai Monty Python\'s Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.',
-      'Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.',
-      "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+      {
+        it: 'Python prende il nome dai Monty Python\'s Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.',
+        en: 'Python is named after Monty Python\'s Flying Circus, not the snake: Guido van Rossum was a huge fan of the show.',
+      },
+      {
+        it: 'Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.',
+        en: 'Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language\'s philosophy.',
+      },
+      {
+        it: "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+        en: 'Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python.',
+      },
     ],
   },
 ];
@@ -96,19 +174,27 @@ export const LANGUAGES = [
 export const WILD = {
   id: 'wild',
   short: 'WILD',
-  glyph: '★',
   color: '#fde047',
   accent: '#a16207',
   text: '#1a1a2e',
+  icon: `
+    <g transform="translate(39,22)">
+      <polygon points="0,-13 3.5,-4 13,-4 5.5,1.5 8.5,11 0,5.5 -8.5,11 -5.5,1.5 -13,-4 -3.5,-4"
+               fill="#1a1a2e" stroke="#a16207" stroke-width="1"/>
+    </g>`,
 };
 
 export const SCATTER = {
   id: 'scatter',
   short: 'BONUS',
-  glyph: '✦',
   color: '#a855f7',
   accent: '#f0abfc',
   text: '#ffffff',
+  icon: `
+    <g transform="translate(39,22)">
+      <path d="M0,-13 L3.5,-3.5 L13,0 L3.5,3.5 L0,13 L-3.5,3.5 L-13,0 L-3.5,-3.5 Z"
+            fill="#ffffff" stroke="#f0abfc" stroke-width="1"/>
+    </g>`,
 };
 
 export const ALL_SYMBOLS = [...LANGUAGES, WILD, SCATTER];
@@ -119,8 +205,7 @@ export const WILD_ID = WILD.id;
 export const SCATTER_ID = SCATTER.id;
 
 // ─── Symbol renderer ──────────────────────────────────────────────────────────
-// Ritorna un blocco <symbol> riusabile via <use href="#sym-<id>" .../>.
-// Le dimensioni sono quelle di una cella della griglia (viewBox 78x56).
+// Layout: icona "ufficiale" centrata in alto (y≈22) + label compatto in basso (y≈49).
 export function buildSymbolDefs(uid) {
   return ALL_SYMBOLS.map((s) => {
     const grad = `g_${uid}_${s.id}`;
@@ -132,9 +217,10 @@ export function buildSymbolDefs(uid) {
 <symbol id="sym_${uid}_${s.id}" viewBox="0 0 78 56">
   <rect x="3" y="3" width="72" height="50" rx="9" fill="url(#${grad})"/>
   <rect x="3" y="3" width="72" height="50" rx="9" fill="none" stroke="${s.accent}" stroke-width="1.6" opacity="0.85"/>
-  <rect x="6" y="6" width="66" height="14" rx="5" fill="#ffffff" opacity="0.10"/>
-  ${s.glyph ? `<text x="18" y="38" font-family="'Segoe UI Emoji','Apple Color Emoji',sans-serif" font-size="18" fill="${s.text}" opacity="0.85">${escapeXml(s.glyph)}</text>` : ''}
-  <text x="${s.glyph ? 40 : 39}" y="36" text-anchor="${s.glyph ? 'start' : 'middle'}" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="15" font-weight="700" fill="${s.text}" letter-spacing="0.5">${escapeXml(s.short)}</text>
+  <rect x="6" y="6" width="66" height="10" rx="4" fill="#ffffff" opacity="0.08"/>
+  ${s.icon || ''}
+  <text x="39" y="49" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif"
+        font-size="9" font-weight="700" fill="${s.text}" letter-spacing="0.6" opacity="0.95">${escapeXml(s.short)}</text>
 </symbol>`;
   }).join('');
 }
@@ -162,8 +248,12 @@ function escapeXml(s) {
 
 export { escapeXml };
 
+// Ritorna un fact bilingue { it, en } scelto a caso. Per retro-compatibilità,
+// se la voce è una stringa la converte in { it: stringa, en: stringa }.
 export function pickFact(lang) {
   const facts = lang.facts || [];
-  if (!facts.length) return '';
-  return facts[Math.floor(Math.random() * facts.length)];
+  if (!facts.length) return { it: '', en: '' };
+  const f = facts[Math.floor(Math.random() * facts.length)];
+  if (typeof f === 'string') return { it: f, en: f };
+  return { it: f.it || f.en || '', en: f.en || f.it || '' };
 }
