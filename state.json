@@ -1,16 +1,16 @@
 {
-  "totalSpins": 34,
-  "totalWins": 15,
+  "totalSpins": 35,
+  "totalWins": 16,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt.",
-      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777581236589
+    "ts": 1777581358676
   }
 }
