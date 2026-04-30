@@ -1,16 +1,16 @@
 {
-  "totalSpins": 99,
-  "totalWins": 62,
+  "totalSpins": 100,
+  "totalWins": 63,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
-      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
+      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
+      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587281966
+    "ts": 1777587294908
   }
 }
