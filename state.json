@@ -1,16 +1,16 @@
 {
-  "totalSpins": 89,
-  "totalWins": 53,
+  "totalSpins": 90,
+  "totalWins": 54,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
-      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
+      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
+      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587041297
+    "ts": 1777587137969
   }
 }
