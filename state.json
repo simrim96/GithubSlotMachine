@@ -1,16 +1,16 @@
 {
-  "totalSpins": 48,
-  "totalWins": 25,
+  "totalSpins": 49,
+  "totalWins": 26,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
-      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777583967133
+    "ts": 1777584018544
   }
 }
