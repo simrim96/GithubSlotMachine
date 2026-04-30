@@ -1,16 +1,16 @@
 {
-  "totalSpins": 138,
-  "totalWins": 92,
+  "totalSpins": 139,
+  "totalWins": 93,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
-      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
+      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.",
+      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777590043086
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777590051996
   }
 }
