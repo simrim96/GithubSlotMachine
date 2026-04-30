@@ -1,16 +1,16 @@
 {
-  "totalSpins": 149,
-  "totalWins": 100,
+  "totalSpins": 150,
+  "totalWins": 101,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777590789470
+    "ts": 1777590803998
   }
 }
