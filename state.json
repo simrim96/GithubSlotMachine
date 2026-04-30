@@ -1,16 +1,16 @@
 {
-  "totalSpins": 84,
-  "totalWins": 50,
+  "totalSpins": 85,
+  "totalWins": 51,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
-      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777586716464
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777586718018
   }
 }
