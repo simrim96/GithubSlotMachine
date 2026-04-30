@@ -1,5 +1,13 @@
 {
-  "totalSpins": 1,
-  "totalWins": 0,
-  "lastWin": null
+  "totalSpins": 2,
+  "totalWins": 1,
+  "lastWin": {
+    "langId": "glsl",
+    "langName": "GLSL",
+    "fact": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777578102986
+  }
 }
