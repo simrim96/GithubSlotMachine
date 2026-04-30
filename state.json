@@ -1,16 +1,16 @@
 {
-  "totalSpins": 126,
-  "totalWins": 80,
+  "totalSpins": 127,
+  "totalWins": 81,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "typescript",
+    "langName": "TypeScript",
     "fact": {
-      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
-      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.",
+      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588357664
+    "ts": 1777588367031
   }
 }
