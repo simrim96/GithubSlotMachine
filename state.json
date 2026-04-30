@@ -1,16 +1,16 @@
 {
-  "totalSpins": 30,
-  "totalWins": 12,
+  "totalSpins": 31,
+  "totalWins": 13,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
-      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
+      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777580690722
+    "ts": 1777580706768
   }
 }
