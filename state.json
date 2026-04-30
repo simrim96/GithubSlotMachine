@@ -1,16 +1,16 @@
 {
-  "totalSpins": 86,
-  "totalWins": 52,
+  "totalSpins": 87,
+  "totalWins": 53,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
-      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
+      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587025695
+    "ts": 1777587041297
   }
 }
