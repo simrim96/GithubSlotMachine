@@ -1,16 +1,16 @@
 {
-  "totalSpins": 75,
-  "totalWins": 44,
+  "totalSpins": 76,
+  "totalWins": 45,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard.",
-      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
+      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
+      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586596065
+    "ts": 1777586608139
   }
 }
