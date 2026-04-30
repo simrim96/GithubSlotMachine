@@ -382,12 +382,11 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 680;
+  const SVG_W = 600, SVG_H = 588;
   const HDR_H = 72;
-  // Top offset: lasciamo spazio in cima per la marquee arcuata col banner
-  // "JACKPOT" + 7-7-7 ai due lati — firma visiva delle slot machine vintage.
-  const CROWN_H = 76;
-  const HDR_TOP = CROWN_H + 6;
+  // Niente crown: top compatto.
+  const CROWN_H = 0;
+  const HDR_TOP = 4;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
   const PT_H = 86;
@@ -668,9 +667,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Pannello in basso, sopra al coin tray.
+  // Pannello in basso, ultimo elemento del cabinet.
   const PY = GY + GH + FRAME_PAD + 6;
-  const PH = (SVG_H - 38) - PY - 4;
+  const PH = (SVG_H - 12) - PY;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -756,43 +755,25 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       ? `stroke="#16a34a" stroke-width="2.5"`
       : `stroke="#3a3666" stroke-width="2"`;
 
-  // ── Classic cartoon slot-machine cabinet ──
-  // Layout iconico (stile vintage/casino):
-  //   1. Crown arcuato in cima con banner "JACKPOT" e stelle
-  //   2. Corpo rosso laccato con spalle arrotondate + ornamenti dorati ai lati
-  //   3. Tre "7" rossi decorativi sotto il banner (firma classica)
-  //   4. Cornice gialla spessa attorno allo "screen" (rulli) con lampadine
-  //      alternate rosso/oro
-  //   5. Due "feet" (zampe) alla base + coin tray + payout chute
-  const CROWN_W = 360;
-  const CROWN_X = (SVG_W - CROWN_W) / 2;
-  const CROWN_Y = 6;
-  const BODY_Y = CROWN_H + 4;
-
-  // Helper: stella a 5 punte centrata in (cx,cy) con raggio r.
-  const star = (cx, cy, r, fill) => {
-    const pts = [];
-    for (let k = 0; k < 10; k++) {
-      const ang = -Math.PI / 2 + (k * Math.PI) / 5;
-      const rr = k % 2 === 0 ? r : r * 0.42;
-      pts.push(`${(cx + rr * Math.cos(ang)).toFixed(1)},${(cy + rr * Math.sin(ang)).toFixed(1)}`);
-    }
-    return `<polygon points="${pts.join(' ')}" fill="${fill}" stroke="#7a4400" stroke-width="0.8"/>`;
-  };
+  // ── Cabinet (corpo rosso laccato) ──
+  // Struttura minimale: niente crown/JACKPOT/7-7-7/ornamenti laterali — solo
+  // il corpo principale a spalle arrotondate, su cui poggiano header,
+  // paytable, screen frame e pannello risultato.
+  const BODY_Y = 4;
 
   let cabinetSvg = '';
 
-  // 1. Corpo principale — disegnato per primo così il crown ci si appoggia sopra.
+  // Corpo principale.
   cabinetSvg +=
     `<path d="
        M 24 ${BODY_Y + 28}
        Q 24 ${BODY_Y} 56 ${BODY_Y}
        L ${SVG_W - 56} ${BODY_Y}
        Q ${SVG_W - 24} ${BODY_Y} ${SVG_W - 24} ${BODY_Y + 28}
-       L ${SVG_W - 24} ${SVG_H - 30}
-       Q ${SVG_W - 24} ${SVG_H - 6} ${SVG_W - 48} ${SVG_H - 6}
-       L 48 ${SVG_H - 6}
-       Q 24 ${SVG_H - 6} 24 ${SVG_H - 30}
+       L ${SVG_W - 24} ${SVG_H - 24}
+       Q ${SVG_W - 24} ${SVG_H - 4} ${SVG_W - 44} ${SVG_H - 4}
+       L 44 ${SVG_H - 4}
+       Q 24 ${SVG_H - 4} 24 ${SVG_H - 24}
        Z"
        fill="url(#cab${uid})" stroke="#5a0606" stroke-width="2"/>`;
   cabinetSvg +=
@@ -804,91 +785,6 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
        L ${SVG_W - 36} ${BODY_Y + 56}
        L 36 ${BODY_Y + 56} Z"
        fill="url(#cabHi${uid})"/>`;
-
-  // 2. Bordo dorato decorativo che corre sotto il crown (cornice top).
-  cabinetSvg +=
-    `<rect x="32" y="${BODY_Y - 2}" width="${SVG_W - 64}" height="6" rx="3"
-           fill="url(#frame${uid})" stroke="#7a4400" stroke-width="0.8"/>`;
-
-  // 3. Crown arcuato con banner JACKPOT.
-  //    Path: arco superiore (Q in alto al centro) + base rettangolare.
-  const ARC_X1 = CROWN_X;
-  const ARC_X2 = CROWN_X + CROWN_W;
-  const ARC_Y_BASE = CROWN_Y + CROWN_H - 14;
-  const ARC_Y_TOP = CROWN_Y + 4;
-  // Outer (gold thick frame)
-  cabinetSvg +=
-    `<path d="
-       M ${ARC_X1 - 8} ${ARC_Y_BASE + 8}
-       L ${ARC_X1 - 8} ${ARC_Y_BASE - 14}
-       Q ${SVG_W / 2} ${ARC_Y_TOP - 14} ${ARC_X2 + 8} ${ARC_Y_BASE - 14}
-       L ${ARC_X2 + 8} ${ARC_Y_BASE + 8}
-       Z"
-       fill="#7a4400"/>`;
-  // Inner (gold gradient banner)
-  cabinetSvg +=
-    `<path d="
-       M ${ARC_X1} ${ARC_Y_BASE + 4}
-       L ${ARC_X1} ${ARC_Y_BASE - 10}
-       Q ${SVG_W / 2} ${ARC_Y_TOP - 8} ${ARC_X2} ${ARC_Y_BASE - 10}
-       L ${ARC_X2} ${ARC_Y_BASE + 4}
-       Z"
-       fill="url(#banner${uid})"/>`;
-  // Inner highlight (luce sull'arco)
-  cabinetSvg +=
-    `<path d="
-       M ${ARC_X1 + 14} ${ARC_Y_BASE - 6}
-       Q ${SVG_W / 2} ${ARC_Y_TOP - 2} ${ARC_X2 - 14} ${ARC_Y_BASE - 6}"
-       fill="none" stroke="#fff5b8" stroke-width="2.4" opacity="0.7"/>`;
-  // Banner ribbon "JACKPOT" sotto l'arco (rettangolo rosso scuro con punte)
-  const ribbY = ARC_Y_BASE - 22;
-  cabinetSvg +=
-    `<path d="
-       M ${SVG_W / 2 - 110} ${ribbY}
-       L ${SVG_W / 2 - 100} ${ribbY + 11}
-       L ${SVG_W / 2 - 110} ${ribbY + 22}
-       L ${SVG_W / 2 + 110} ${ribbY + 22}
-       L ${SVG_W / 2 + 100} ${ribbY + 11}
-       L ${SVG_W / 2 + 110} ${ribbY}
-       Z"
-       fill="#7a0707" stroke="#3a0404" stroke-width="1.4"/>`;
-  cabinetSvg +=
-    `<text x="${SVG_W / 2}" y="${ribbY + 16}" text-anchor="middle"
-           font-family="'Impact','Arial Black','Segoe UI',sans-serif" font-size="18"
-           font-weight="900" fill="#ffd84a" letter-spacing="3"
-           filter="url(#glow${uid})">JACKPOT</text>`;
-  // Stelle dorate ai due angoli esterni del crown (oltre i "7" laterali)
-  cabinetSvg += star(CROWN_X - 64, ARC_Y_BASE - 6, 11, 'url(#frame' + uid + ')');
-  cabinetSvg += star(CROWN_X + CROWN_W + 64, ARC_Y_BASE - 6, 11, 'url(#frame' + uid + ')');
-  // Piccole stelle sull'arco
-  cabinetSvg += star(SVG_W / 2 - 130, ARC_Y_BASE - 18, 6, '#fff4a8');
-  cabinetSvg += star(SVG_W / 2 + 130, ARC_Y_BASE - 18, 6, '#fff4a8');
-
-  // 4. "7" rossi laterali al banner JACKPOT (firma classica casino),
-  //    incastonati nel crown invece di occupare una vetrina separata.
-  const sevenY = ribbY + 17;
-  for (const sx of [CROWN_X - 36, CROWN_X + CROWN_W + 36]) {
-    cabinetSvg +=
-      `<rect x="${sx - 18}" y="${sevenY - 22}" width="36" height="44" rx="4"
-             fill="url(#darkPanel${uid})" stroke="#7a4400" stroke-width="1.4"/>` +
-      `<text x="${sx}" y="${sevenY + 12}" text-anchor="middle"
-             font-family="'Impact','Arial Black',sans-serif" font-size="34"
-             font-weight="900" fill="url(#red7${uid})" stroke="#3a0404" stroke-width="0.8"
-             filter="url(#glow${uid})">7</text>`;
-  }
-
-  // 5. Ornamenti dorati ai lati (arabeschi/curls semplificati).
-  const sideOrnY = GY + GH / 2;
-  const sideOrn = (x, flip) =>
-    `<g transform="translate(${x} ${sideOrnY}) ${flip ? 'scale(-1 1)' : ''}">` +
-    `<path d="M 0 -50 Q 12 -30 0 -10 Q -12 10 0 30 Q 12 50 0 50"
-           fill="none" stroke="url(#frame${uid})" stroke-width="3"/>` +
-    `<circle cx="0" cy="-50" r="3.5" fill="url(#frame${uid})"/>` +
-    `<circle cx="0" cy="50" r="3.5" fill="url(#frame${uid})"/>` +
-    `<circle cx="0" cy="0" r="2.8" fill="url(#frame${uid})"/>` +
-    `</g>`;
-  cabinetSvg += sideOrn(36, false);
-  cabinetSvg += sideOrn(SVG_W - 36, true);
 
   // Cornice gialla attorno allo schermo (i rulli) — è il telaio della
   // marquee dove vivono le lampadine.
@@ -903,64 +799,10 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
     `<rect x="${MX - 6}" y="${GY - 6}" width="${GW + 12}" height="${GH + 12}" rx="5"
            fill="none" stroke="#3a1a05" stroke-width="1.4" opacity="0.9"/>`;
 
-  // Coin tray: piattaforma rossa scura sotto il corpo della slot, con tre
-  // "lingotti" dorati (slot di payout), una moneta a destra, e una piccola
-  // fessura "INSERT COIN" sopra il tray. Aggiungiamo anche due "feet" decorative
-  // alla base per dare al cabinet l'aspetto di una vera macchina su piedi.
-  const trayY = SVG_H - 38;
-  const trayH = 24;
-  const trayInset = 60;
-  const trayW = SVG_W - 2 * trayInset;
-  const barW = 60, barH = 14, barGap = 14;
-  const barsX0 = trayInset + 24;
-  // Coin slot decorativo sopra al tray, lato destro.
-  const coinSlotX = SVG_W - trayInset - 90;
-  const coinSlotY = trayY - 22;
-  let coinTraySvg =
-    // Coin slot (fessura nera con ombra)
-    `<rect x="${coinSlotX}" y="${coinSlotY}" width="80" height="18" rx="3"
-           fill="url(#frame${uid})" stroke="#7a4400" stroke-width="1.4"/>` +
-    `<rect x="${coinSlotX + 6}" y="${coinSlotY + 6}" width="44" height="6" rx="1"
-           fill="#0a0612" stroke="#3a1a05" stroke-width="0.6"/>` +
-    `<text x="${coinSlotX + 76}" y="${coinSlotY + 13}" text-anchor="end"
-           font-family="'Segoe UI',sans-serif" font-size="7" font-weight="800"
-           fill="#7a4400" letter-spacing="0.8">INSERT COIN</text>` +
-    // Etichetta "PAYOUT" sopra il tray, lato sinistro
-    `<text x="${trayInset + 8}" y="${coinSlotY + 13}"
-           font-family="'Segoe UI',sans-serif" font-size="8" font-weight="800"
-           fill="#ffd84a" letter-spacing="2">PAYOUT</text>` +
-    // Tray base
-    `<rect x="${trayInset}" y="${trayY}" width="${trayW}" height="${trayH}" rx="6"
-           fill="#5a0606" stroke="#3a0404" stroke-width="1.5"/>` +
-    `<rect x="${trayInset + 4}" y="${trayY + 4}" width="${trayW - 8}" height="6" rx="2"
-           fill="#ff6a4a" opacity="0.45"/>`;
-  for (let i = 0; i < 3; i++) {
-    const bx = barsX0 + i * (barW + barGap);
-    const by = trayY + (trayH - barH) / 2 + 2;
-    coinTraySvg +=
-      `<rect x="${bx}" y="${by}" width="${barW}" height="${barH}" rx="2"
-             fill="url(#goldBar${uid})" stroke="#7a4400" stroke-width="1"/>` +
-      `<rect x="${bx + 3}" y="${by + 2}" width="${barW - 6}" height="2.5" rx="1"
-             fill="#fff5b8" opacity="0.7"/>` +
-      `<text x="${bx + barW / 2}" y="${by + 11}" text-anchor="middle"
-             font-family="'Impact','Arial Black',sans-serif" font-size="9"
-             font-weight="900" fill="#7a4400" letter-spacing="1">BAR</text>`;
-  }
-  // Coin (rotonda) sul lato destro del tray
-  const coinCx = trayInset + trayW - 28;
-  const coinCy = trayY + trayH / 2 + 1;
-  coinTraySvg +=
-    `<circle cx="${coinCx}" cy="${coinCy}" r="11" fill="url(#goldBar${uid})" stroke="#7a4400" stroke-width="1.2"/>` +
-    `<circle cx="${coinCx}" cy="${coinCy}" r="7"  fill="none" stroke="#7a4400" stroke-width="0.8" opacity="0.65"/>` +
-    `<text x="${coinCx}" y="${coinCy + 3}" text-anchor="middle" font-family="'Segoe UI',sans-serif"
-           font-size="9" font-weight="900" fill="#7a4400">$</text>`;
-  // Feet (zampe decorative) alla base del cabinet
-  const feetY = SVG_H - 14;
-  coinTraySvg +=
-    `<ellipse cx="${trayInset + 14}" cy="${feetY}" rx="22" ry="5" fill="#3a0404"/>` +
-    `<ellipse cx="${SVG_W - trayInset - 14}" cy="${feetY}" rx="22" ry="5" fill="#3a0404"/>`;
+  // Coin tray rimosso: il pannello risultato \u00e8 ora l'ultimo elemento del cabinet.
+  const coinTraySvg = '';
 
-  // ── Paytable (TOP) ──
+  // \u2500\u2500 Paytable (TOP) \u2500\u2500
   // Sezione in alto, sotto l'header e prima dei rulli. Comunica esplicitamente
   // che si tratta delle competenze del proprietario: più pallini = miglior
   // padronanza = simbolo che "paga di più" nella slot.
@@ -997,8 +839,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
     }
   }
 
-  const footer = `
-<text x="${SVG_W / 2}" y="${SVG_H - 6}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#3a0404">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
+  const footer = '';
 
   return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>${defs}</defs>

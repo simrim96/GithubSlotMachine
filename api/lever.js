@@ -12,7 +12,7 @@
 // con zero gap visivo.
 
 const W = 100;
-const H = 680;
+const H = 588;
 
 // Bumper sporge dal lato sinistro del canvas: BUMPER_CX poco a destra del
 // bordo (la metà sinistra del bumper resta clippata fuori) → quando il SVG
