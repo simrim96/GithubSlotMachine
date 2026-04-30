@@ -1,13 +1,16 @@
 {
-  "totalSpins": 24,
-  "totalWins": 8,
+  "totalSpins": 25,
+  "totalWins": 9,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
-    "fact": "C++20 ha introdotto i Concepts, le Coroutines, i Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+    "langId": "react",
+    "langName": "React",
+    "fact": {
+      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
+      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+    },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777578914870
+    "ts": 1777579268029
   }
 }
