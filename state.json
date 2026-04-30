@@ -1,16 +1,16 @@
 {
-  "totalSpins": 47,
-  "totalWins": 24,
+  "totalSpins": 48,
+  "totalWins": 25,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
+      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777583938804
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777583967133
   }
 }
