@@ -1,16 +1,16 @@
 {
-  "totalSpins": 102,
-  "totalWins": 63,
+  "totalSpins": 103,
+  "totalWins": 64,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
-      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587294908
+    "ts": 1777587326837
   }
 }
