@@ -1,16 +1,16 @@
 {
-  "totalSpins": 141,
-  "totalWins": 95,
+  "totalSpins": 142,
+  "totalWins": 96,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
-      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
+      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
+      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777590063439
+    "ts": 1777590399769
   }
 }
