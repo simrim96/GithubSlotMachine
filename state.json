@@ -1,16 +1,16 @@
 {
-  "totalSpins": 130,
-  "totalWins": 84,
+  "totalSpins": 131,
+  "totalWins": 85,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
-      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
+      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
+      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588485508
+    "ts": 1777589251256
   }
 }
