@@ -438,8 +438,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   let css = '';
   const bln = `bl${uid}`;
   css += isWin
-    ? `@keyframes ${bln}{0%,100%{fill:#ffd700;opacity:1}50%{fill:#e94560;opacity:.3}}`
-    : `@keyframes ${bln}{0%,15%{fill:#ffd700;opacity:.9}25%,100%{fill:#444;opacity:.2}}`;
+    ? `@keyframes ${bln}{0%,100%{opacity:1}50%{opacity:.35}}`
+    : `@keyframes ${bln}{0%,18%{opacity:1}30%,100%{opacity:.32}}`;
   for (let c = 0; c < COLS; c++) {
     const a = `rs${uid}c${c}`;
     if (c === nearMissCol) {
@@ -483,6 +483,36 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   defs += `<linearGradient id="hdr${uid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="33%" stop-color="#ffd700"/><stop offset="66%" stop-color="#4ecdc4"/><stop offset="100%" stop-color="#a855f7"/></linearGradient>`;
   defs += `<linearGradient id="reelbg${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0b0b1f"/><stop offset="100%" stop-color="#1a1a35"/></linearGradient>`;
   defs += `<filter id="glow${uid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  // Classic slot-machine cabinet: red lacquered side rails + polished chrome bezel.
+  defs += `<linearGradient id="cab${uid}" x1="0" y1="0" x2="1" y2="0">` +
+    `<stop offset="0%" stop-color="#5a0f0f"/>` +
+    `<stop offset="15%" stop-color="#a82020"/>` +
+    `<stop offset="50%" stop-color="#7a1414"/>` +
+    `<stop offset="85%" stop-color="#a82020"/>` +
+    `<stop offset="100%" stop-color="#5a0f0f"/>` +
+    `</linearGradient>`;
+  defs += `<linearGradient id="chrome${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#f4f4f6"/>` +
+    `<stop offset="25%" stop-color="#9a9aa3"/>` +
+    `<stop offset="55%" stop-color="#3a3a44"/>` +
+    `<stop offset="80%" stop-color="#9a9aa3"/>` +
+    `<stop offset="100%" stop-color="#f4f4f6"/>` +
+    `</linearGradient>`;
+  defs += `<radialGradient id="bulbOn${uid}" cx="50%" cy="40%" r="55%">` +
+    `<stop offset="0%" stop-color="#fffbe6"/>` +
+    `<stop offset="35%" stop-color="#ffe066"/>` +
+    `<stop offset="75%" stop-color="#f5a300"/>` +
+    `<stop offset="100%" stop-color="#7a3b00"/>` +
+    `</radialGradient>`;
+  defs += `<radialGradient id="bulbOff${uid}" cx="50%" cy="40%" r="55%">` +
+    `<stop offset="0%" stop-color="#4a3a18"/>` +
+    `<stop offset="100%" stop-color="#1a1208"/>` +
+    `</radialGradient>`;
+  defs += `<linearGradient id="tray${uid}" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#080614"/>` +
+    `<stop offset="50%" stop-color="#1a1530"/>` +
+    `<stop offset="100%" stop-color="#080614"/>` +
+    `</linearGradient>`;
   // Gradient orizzontale per lo shimmer del near-miss.
   defs += `<linearGradient id="shg${uid}" x1="0" y1="0" x2="0" y2="1">` +
     `<stop offset="0%" stop-color="#ffd700" stop-opacity="0"/>` +
@@ -494,14 +524,31 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
   defs += buildSymbolDefs(uid);
 
-  // ── Border bulbs ──
+  // ── Cabinet bulbs (classic slot-machine side lighting) ──
+  // Lampadine sui montanti laterali della cabinet: simulano l'illuminazione
+  // incandescente delle slot machine vintage. Sono incorniciate sopra il
+  // contenuto interno (header / paytable / panel) per dare un'idea di
+  // "luminarie" che corrono lungo i lati della macchina.
+  // In stato "win" pulsano rapidamente; in idle scorrono in chase sequenziale.
+  const bulbR = 4.5;
+  const bulbStep = 28;
+  const bulbX_L = 22;
+  const bulbX_R = SVG_W - 22;
+  const yMin = 24;
+  const yMax = SVG_H - 24;
   const bulbs = [];
-  for (let i = 0; i < 12; i++) { bulbs.push({ x: 25 + i * 51, y: 8 }); bulbs.push({ x: 25 + i * 51, y: SVG_H - 8 }); }
-  for (let i = 0; i < 11; i++) { bulbs.push({ x: 8, y: 50 + i * 60 }); bulbs.push({ x: SVG_W - 8, y: 50 + i * 60 }); }
+  for (let y = yMin; y <= yMax; y += bulbStep) {
+    bulbs.push({ x: bulbX_L, y });
+    bulbs.push({ x: bulbX_R, y });
+  }
   const lightsSvg = bulbs.map((b, i) => {
-    const dur = isWin ? 0.35 : 1.8;
-    const dl = isWin ? ED + (i % 3) * 0.08 : i * (1.8 / bulbs.length);
-    return `<circle cx="${b.x}" cy="${b.y}" r="3.5" fill="#444" opacity=".25" style="animation:${bln} ${dur}s ${dl}s infinite"/>`;
+    const dur = isWin ? 0.45 : 1.6;
+    const dl = isWin ? ED + (i % 4) * 0.09 : (i * 0.07) % 1.6;
+    return `<g style="animation:${bln} ${dur}s ${dl.toFixed(2)}s infinite">` +
+      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR + 1.8}" fill="#ffd700" opacity="0.18"/>` +
+      `<circle cx="${b.x}" cy="${b.y}" r="${bulbR}" fill="url(#bulbOn${uid})" stroke="#3a2a10" stroke-width="0.6"/>` +
+      `<circle cx="${b.x - 1.2}" cy="${b.y - 1.4}" r="1.1" fill="#ffffff" opacity="0.85"/>` +
+      `</g>`;
   }).join('');
 
   // ── Reels ──
@@ -577,10 +624,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Pannello in basso. Senza paytable in coda lo possiamo lasciare ampio
-  // fino al footer (il footer occupa circa 18px in basso).
+  // Pannello in basso. Lasciamo spazio in fondo per footer + coin tray.
   const PY = GY + GH + 14;
-  const PH = SVG_H - PY - 28;
+  const PH = SVG_H - PY - 44;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -668,6 +714,32 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       ? `stroke="#16a34a" stroke-width="2.5"`
       : `stroke="#3a3666" stroke-width="2"`;
 
+  // ── Classic slot-machine cabinet ──
+  // 1. Outer red lacquered shell
+  // 2. Polished chrome bezel
+  // 3. Inner dark "playfield" hairline
+  // 4. Side rivets (decorative)
+  // 5. Coin tray slot at the bottom
+  const cabinetSvg =
+    `<rect x="0" y="0" width="${SVG_W}" height="${SVG_H}" rx="26" fill="url(#cab${uid})"/>` +
+    `<rect x="6" y="6" width="${SVG_W - 12}" height="${SVG_H - 12}" rx="22" fill="none" stroke="url(#chrome${uid})" stroke-width="4"/>` +
+    `<rect x="11" y="11" width="${SVG_W - 22}" height="${SVG_H - 22}" rx="19" fill="none" stroke="#1a0606" stroke-width="1.2" opacity="0.9"/>`;
+  let rivetsSvg = '';
+  for (const rx of [16, SVG_W - 16]) {
+    for (let ry = 70; ry < SVG_H - 60; ry += 80) {
+      rivetsSvg +=
+        `<circle cx="${rx}" cy="${ry}" r="2.6" fill="#1a0606"/>` +
+        `<circle cx="${rx - 0.6}" cy="${ry - 0.7}" r="1" fill="#f0c0c0" opacity="0.7"/>`;
+    }
+  }
+  const trayY = SVG_H - 22;
+  const coinTraySvg =
+    `<rect x="48" y="${trayY - 4}" width="${SVG_W - 96}" height="3" rx="1" fill="#1a0606"/>` +
+    `<rect x="48" y="${trayY}" width="${SVG_W - 96}" height="13" rx="3" fill="url(#tray${uid})" stroke="#000" stroke-width="0.8"/>` +
+    `<rect x="48" y="${trayY}" width="${SVG_W - 96}" height="3" fill="#000" opacity="0.75"/>` +
+    `<rect x="${SVG_W / 2 - 30}" y="${trayY + 3.5}" width="60" height="7" rx="2" fill="#000" opacity="0.9"/>` +
+    `<rect x="${SVG_W / 2 - 28}" y="${trayY + 4.5}" width="56" height="1.4" fill="#3a2a10" opacity="0.6"/>`;
+
   // ── Paytable (TOP) ──
   // Sezione in alto, sotto l'header e prima dei rulli. Comunica esplicitamente
   // che si tratta delle competenze del proprietario: più pallini = miglior
@@ -706,14 +778,15 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   const footer = `
-<text x="${SVG_W / 2}" y="${SVG_H - 6}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#5d5d80">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
+<text x="${SVG_W / 2}" y="${SVG_H - 32}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#5d5d80">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
 
   return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>${defs}</defs>
 <style>${css}</style>
-<rect width="${SVG_W}" height="${SVG_H}" rx="20" fill="url(#bg${uid})"/>
-<rect x="4" y="4" width="${SVG_W - 8}" height="${SVG_H - 8}" rx="18" fill="none" ${borderAttr}/>
-${lightsSvg}
+${cabinetSvg}
+<rect x="22" y="22" width="${SVG_W - 44}" height="${SVG_H - 44}" rx="14" fill="url(#bg${uid})"/>
+<rect x="22" y="22" width="${SVG_W - 44}" height="${SVG_H - 44}" rx="14" fill="none" ${borderAttr}/>
+${rivetsSvg}
 ${headerSvg}
 ${paytableSvg}
 ${colBGs}
@@ -725,6 +798,8 @@ ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}
 ${panelSvg}
+${lightsSvg}
+${coinTraySvg}
 ${footer}
 </svg>`;
 }

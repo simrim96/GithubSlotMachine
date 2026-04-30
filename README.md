@@ -19,6 +19,7 @@ Reels of programming languages from your stack — every win surfaces a **fun fa
 api/
   spin.js           # main endpoint: spin, update slot.svg + state + README
   image.js          # serves slot.svg with aggressive no-cache headers
+  lever.js          # serves the side lever SVG (the actual click target)
   _lib/
     languages.js    # languages config + SVG symbol renderer (extensible)
     repos.js        # cached lookup: language → best matching repo (≥30%)
@@ -81,6 +82,21 @@ If the markers aren't present, the README is left untouched (the slot SVG still 
 
 - **No win** → redirect to the GitHub profile.
 - **Win**   → redirect to the matching repo (≥ 30% of the winning language). Falls back to the profile if no repo qualifies.
+
+## 🎰 Embedding the slot in a README
+
+The slot is split into **two side-by-side images**: the cabinet (`api/image`, non-clickable, just shows the reels and result) and the side lever (`api/lever`, the actual spin trigger). They are designed to dock visually so they look like a single classic slot machine.
+
+Use a markdown table (or HTML) to keep them on the same row with no gap:
+
+```markdown
+<table><tr>
+  <td><img src="https://YOUR-VERCEL-APP.vercel.app/api/image?v=1" width="600" alt="slot"/></td>
+  <td><a href="https://YOUR-VERCEL-APP.vercel.app/api/spin"><img src="https://YOUR-VERCEL-APP.vercel.app/api/lever" width="140" alt="pull to spin"/></a></td>
+</tr></table>
+```
+
+Only the lever is wrapped in the spin link — the slot itself is read-only. This makes the call-to-action explicit and prevents accidental clicks while reading the result.
 
 ## 🔐 Configuration
 
