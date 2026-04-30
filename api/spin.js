@@ -233,8 +233,10 @@ function generateGrid() {
     wins = checkWins(grid);
   }
 
-  // Altrimenti, ogni tanto regaliamo un near-miss (suspense).
-  if (wins.length === 0 && scatCnt < 3 && Math.random() < 0.25) {
+  // Near-miss organico: probabilità alta perché il rilevatore ora scansiona
+  // tutte le paylines, ma forziamo comunque la geometria sulla payline centrale
+  // per garantire visibilità.
+  if (wins.length === 0 && scatCnt < 3 && Math.random() < 0.55) {
     engineerNearMiss(grid);
   }
   return grid;
@@ -258,14 +260,27 @@ function engineerWin(grid) {
 
 function engineerNearMiss(grid) {
   const pl = PAYLINES[0];
-  const anchor = grid[0][pl[0]];
-  if (anchor === SCATTER_ID) return;
-  grid[1][pl[1]] = anchor;
+  let anchor = grid[0][pl[0]];
+  // Se l'ancora "naturale" è wild/scatter, sostituiamola con un linguaggio reale
+  // — altrimenti detectNearMiss salterebbe il match e il near-miss non verrebbe
+  // mai visualizzato.
+  if (anchor === WILD_ID || anchor === SCATTER_ID) {
+    anchor = SYMBOL_IDS[Math.floor(Math.random() * SYMBOL_IDS.length)];
+    grid[0][pl[0]] = anchor;
+  }
+  // Costruiamo un near-miss "profondo": 3 (o 4) anchor consecutivi sulla payline
+  // centrale e poi un "break" con anchor adiacente al rullo successivo.
+  const matchLen = Math.random() < 0.35 ? 4 : 3;
+  for (let c = 1; c < matchLen; c++) grid[c][pl[c]] = anchor;
+  if (matchLen >= COLS) return;
   const others = SYMBOL_IDS.filter((i) => i !== anchor);
   if (others.length === 0) return;
-  grid[2][pl[2]] = others[Math.floor(Math.random() * others.length)];
-  const adjR = pl[2] > 0 ? pl[2] - 1 : pl[2] + 1;
-  if (adjR >= 0 && adjR < ROWS) grid[2][adjR] = anchor;
+  // Rullo "di rottura" — quello che evidenziamo come near-miss.
+  const breakCol = matchLen;
+  grid[breakCol][pl[breakCol]] = others[Math.floor(Math.random() * others.length)];
+  // Anchor adiacente nello stesso rullo → near-miss visivo.
+  const adjR = pl[breakCol] > 0 ? pl[breakCol] - 1 : pl[breakCol] + 1;
+  if (adjR >= 0 && adjR < ROWS) grid[breakCol][adjR] = anchor;
 }
 
 // ─── Game logic ──────────────────────────────────────────────────────────────
@@ -310,23 +325,28 @@ function countScatters(grid) {
 
 function detectNearMiss(grid, wins) {
   if (wins.length > 0) return -1;
-  const pl = PAYLINES[0];
-  let anchor = null;
-  for (let c = 0; c < COLS; c++) {
-    const s = grid[c][pl[c]];
-    if (s !== WILD_ID && s !== SCATTER_ID) { anchor = s; break; }
-  }
-  if (!anchor) return -1;
-  let count = 0;
-  for (let c = 0; c < COLS; c++) {
-    const s = grid[c][pl[c]];
-    if (s === anchor || s === WILD_ID) count++; else break;
-  }
-  if (count < 2 || count >= COLS) return -1;
-  const missCol = count;
-  const missRow = pl[missCol];
-  for (const adj of [missRow - 1, missRow + 1]) {
-    if (adj >= 0 && adj < ROWS && grid[missCol][adj] === anchor) return missCol;
+  // Scansioniamo TUTTE le paylines, non solo quella centrale: qualsiasi
+  // 2+ in fila con un anchor adiacente nel rullo successivo è un near-miss
+  // visivamente significativo. Restituiamo il primo rullo "di rottura" trovato.
+  for (let p = 0; p < PAYLINES.length; p++) {
+    const pl = PAYLINES[p];
+    let anchor = null;
+    for (let c = 0; c < COLS; c++) {
+      const s = grid[c][pl[c]];
+      if (s !== WILD_ID && s !== SCATTER_ID) { anchor = s; break; }
+    }
+    if (!anchor) continue;
+    let count = 0;
+    for (let c = 0; c < COLS; c++) {
+      const s = grid[c][pl[c]];
+      if (s === anchor || s === WILD_ID) count++; else break;
+    }
+    if (count < 2 || count >= COLS) continue;
+    const missCol = count;
+    const missRow = pl[missCol];
+    for (const adj of [missRow - 1, missRow + 1]) {
+      if (adj >= 0 && adj < ROWS && grid[missCol][adj] === anchor) return missCol;
+    }
   }
   return -1;
 }
@@ -362,8 +382,11 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 580;
+  // Altezza maggiorata per accogliere la PAYTABLE in basso.
+  const SVG_W = 600, SVG_H = 700;
   const HDR_H = 92;
+  // Striscia paytable: una riga compatta in fondo allo SVG.
+  const PT_H = 96;
   const GY = HDR_H + 14;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
@@ -463,8 +486,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 
   // ── Border bulbs ──
   const bulbs = [];
-  for (let i = 0; i < 11; i++) { bulbs.push({ x: 25 + i * 51, y: 8 }); bulbs.push({ x: 25 + i * 51, y: SVG_H - 8 }); }
-  for (let i = 0; i < 7; i++) { bulbs.push({ x: 8, y: 50 + i * 60 }); bulbs.push({ x: SVG_W - 8, y: 50 + i * 60 }); }
+  for (let i = 0; i < 12; i++) { bulbs.push({ x: 25 + i * 51, y: 8 }); bulbs.push({ x: 25 + i * 51, y: SVG_H - 8 }); }
+  for (let i = 0; i < 11; i++) { bulbs.push({ x: 8, y: 50 + i * 60 }); bulbs.push({ x: SVG_W - 8, y: 50 + i * 60 }); }
   const lightsSvg = bulbs.map((b, i) => {
     const dur = isWin ? 0.35 : 1.8;
     const dl = isWin ? ED + (i % 3) * 0.08 : i * (1.8 / bulbs.length);
@@ -544,8 +567,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
+  // Lasciamo spazio in basso alla paytable: PY..(SVG_H - PT_H - 32).
   const PY = GY + GH + 14;
-  const PH = SVG_H - PY - 32;
+  const PH = SVG_H - PY - PT_H - 28;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -633,8 +657,46 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       ? `stroke="#16a34a" stroke-width="2.5"`
       : `stroke="#3a3666" stroke-width="2"`;
 
+  // ── Paytable ──
+  // Striscia in fondo allo SVG: per ogni linguaggio mostriamo
+  // [mini-icona] + nome + N pallini pieni / 5 (= competence dell'owner).
+  // Il titolo \u00e8 EN primario + IT secondario, in linea con il resto della UI.
+  const PTY = SVG_H - PT_H - 8;
+  const ptCount = LANGUAGES.length;
+  const ptInner = SVG_W - 28;
+  const ptCellW = ptInner / ptCount;
+  const ptIconSize = 36;
+  let paytableSvg = '';
+  paytableSvg += `<rect x="14" y="${PTY}" width="${SVG_W - 28}" height="${PT_H}" rx="14" fill="#13122d" opacity="0.85"/>`;
+  paytableSvg += `<text x="28" y="${PTY + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#8b8baf" letter-spacing="2">PAYTABLE \u00b7 SKILL LEVEL</text>`;
+  paytableSvg += `<text x="28" y="${PTY + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#5d5d80" letter-spacing="0.6">tabella valori \u00b7 livello di competenza dell'owner</text>`;
+  // Scala max: 5. Pallini pieni = competence, vuoti = 5 - competence.
+  const PT_MAX = 5;
+  for (let i = 0; i < ptCount; i++) {
+    const lang = LANGUAGES[i];
+    const cx = 14 + ptCellW * i + ptCellW / 2;
+    const iconX = cx - ptIconSize / 2;
+    const iconY = PTY + 32;
+    paytableSvg += symbolUse(uid, lang.id, iconX, iconY, ptIconSize, ptIconSize);
+    // Nome sotto l'icona.
+    paytableSvg += `<text x="${cx}" y="${iconY + ptIconSize + 11}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="9" font-weight="700" fill="#d4d4e8">${escapeXml(lang.name)}</text>`;
+    // Pallini di competenza.
+    const lvl = Math.max(0, Math.min(PT_MAX, lang.competence ?? 0));
+    const dotR = 2.1;
+    const dotGap = 5.2;
+    const dotsTotalW = PT_MAX * dotGap - (dotGap - 2 * dotR);
+    const dotsX0 = cx - dotsTotalW / 2 + dotR;
+    const dotsY = iconY + ptIconSize + 20;
+    for (let d = 0; d < PT_MAX; d++) {
+      const filled = d < lvl;
+      paytableSvg += `<circle cx="${(dotsX0 + d * dotGap).toFixed(2)}" cy="${dotsY}" r="${dotR}" `
+        + `fill="${filled ? lang.accent : '#2a2754'}" `
+        + `stroke="${filled ? lang.accent : '#3a3666'}" stroke-width="0.6"/>`;
+    }
+  }
+
   const footer = `
-<text x="${SVG_W / 2}" y="${SVG_H - 14}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="9" fill="#5d5d80">★ Wild  ·  5 paylines  ·  5-in-a-row = JACKPOT (all my repos)  ·  github.com/${escapeXml(OWNER)}</text>`;
+<text x="${SVG_W / 2}" y="${SVG_H - 6}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#5d5d80">&lt;/&gt; Wild  \u00b7  5 paylines  \u00b7  5-in-a-row = JACKPOT (all my repos)  \u00b7  github.com/${escapeXml(OWNER)}</text>`;
 
   return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <defs>${defs}</defs>
@@ -652,6 +714,7 @@ ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}
 ${panelSvg}
+${paytableSvg}
 ${footer}
 </svg>`;
 }

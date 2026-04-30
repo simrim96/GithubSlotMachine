@@ -10,7 +10,10 @@
 //    text        colore del testo sul simbolo
 //    githubLang  nome esatto come riportato dalla GitHub Languages API
 //    topic       (opzionale) topic richiesto sul repo (utile per framework)
-//    icon        SVG markup interno (centrato in viewBox 78x56) col logo "ufficiale"
+//    icon        SVG markup interno (centrato in viewBox 84x84) col logo "ufficiale"
+//    competence  (1-5) il tuo livello di confidenza con quella tech: viene
+//                mostrato nella PAYTABLE come N pallini pieni su 5. Aggiornalo
+//                liberamente: è un valore soggettivo del proprietario della slot.
 //    facts       lista di fun-fact in formato { it, en } — uno scelto random
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,7 @@ export const LANGUAGES = [
     accent: '#9FD3F0',
     text: '#ffffff',
     githubLang: 'C++',
+    competence: 4,
     icon: `
       <g transform="translate(42,38)">
         <path d="M0,-22 L19,-11 L19,11 L0,22 L-19,11 L-19,-11 Z"
@@ -46,6 +50,40 @@ export const LANGUAGES = [
     ],
   },
   {
+    // C e C++ sono volutamente tenuti separati: GitHub li tratta come linguaggi
+    // distinti nella Languages API, e i recruiter di solito li verificano
+    // entrambi a parte (paradigma procedurale puro vs multi-paradigma).
+    id: 'c',
+    name: 'C',
+    short: 'C',
+    color: '#283593',
+    accent: '#A8B9CC',
+    text: '#ffffff',
+    githubLang: 'C',
+    competence: 3,
+    icon: `
+      <g transform="translate(42,38)">
+        <path d="M0,-22 L19,-11 L19,11 L0,22 L-19,11 L-19,-11 Z"
+              fill="#1c2d6e" stroke="#A8B9CC" stroke-width="1.4"/>
+        <text x="0" y="7" text-anchor="middle" font-family="'Segoe UI',sans-serif"
+              font-size="22" font-weight="900" fill="#ffffff">C</text>
+      </g>`,
+    facts: [
+      {
+        it: 'C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio "moderno" (Python, Ruby, PHP, Lua…).',
+        en: 'C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it\'s the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every "modern" language (Python, Ruby, PHP, Lua…).',
+      },
+      {
+        it: 'Il libro "The C Programming Language" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio "hello, world".',
+        en: '"The C Programming Language" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic "hello, world" example.',
+      },
+      {
+        it: 'Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.',
+        en: 'The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility.',
+      },
+    ],
+  },
+  {
     id: 'glsl',
     name: 'GLSL',
     short: 'GLSL',
@@ -53,6 +91,7 @@ export const LANGUAGES = [
     accent: '#F5B642',
     text: '#ffffff',
     githubLang: 'GLSL',
+    competence: 3,
     icon: `
       <g transform="translate(42,38)">
         <polygon points="0,-22 19,-11 19,11 0,22 -19,11 -19,-11"
@@ -86,6 +125,7 @@ export const LANGUAGES = [
     text: '#61DAFB',
     githubLang: 'JavaScript',
     topic: 'react',
+    competence: 4,
     icon: `
       <g transform="translate(42,38)">
         <ellipse cx="0" cy="0" rx="20" ry="7.5" fill="none" stroke="#61DAFB" stroke-width="1.8"/>
@@ -116,6 +156,7 @@ export const LANGUAGES = [
     accent: '#000000',
     text: '#1a1a1a',
     githubLang: 'JavaScript',
+    competence: 5,
     icon: `
       <g transform="translate(42,38)">
         <rect x="-22" y="-22" width="44" height="44" rx="4" fill="#F7DF1E" stroke="#1a1a1a" stroke-width="1.2"/>
@@ -145,6 +186,7 @@ export const LANGUAGES = [
     accent: '#FFD43B',
     text: '#ffffff',
     githubLang: 'Python',
+    competence: 4,
     icon: `
       <g transform="translate(42,38) scale(1.45)">
         <path d="M-2,-14 Q-9,-14 -9,-7 V-3 H1 V-1 H-11 Q-15,-1 -15,5 V9 Q-15,14 -10,14 H-6 V8 Q-6,4 -1,4 H7 Q12,4 12,-1 V-7 Q12,-14 5,-14 Z"
@@ -177,6 +219,7 @@ export const LANGUAGES = [
     accent: '#235A97',
     text: '#ffffff',
     githubLang: 'TypeScript',
+    competence: 4,
     icon: `
       <g transform="translate(42,38)">
         <rect x="-22" y="-22" width="44" height="44" rx="4" fill="#3178C6" stroke="#235A97" stroke-width="1.2"/>
@@ -207,6 +250,7 @@ export const LANGUAGES = [
     text: '#ffffff',
     githubLang: 'C++',
     topic: 'qt',
+    competence: 3,
     icon: `
       <g transform="translate(42,38)">
         <circle cx="0" cy="0" r="22" fill="#41CD52" stroke="#0F3D26" stroke-width="1.4"/>
@@ -236,10 +280,13 @@ export const WILD = {
   color: '#fde047',
   accent: '#a16207',
   text: '#1a1a2e',
+  // Glifo CS-friendly invece della classica stella: il tag "</>" è
+  // universalmente associato allo sviluppo software.
   icon: `
     <g transform="translate(42,38)">
-      <polygon points="0,-19 5.2,-6 19,-6 8,2.2 12.5,16 0,8 -12.5,16 -8,2.2 -19,-6 -5.2,-6"
-               fill="#1a1a2e" stroke="#a16207" stroke-width="1.2"/>
+      <text x="0" y="9" text-anchor="middle"
+            font-family="'Fira Code','Consolas','Courier New',monospace"
+            font-size="24" font-weight="900" fill="#1a1a2e" letter-spacing="-1">&lt;/&gt;</text>
     </g>`,
 };
 
