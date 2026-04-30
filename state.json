@@ -1,16 +1,16 @@
 {
-  "totalSpins": 28,
-  "totalWins": 10,
+  "totalSpins": 29,
+  "totalWins": 11,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
-      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777579800625
+    "ts": 1777580647204
   }
 }
