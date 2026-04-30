@@ -1,16 +1,16 @@
 {
-  "totalSpins": 110,
-  "totalWins": 69,
+  "totalSpins": 119,
+  "totalWins": 75,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.",
+      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587481136
+    "ts": 1777588277005
   }
 }
