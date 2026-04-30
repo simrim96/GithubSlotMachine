@@ -1,16 +1,16 @@
 {
-  "totalSpins": 32,
-  "totalWins": 13,
+  "totalSpins": 33,
+  "totalWins": 14,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
-      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777580706768
+    "ts": 1777581210881
   }
 }
