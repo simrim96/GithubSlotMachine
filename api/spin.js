@@ -374,10 +374,14 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const DUR = [3.0, 3.8, 4.6, 5.4, 6.2];
   const LDUR = DUR[COLS - 1];
   const scroll = FILLERS * CH;
-  // Near-miss: scroll più lungo (=> animazione più veloce a parità di tempo)
-  // e durata estesa per amplificare la suspense.
-  const NM_FILLERS_EXTRA = 14;
-  const NM_DUR_EXTRA = 1.6;
+  // Near-miss tuning:
+  //  • il rullo "quasi vincente" deve sembrare più veloce → stessa durata
+  //    ma molti più cells da scorrere (pixel/s più alti);
+  //  • i rulli successivi devono terminare DOPO quello di near-miss →
+  //    quindi non aggiungiamo durata extra (DUR è monotonicamente crescente);
+  //  • se il near-miss è l'ultimo rullo, possiamo prolungarlo per suspense.
+  const NM_FILLERS_EXTRA = 36;
+  const NM_DUR_EXTRA_LAST = 1.2;
 
   const colL = (c) => MX + c * (CW + GAP);
   const colC = (c) => colL(c) + CW / 2;
@@ -393,9 +397,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const winCells = new Set();
   for (const w of wins) for (const p of w.positions) winCells.add(`${p.c},${p.r}`);
 
-  // ED = end-of-spin time (quando il rullo più lento + eventuale extra near-miss
-  // si ferma). Tutte le animazioni post-spin partono da qui.
-  const ED = LDUR + (nearMissCol === COLS - 1 ? NM_DUR_EXTRA : 0) + 0.4;
+  // ED = end-of-spin time. Solo se il near-miss è l'ultimo rullo prolunghiamo;
+  // altrimenti l'ultimo rullo è già il più lento e termina di suo dopo.
+  const ED = LDUR + (nearMissCol === COLS - 1 ? NM_DUR_EXTRA_LAST : 0) + 0.4;
 
   // ── CSS / animations ──
   let css = '';
@@ -406,30 +410,37 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   for (let c = 0; c < COLS; c++) {
     const a = `rs${uid}c${c}`;
     if (c === nearMissCol) {
-      // Near-miss: scroll più lungo (più veloce per la maggior parte del tempo)
-      // + finale a 4-step di rimbalzo per fingere quasi-vincita.
+      // Near-miss: scroll molto più lungo a parità di tempo → angular velocity
+      // visibilmente maggiore. Finale a 4-step di rimbalzo per fingere la quasi-vincita.
       const nmScroll = scroll + NM_FILLERS_EXTRA * CH;
       css += `@keyframes ${a}{0%{transform:translateY(-${nmScroll}px)}` +
-        `60%{transform:translateY(-${Math.round(scroll * 0.18)}px)}` +
-        `72%{transform:translateY(28px)}80%{transform:translateY(-20px)}` +
-        `88%{transform:translateY(11px)}95%{transform:translateY(-5px)}100%{transform:translateY(0)}}`;
+        `70%{transform:translateY(-${Math.round(scroll * 0.10)}px)}` +
+        `80%{transform:translateY(28px)}87%{transform:translateY(-20px)}` +
+        `93%{transform:translateY(11px)}97%{transform:translateY(-5px)}100%{transform:translateY(0)}}`;
     } else {
       css += `@keyframes ${a}{0%{transform:translateY(-${scroll}px)}` +
         `85%{transform:translateY(12px)}94%{transform:translateY(-4px)}100%{transform:translateY(0)}}`;
     }
   }
   css += `@keyframes wp${uid}{0%,100%{opacity:0}50%{opacity:.55}}`;
-  css += `@keyframes pf${uid}{from{opacity:0;stroke-width:1}to{opacity:.9;stroke-width:3}}`;
   css += `@keyframes ov${uid}{from{opacity:0}to{opacity:.92}}`;
   css += `@keyframes ot${uid}{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`;
   css += `@keyframes fi${uid}{from{opacity:0}to{opacity:1}}`;
   css += `@keyframes jb${uid}{0%,100%{stroke:#ffd700}50%{stroke:#e94560}}`;
   css += `@keyframes nm${uid}{0%,100%{opacity:0}30%{opacity:.4}60%{opacity:0}}`;
   css += `@keyframes cf${uid}{0%{transform:translateY(-20px);opacity:1}100%{transform:translateY(220px);opacity:0}}`;
-  // Shine animato attorno al rullo near-miss durante la rotazione.
+  // Shine attorno al rullo near-miss: opacità piena e sostenuta per (quasi) tutta
+  // la durata della rotazione, poi snap a 0 nell'ultimo 4% → sparisce di colpo
+  // quando il rullo si ferma.
   css += `@keyframes sh${uid}{0%{opacity:0;stroke-width:1}` +
-    `15%{opacity:.95;stroke-width:4}50%{opacity:.6;stroke-width:3}` +
-    `85%{opacity:.95;stroke-width:5}100%{opacity:0;stroke-width:1}}`;
+    `8%{opacity:1;stroke-width:5}` +
+    `50%{opacity:1;stroke-width:4}` +
+    `90%{opacity:1;stroke-width:6}` +
+    `96%{opacity:1;stroke-width:4}` +
+    `100%{opacity:0;stroke-width:0}}`;
+  // Pulse interno (alone giallo dietro al rullo) sincronizzato con sh.
+  css += `@keyframes shp${uid}{0%{opacity:0}10%{opacity:.45}50%{opacity:.55}` +
+    `90%{opacity:.65}97%{opacity:.55}100%{opacity:0}}`;
   // Shimmer interno (gradient sweep) per il rullo near-miss.
   css += `@keyframes shm${uid}{0%{transform:translateY(-100%)}100%{transform:translateY(${GH + 20}px)}}`;
 
@@ -477,38 +488,40 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       const fid = REEL[Math.floor(Math.random() * REEL.length)];
       cells += symbolUse(uid, fid, x, y);
     }
-    const dur = isNm ? DUR[c] + NM_DUR_EXTRA : DUR[c];
+    const isLastCol = c === COLS - 1;
+    // Durata: solo l'ultimo rullo (se near-miss) viene allungato; per gli altri
+    // c manteniamo DUR[c] inalterato così da garantire che ogni rullo a destra
+    // del near-miss finisca strettamente dopo (DUR è crescente).
+    const dur = isNm && isLastCol ? DUR[c] + NM_DUR_EXTRA_LAST : DUR[c];
     reelsSvg += `<g clip-path="url(#cp${uid}c${c})"><g style="animation:rs${uid}c${c} ${dur}s cubic-bezier(.1,.7,.3,1) forwards">${cells}</g></g>`;
     colBordersSvg += `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="11" fill="none" stroke="#e94560" stroke-width="1.4" opacity="0.55"/>`;
 
-    // Near-miss shine: bordo dorato pulsante + shimmer verticale all'interno
-    // del rullo, attivi durante la rotazione.
+    // Near-miss shine: alone interno + bordo dorato spesso, attivi per tutta
+    // la rotazione del rullo e poi spariti istantaneamente quando si ferma.
     if (isNm) {
+      // Layer 0: alone giallo morbido leggermente più grande del rullo.
+      nmShineSvg +=
+        `<rect x="${x - 6}" y="${GY - 6}" width="${CW + 12}" height="${GH + 12}" rx="15"
+               fill="#ffd700" filter="url(#glow${uid})"
+               style="animation:shp${uid} ${dur}s ease-in-out forwards;opacity:0"/>`;
+      // Layer 1: bordo dorato "pulsante" che resta su per tutta la rotazione.
       nmShineSvg +=
         `<rect x="${x - 2}" y="${GY - 2}" width="${CW + 4}" height="${GH + 4}" rx="13" fill="none"
                stroke="#ffd700" filter="url(#glow${uid})"
-               style="animation:sh${uid} ${dur}s ease-in-out forwards;opacity:0"/>` +
-        `<g clip-path="url(#cp${uid}c${c})" style="opacity:.85">
+               style="animation:sh${uid} ${dur}s ease-in-out forwards;opacity:0"/>`;
+      // Layer 2: shimmer verticale interno (sweep continuo) limitato al rullo.
+      nmShineSvg +=
+        `<g clip-path="url(#cp${uid}c${c})">
            <rect x="${x}" y="${GY}" width="${CW}" height="${Math.round(CH * 1.2)}"
-                 fill="url(#shg${uid})"
-                 style="animation:shm${uid} ${(dur / 2.2).toFixed(2)}s linear infinite"/>
+                 fill="url(#shg${uid})" opacity=".9"
+                 style="animation:shm${uid} ${(dur / 2.5).toFixed(2)}s linear infinite"/>
          </g>`;
     }
   }
 
-  // ── Payline markers ──
-  const plMarkers = PAYLINES.map((pl, i) => {
-    const y = cellCY(pl[0]);
-    return `<polygon points="${MX - 14},${y} ${MX - 4},${y - 5} ${MX - 4},${y + 5}" fill="${PL_COLORS[i]}" opacity=".45"/>`;
-  }).join('');
-
-  // ── Winning paylines ──
-  let winLinesSvg = '';
-  for (const w of wins) {
-    const pts = [];
-    for (let c = 0; c < w.count; c++) pts.push(`${colC(c)},${cellCY(w.positions[c].r)}`);
-    winLinesSvg += `<polyline points="${pts.join(' ')}" fill="none" stroke="${w.color}" stroke-width="3" stroke-linecap="round" filter="url(#glow${uid})" style="animation:pf${uid} .4s ${ED}s forwards;opacity:0"/>`;
-  }
+  // Le linee di vincita (winning paylines + frecce indicatrici a sinistra)
+  // sono state rimosse: comparivano in modo poco coerente. La vincita resta
+  // comunicata dal glow giallo sulle celle e dai messaggi nel pannello.
 
   // ── Win glow ──
   let winGlowSvg = '';
@@ -634,8 +647,6 @@ ${colBGs}
 ${reelsSvg}
 ${nmShineSvg}
 ${colBordersSvg}
-${plMarkers}
-${winLinesSvg}
 ${winGlowSvg}
 ${nearMissSvg}
 ${coinsSvg}

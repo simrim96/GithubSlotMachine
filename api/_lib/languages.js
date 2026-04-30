@@ -169,6 +169,65 @@ export const LANGUAGES = [
       },
     ],
   },
+  {
+    id: 'typescript',
+    name: 'TypeScript',
+    short: 'TS',
+    color: '#3178C6',
+    accent: '#235A97',
+    text: '#ffffff',
+    githubLang: 'TypeScript',
+    icon: `
+      <g transform="translate(42,38)">
+        <rect x="-22" y="-22" width="44" height="44" rx="4" fill="#3178C6" stroke="#235A97" stroke-width="1.2"/>
+        <text x="16" y="16" text-anchor="end" font-family="'Segoe UI',sans-serif"
+              font-size="19" font-weight="900" fill="#ffffff" letter-spacing="-0.5">TS</text>
+      </g>`,
+    facts: [
+      {
+        it: 'TypeScript è stato creato da Anders Hejlsberg (papà di C# e Turbo Pascal) in Microsoft e annunciato pubblicamente nel 2012.',
+        en: 'TypeScript was created by Anders Hejlsberg (father of C# and Turbo Pascal) at Microsoft and publicly announced in 2012.',
+      },
+      {
+        it: 'TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.',
+        en: 'TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime.',
+      },
+      {
+        it: 'Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.',
+        en: 'TypeScript\'s type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level.',
+      },
+    ],
+  },
+  {
+    id: 'qt',
+    name: 'Qt',
+    short: 'Qt',
+    color: '#0F3D26',
+    accent: '#41CD52',
+    text: '#ffffff',
+    githubLang: 'C++',
+    topic: 'qt',
+    icon: `
+      <g transform="translate(42,38)">
+        <circle cx="0" cy="0" r="22" fill="#41CD52" stroke="#0F3D26" stroke-width="1.4"/>
+        <text x="0" y="8" text-anchor="middle" font-family="'Segoe UI',serif"
+              font-size="24" font-weight="900" fill="#ffffff" font-style="italic">Qt</text>
+      </g>`,
+    facts: [
+      {
+        it: 'Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera "Q" che piaceva al font Emacs di Haavard.',
+        en: 'Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter "Q", which looked nice in Haavard\'s Emacs font.',
+      },
+      {
+        it: 'Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l\'infotainment di moltissime auto sono basati su Qt.',
+        en: 'Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt.',
+      },
+      {
+        it: 'Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.',
+        en: 'Qt\'s signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide.',
+      },
+    ],
+  },
 ];
 
 export const WILD = {
