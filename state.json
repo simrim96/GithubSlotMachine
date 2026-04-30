@@ -1,16 +1,16 @@
 {
-  "totalSpins": 153,
-  "totalWins": 104,
+  "totalSpins": 154,
+  "totalWins": 105,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.",
-      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
+      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777590843356
+    "ts": 1777590886551
   }
 }
