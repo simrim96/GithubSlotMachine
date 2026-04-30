@@ -1,16 +1,16 @@
 {
-  "totalSpins": 107,
-  "totalWins": 67,
+  "totalSpins": 108,
+  "totalWins": 68,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
-      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587426835
+    "ts": 1777587442733
   }
 }
