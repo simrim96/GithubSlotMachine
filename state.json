@@ -1,16 +1,16 @@
 {
-  "totalSpins": 104,
-  "totalWins": 65,
+  "totalSpins": 105,
+  "totalWins": 66,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "Il nome originale era \"Mocha\", poi \"LiveScript\" e infine \"JavaScript\" — una scelta di marketing per cavalcare l'hype di Java.",
+      "en": "The original name was \"Mocha\", then \"LiveScript\" and finally \"JavaScript\" — a marketing move to ride the Java hype wave."
     },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1777587374389
+    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
+    "repoName": "GithubSlotMachine",
+    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
+    "ts": 1777587378069
   }
 }
