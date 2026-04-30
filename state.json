@@ -1,16 +1,16 @@
 {
-  "totalSpins": 133,
-  "totalWins": 87,
+  "totalSpins": 134,
+  "totalWins": 88,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
-      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
+      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
+      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
     },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1777589272027
+    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
+    "repoName": "GithubSlotMachine",
+    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
+    "ts": 1777589944704
   }
 }
