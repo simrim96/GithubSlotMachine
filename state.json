@@ -1,16 +1,16 @@
 {
-  "totalSpins": 39,
-  "totalWins": 19,
+  "totalSpins": 40,
+  "totalWins": 20,
   "lastWin": {
     "langId": "react",
     "langName": "React",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.",
+      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777581906134
+    "ts": 1777582324244
   }
 }
