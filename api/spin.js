@@ -538,6 +538,12 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
     `<stop offset="40%" stop-color="#ff4040"/>` +
     `<stop offset="100%" stop-color="#7a0707"/>` +
     `</radialGradient>`;
+  // Glow interno dello schermo (atmosfera retro-arcade).
+  defs += `<radialGradient id="scrGlow${uid}" cx="50%" cy="50%" r="60%">` +
+    `<stop offset="0%" stop-color="#a855f7" stop-opacity="0.55"/>` +
+    `<stop offset="60%" stop-color="#4338ca" stop-opacity="0.25"/>` +
+    `<stop offset="100%" stop-color="#0a0612" stop-opacity="0"/>` +
+    `</radialGradient>`;
   // Gradient orizzontale per lo shimmer del near-miss.
   defs += `<linearGradient id="shg${uid}" x1="0" y1="0" x2="0" y2="1">` +
     `<stop offset="0%" stop-color="#ffd700" stop-opacity="0"/>` +
@@ -784,9 +790,42 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
        L 36 ${BODY_Y + 56} Z"
        fill="url(#cabHi${uid})"/>`;
 
+  // ─── Abbellimenti del cabinet ───
+  // Pinstripe dorata interna che segue il profilo del cabinet (look "vegas").
+  cabinetSvg +=
+    `<path d="
+       M 32 ${BODY_Y + 26}
+       Q 32 ${BODY_Y + 4} 54 ${BODY_Y + 4}
+       L ${SVG_W - 54} ${BODY_Y + 4}
+       Q ${SVG_W - 32} ${BODY_Y + 4} ${SVG_W - 32} ${BODY_Y + 26}
+       L ${SVG_W - 32} ${SVG_H - 24}
+       Q ${SVG_W - 32} ${SVG_H - 4} ${SVG_W - 54} ${SVG_H - 4}
+       L 54 ${SVG_H - 4}
+       Q 32 ${SVG_H - 4} 32 ${SVG_H - 24} Z"
+       fill="none" stroke="#ffd84a" stroke-width="0.8" opacity="0.55"/>`;
+  // Riflessi verticali laterali (vernice laccata).
+  cabinetSvg +=
+    `<rect x="30" y="${BODY_Y + 30}" width="3" height="${SVG_H - 60}" rx="1.5"
+           fill="#ffffff" opacity="0.10"/>` +
+    `<rect x="${SVG_W - 33}" y="${BODY_Y + 30}" width="3" height="${SVG_H - 60}" rx="1.5"
+           fill="#000000" opacity="0.18"/>`;
+  // Borchie dorate decorative agli angoli (rivetti).
+  const studs = [
+    [42, BODY_Y + 18], [SVG_W - 42, BODY_Y + 18],
+    [42, SVG_H - 18],  [SVG_W - 42, SVG_H - 18],
+  ];
+  for (const [sx, sy] of studs) {
+    cabinetSvg +=
+      `<circle cx="${sx}" cy="${sy}" r="3.5" fill="url(#frame${uid})" stroke="#7a4400" stroke-width="0.8"/>` +
+      `<circle cx="${sx - 0.8}" cy="${sy - 0.8}" r="1.2" fill="#fff5b8" opacity="0.85"/>`;
+  }
+
   // Cornice gialla attorno allo schermo (i rulli) — è il telaio della
   // marquee dove vivono le lampadine.
   const screenFrameSvg =
+    // Striscia LED sopra la cornice
+    `<rect x="${SCR_X + 8}" y="${SCR_Y - 9}" width="${SCR_W - 16}" height="2" rx="1"
+           fill="#ffd84a" opacity="0.7"/>` +
     `<rect x="${SCR_X - 4}" y="${SCR_Y - 4}" width="${SCR_W + 8}" height="${SCR_H + 8}" rx="14"
            fill="#7a4400"/>` +
     `<rect x="${SCR_X}" y="${SCR_Y}" width="${SCR_W}" height="${SCR_H}" rx="12"
@@ -794,8 +833,14 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
     // Inner black bezel (lo "schermo" effettivo dove scorrono i rulli)
     `<rect x="${MX - 8}" y="${GY - 8}" width="${GW + 16}" height="${GH + 16}" rx="6"
            fill="#0a0612"/>` +
+    // Glow interno blu/viola sullo schermo (atmosfera retro-arcade)
+    `<rect x="${MX - 7}" y="${GY - 7}" width="${GW + 14}" height="${GH + 14}" rx="6"
+           fill="url(#scrGlow${uid})" opacity="0.35"/>` +
     `<rect x="${MX - 6}" y="${GY - 6}" width="${GW + 12}" height="${GH + 12}" rx="5"
-           fill="none" stroke="#3a1a05" stroke-width="1.4" opacity="0.9"/>`;
+           fill="none" stroke="#3a1a05" stroke-width="1.4" opacity="0.9"/>` +
+    // Striscia LED sotto la cornice
+    `<rect x="${SCR_X + 8}" y="${SCR_Y + SCR_H + 7}" width="${SCR_W - 16}" height="2" rx="1"
+           fill="#ffd84a" opacity="0.7"/>`;
 
   // Coin tray rimosso: il pannello risultato \u00e8 ora l'ultimo elemento del cabinet.
   const coinTraySvg = '';
