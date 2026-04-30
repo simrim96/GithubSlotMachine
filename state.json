@@ -1,16 +1,16 @@
 {
-  "totalSpins": 73,
-  "totalWins": 42,
+  "totalSpins": 74,
+  "totalWins": 43,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
-      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
+      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586587117
+    "ts": 1777586589068
   }
 }
