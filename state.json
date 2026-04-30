@@ -1,16 +1,16 @@
 {
-  "totalSpins": 135,
-  "totalWins": 89,
+  "totalSpins": 136,
+  "totalWins": 90,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.",
-      "en": "TypeScript's type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777589956001
+    "ts": 1777589965797
   }
 }
