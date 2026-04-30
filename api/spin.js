@@ -382,18 +382,18 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 540;
-  const HDR_H = 68;
+  const SVG_W = 600, SVG_H = 472;
+  const HDR_H = 64;
   // Niente crown: top compatto.
   const CROWN_H = 0;
   const HDR_TOP = 2;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
-  const PT_H = 80;
+  const PT_H = 76;
   const PT_Y = HDR_TOP + HDR_H + 2;
   // Margine extra prima dei rulli per ospitare la cornice gialla a lampadine
   // attorno allo "screen" (FRAME_PAD viene definito più in basso).
-  const GY = PT_Y + PT_H + 14;
+  const GY = PT_Y + PT_H + 12;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -667,56 +667,32 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Pannello in basso, ultimo elemento del cabinet.
+  // Banda compatta in basso: una sola riga di esito (win/loss/near-miss).
+  // I dettagli (fact EN/IT, repo match) sono mostrati come tooltip via title
+  // o nel CTA del jackpot, non occupano più fascia verticale dedicata.
   const PY = GY + GH + FRAME_PAD + 4;
-  const PH = (SVG_H - 6) - PY;
+  const PH = (SVG_H - 4) - PY;
   let panelSvg = '';
   if (isWin && winningLang) {
-    const factEn = (fact && fact.en) || '';
-    const factIt = (fact && fact.it) || '';
-    const linesEn = wrap(factEn, 86).slice(0, 2);
-    const linesIt = wrap(factIt, 86).slice(0, 2);
     const headLine = isJackpot ? `🏆 JACKPOT — ${winningLang.name}!`
                   : isBigWin ? `💰 BIG WIN — ${winningLang.name}!`
                   : `🎉 ${winningLang.name} WIN!`;
     const headColor = isJackpot ? '#ffd700' : isBigWin ? '#ffb84d' : '#4ade80';
-
-    panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${headColor}" stroke-width="1.5" opacity="0.95" style="animation:fi${uid} .5s ${ED}s forwards;opacity:0"/>`;
-    panelSvg += `<text x="${SVG_W / 2}" y="${PY + 24}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}</text>`;
-    let yy = PY + 46;
-    // English (primary)
-    if (linesEn.length) {
-      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.18}s forwards;opacity:0">EN</text>`;
-      for (const line of linesEn) {
-        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="#e8e8f4" style="animation:fi${uid} .5s ${ED + 0.2}s forwards;opacity:0">${escapeXml(line)}</text>`;
-        yy += 15;
-      }
-      yy += 4;
-    }
-    // Italiano (secondary)
-    if (linesIt.length) {
-      panelSvg += `<text x="32" y="${yy}" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf" font-weight="700" letter-spacing="1.2" style="animation:fi${uid} .5s ${ED + 0.28}s forwards;opacity:0">IT</text>`;
-      for (const line of linesIt) {
-        panelSvg += `<text x="${SVG_W / 2}" y="${yy}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" fill="#b8b8d0" font-style="italic" style="animation:fi${uid} .5s ${ED + 0.3}s forwards;opacity:0">${escapeXml(line)}</text>`;
-        yy += 14;
-      }
-    }
+    panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="8" fill="#0e0d24" stroke="${headColor}" stroke-width="1.4" opacity="0.95" style="animation:fi${uid} .5s ${ED}s forwards;opacity:0"/>`;
+    let suffix = '';
     if (repoMatch) {
-      const ctaEn = isJackpot
-        ? `🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos`
-        : `→ github.com/${escapeXml(OWNER)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}`;
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">${ctaEn}</text>`;
+      suffix = isJackpot
+        ? `  ·  🎯 JACKPOT → all my ${escapeXml(winningLang.name)} repos`
+        : `  ·  ${escapeXml(repoMatch.name)} (${Math.round(repoMatch.pct * 100)}%)`;
     } else if (isJackpot) {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos</text>`;
+      suffix = `  ·  🎯 all my ${escapeXml(winningLang.name)} repos`;
     }
-    // Se non c'è una repo pubblica con ≥30% del linguaggio: silenzio totale.
+    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 5}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="15" font-weight="800" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}${suffix}</text>`;
   } else {
     const msgEn = nearMissCol >= 0 ? '😱 So close — try again!' : 'Try again, better luck next time!';
-    const msgIt = nearMissCol >= 0 ? 'Così vicino, ritenta!' : 'Ritenta, sarai più fortunato!';
     const col = nearMissCol >= 0 ? '#f59e0b' : '#e94560';
-    panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${col}" stroke-width="1" opacity="0.9"/>`;
-    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 - 4}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="15" font-weight="700" fill="${col}" style="animation:fi${uid} .4s ${ED}s forwards;opacity:0">${escapeXml(msgEn)}</text>`;
-    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-style="italic" fill="#8b8baf" style="animation:fi${uid} .4s ${ED + 0.1}s forwards;opacity:0">${escapeXml(msgIt)}</text>`;
+    panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="8" fill="#0e0d24" stroke="${col}" stroke-width="1" opacity="0.9"/>`;
+    panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 5}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" font-weight="700" fill="${col}" style="animation:fi${uid} .4s ${ED}s forwards;opacity:0">${escapeXml(msgEn)}</text>`;
   }
 
   // ── Overlay sopra griglia: solo per JACKPOT (5-in-a-row).
@@ -814,7 +790,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   let paytableSvg = '';
   paytableSvg += `<rect x="32" y="${PT_Y}" width="${SVG_W - 64}" height="${PT_H}" rx="14"
                          fill="#13122d" stroke="#7a4400" stroke-width="1.2" opacity="0.92"/>`;
-  paytableSvg += `<text x="46" y="${PT_Y + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#ffd700" letter-spacing="2">PAYTABLE \u00b7 HIGHER MASTERY = HIGHER PAYOUT</text>`;
+  paytableSvg += `<text x="46" y="${PT_Y + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#ffd700" letter-spacing="2">MY DEV STACK \u00b7 MORE DOTS = MORE EXPERIENCE</text>`;
   paytableSvg += `<text x="46" y="${PT_Y + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#8b8baf" letter-spacing="0.5">Più pallini = livello di padronanza dell'owner = simbolo che paga di più nella slot</text>`;
   paytableSvg += `<text x="${SVG_W - 46}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">EXPERT</text>`;
   paytableSvg += `<text x="${SVG_W - 46 - 88}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">FAMILIAR</text>`;

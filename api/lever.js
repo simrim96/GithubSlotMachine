@@ -11,30 +11,30 @@
 // fuori canvas — questo permette di affiancare la leva al cabinet della slot
 // con zero gap visivo.
 
-const W = 80;
-const H = 540;
+const W = 56;
+const H = 160;
 
 // Bumper sporge dal lato sinistro del canvas: BUMPER_CX poco a destra del
 // bordo (la metà sinistra del bumper resta clippata fuori) → quando il SVG
 // viene affiancato al cabinet, la leva si "incastra" sul fianco destro
 // della slot senza alcun gap visivo.
 const BUMPER_CX = 0;
-const BUMPER_CY = Math.round(H * 0.58);
-const BUMPER_R  = 20;
+const BUMPER_CY = Math.round(H * 0.55);
+const BUMPER_R  = 14;
 
 // Asta diagonale: parte DENTRO il bumper (per evitare gap di rotazione)
 // e va in alto a destra.
 const ARM_BASE_CX = BUMPER_CX;        // dentro il bumper (era +10 → glitch)
 const ARM_BASE_CY = BUMPER_CY;
-const ARM_TOP_CX  = W - 22;
-const ARM_TOP_CY  = 76;
-const ARM_BASE_W  = 12;   // più largo alla base (più vicino all'osservatore)
-const ARM_TOP_W   = 8;    // più stretto in cima (prospettiva)
+const ARM_TOP_CX  = W - 16;
+const ARM_TOP_CY  = 28;
+const ARM_BASE_W  = 9;    // più largo alla base (più vicino all'osservatore)
+const ARM_TOP_W   = 6;    // più stretto in cima (prospettiva)
 
 // Pomello sferico in cima all'asta
-const BALL_CX = ARM_TOP_CX + 3;
-const BALL_CY = ARM_TOP_CY - 18;
-const BALL_R  = 22;
+const BALL_CX = ARM_TOP_CX + 2;
+const BALL_CY = ARM_TOP_CY - 12;
+const BALL_R  = 13;
 
 // Trapezoide dell'asta: 4 punti calcolati perpendicolarmente alla retta
 // base→top, con larghezza variabile (base wider → tip narrower) per
@@ -163,7 +163,7 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
   <!-- ── Leva (gruppo che oscilla attorno al pivot del bumper) ── -->
   <g class="leverArm">
     <!-- Halo del pomello -->
-    <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R + 18}"
+    <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R + 10}"
             fill="#ffd84a" opacity="0.32" class="leverBallHalo"/>
 
     <!-- Asta: trapezoide con prospettiva -->
@@ -183,7 +183,7 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
     <!-- Tappo cromato all'innesto col pomello -->
     <circle cx="${ARM_TOP_CX + (BALL_CX - ARM_TOP_CX) * 0.5}"
             cy="${ARM_TOP_CY + (BALL_CY - ARM_TOP_CY) * 0.5}"
-            r="6.5" fill="url(#leverBumper)" stroke="#000" stroke-width="0.8"/>
+            r="4" fill="url(#leverBumper)" stroke="#000" stroke-width="0.8"/>
 
     <!-- ── Pomello sferico giallo ── -->
     <circle cx="${BALL_CX + 2}" cy="${BALL_CY + 3}" r="${BALL_R}"
@@ -193,10 +193,10 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
     <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R - 1}"
             fill="url(#leverBallBounce)"/>
     <ellipse cx="${BALL_CX}" cy="${BALL_CY + BALL_R * 0.55}"
-             rx="${BALL_R * 0.7}" ry="3" fill="#ff8a4a" opacity="0.45"/>
-    <circle cx="${BALL_CX - 12}" cy="${BALL_CY - 14}" r="13"
+             rx="${BALL_R * 0.7}" ry="2" fill="#ff8a4a" opacity="0.45"/>
+    <circle cx="${BALL_CX - 6}" cy="${BALL_CY - 7}" r="7"
             fill="url(#leverBallShine)"/>
-    <circle cx="${BALL_CX - 14}" cy="${BALL_CY - 16}" r="3.5"
+    <circle cx="${BALL_CX - 7}" cy="${BALL_CY - 8}" r="2"
             fill="#ffffff" opacity="0.95"/>
   </g>
 
@@ -204,23 +204,23 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
        Il "foro" centrale del bumper viene RIDISEGNATO sopra l'asta:
        così, qualunque sia l'angolo di rotazione, la base del polígono
        resta nascosta dietro questo dischetto scuro fisso. -->
-  <circle cx="${BUMPER_CX + 3}" cy="${BUMPER_CY - 1}" r="6"
-          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.6"/>
-  <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY - 2.5}" r="1.6"
+  <circle cx="${BUMPER_CX + 2}" cy="${BUMPER_CY - 1}" r="4"
+          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.5"/>
+  <circle cx="${BUMPER_CX + 1}" cy="${BUMPER_CY - 2}" r="1"
           fill="#ffffff" opacity="0.55"/>
 
   <!-- ── Label "PULL!" sotto il bumper (centrata sul canvas) ── -->
   <g class="leverLabel" font-family="'Segoe UI','Helvetica Neue',sans-serif"
      text-anchor="middle">
-    <rect x="${(W - 56) / 2}" y="${BUMPER_CY + BUMPER_R + 16}"
-          width="56" height="22" rx="5"
-          fill="#0a0a18" stroke="#ffd84a" stroke-width="1.4"/>
-    <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 31}"
-          font-size="12" font-weight="900" fill="#ffd84a" letter-spacing="2">PULL!</text>
+    <rect x="${(W - 40) / 2}" y="${BUMPER_CY + BUMPER_R + 10}"
+          width="40" height="16" rx="4"
+          fill="#0a0a18" stroke="#ffd84a" stroke-width="1.2"/>
+    <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 21}"
+          font-size="9" font-weight="900" fill="#ffd84a" letter-spacing="1.4">PULL!</text>
   </g>
-  <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 50}" text-anchor="middle"
-        font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#7a4400"
-        font-style="italic" letter-spacing="0.5">click to spin</text>
+  <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 38}" text-anchor="middle"
+        font-family="'Segoe UI',sans-serif" font-size="6" fill="#7a4400"
+        font-style="italic" letter-spacing="0.3">click to spin</text>
 </svg>`;
 
 export default function handler(req, res) {
