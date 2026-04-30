@@ -1,13 +1,16 @@
 {
-  "totalSpins": 24,
-  "totalWins": 8,
+  "totalSpins": 28,
+  "totalWins": 10,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
-    "fact": "C++20 ha introdotto i Concepts, le Coroutines, i Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+    "langId": "glsl",
+    "langName": "GLSL",
+    "fact": {
+      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+    },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777578914870
+    "ts": 1777579800625
   }
 }
