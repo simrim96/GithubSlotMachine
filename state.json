@@ -1,16 +1,16 @@
 {
-  "totalSpins": 92,
-  "totalWins": 55,
+  "totalSpins": 93,
+  "totalWins": 56,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
-      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
+      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
     },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1777587176298
+    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
+    "repoName": "GithubSlotMachine",
+    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
+    "ts": 1777587190124
   }
 }
