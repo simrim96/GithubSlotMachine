@@ -1,16 +1,16 @@
 {
-  "totalSpins": 44,
-  "totalWins": 23,
+  "totalSpins": 45,
+  "totalWins": 24,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
-      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
+      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.",
+      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
     },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1777582439917
+    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
+    "repoName": "GithubSlotMachine",
+    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
+    "ts": 1777583938804
   }
 }
