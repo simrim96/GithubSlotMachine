@@ -1,16 +1,16 @@
 {
-  "totalSpins": 121,
-  "totalWins": 76,
+  "totalSpins": 122,
+  "totalWins": 77,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt.",
+      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588311215
+    "ts": 1777588324106
   }
 }
