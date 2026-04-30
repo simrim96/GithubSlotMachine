@@ -1,16 +1,16 @@
 {
-  "totalSpins": 143,
-  "totalWins": 97,
+  "totalSpins": 144,
+  "totalWins": 98,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard.",
-      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777590410220
+    "ts": 1777590430179
   }
 }
