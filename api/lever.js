@@ -1,142 +1,82 @@
 // ─── Lever endpoint ──────────────────────────────────────────────────────────
-// SVG statico: leva laterale di una slot machine, stile cartoon/casino con
-// prospettiva 3D.
+// SVG statico: leva laterale di una slot machine. Stile coerente col cabinet
+// (pomello rosso laccato, montatura cromata).
 //
-// Anti-glitch: la base dell'asta è estesa fin DENTRO il bumper, e il "foro"
-// scuro centrale del bumper è ridisegnato come overlay SOPRA il gruppo che
-// oscilla. Così, nonostante l'asta ruoti attorno al pivot, i suoi bordi
-// non sbucano mai dal bumper durante l'animazione idle.
+// Geometria semplificata per eliminare ogni glitch:
+//   • L'asta è un singolo <line> con stroke-linecap="round" → nessun spigolo
+//     può sbucare durante la rotazione del gruppo.
+//   • Pomello, anello cromato e highlight sono ALLINEATI ESATTAMENTE sulla
+//     retta pivot→tip e ruotano tutti insieme nel `leverArm`.
+//   • Il bumper (mounting boss) resta FUORI dal gruppo che ruota → fisso
+//     rispetto al cabinet.
 //
-// Posizionamento: il bumper sporge a sinistra del SVG ed è in parte clippato
-// fuori canvas — questo permette di affiancare la leva al cabinet della slot
-// con zero gap visivo.
+// Layout: leva quasi verticale (delta x = 10px su delta y = 78px) → quindi
+// "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
 
-const W = 70;
-const H = 200;
+const W = 52;
+const H = 150;
 
-// Bumper sporge dal lato sinistro del canvas: BUMPER_CX poco a destra del
-// bordo (la metà sinistra del bumper resta clippata fuori) → quando il SVG
-// viene affiancato al cabinet, la leva si "incastra" sul fianco destro
-// della slot senza alcun gap visivo.
+// Pivot del bumper: clippato a metà sul bordo sinistro, così quando il SVG
+// viene affiancato al cabinet la leva si "incastra" nel fianco della slot.
 const BUMPER_CX = 0;
-const BUMPER_CY = Math.round(H * 0.55);
-const BUMPER_R  = 14;
+const BUMPER_CY = 100;
+const BUMPER_R  = 10;
 
-// Asta diagonale: parte DENTRO il bumper (per evitare gap di rotazione)
-// e va in alto a destra.
-const ARM_BASE_CX = BUMPER_CX;        // dentro il bumper (era +10 → glitch)
-const ARM_BASE_CY = BUMPER_CY;
-const ARM_TOP_CX  = W - 16;
-const ARM_TOP_CY  = 28;
-const ARM_BASE_W  = 9;    // più largo alla base (più vicino all'osservatore)
-const ARM_TOP_W   = 6;    // più stretto in cima (prospettiva)
+// Tip dell'asta (= centro del pomello). Quasi verticale: dx=10, dy=78.
+const TIP_X = 10;
+const TIP_Y = 22;
 
-// Pomello sferico in cima all'asta
-const BALL_CX = ARM_TOP_CX + 2;
-const BALL_CY = ARM_TOP_CY - 12;
-const BALL_R  = 13;
+// Pomello rosso (stesso colore del cabinet).
+const BALL_R = 11;
 
-// Trapezoide dell'asta: 4 punti calcolati perpendicolarmente alla retta
-// base→top, con larghezza variabile (base wider → tip narrower) per
-// simulare la prospettiva.
-function armPolygon() {
-  const dx = ARM_TOP_CX - ARM_BASE_CX;
-  const dy = ARM_TOP_CY - ARM_BASE_CY;
-  const len = Math.hypot(dx, dy);
-  const nx = -dy / len;
-  const ny =  dx / len;
-  const hb = ARM_BASE_W / 2;
-  const ht = ARM_TOP_W  / 2;
-  const p1 = [ARM_BASE_CX + nx * hb, ARM_BASE_CY + ny * hb];
-  const p2 = [ARM_TOP_CX  + nx * ht, ARM_TOP_CY  + ny * ht];
-  const p3 = [ARM_TOP_CX  - nx * ht, ARM_TOP_CY  - ny * ht];
-  const p4 = [ARM_BASE_CX - nx * hb, ARM_BASE_CY - ny * hb];
-  return [p1, p2, p3, p4]
-    .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-}
+// Punto medio dell'asta (anello cromato).
+const MID_X = (BUMPER_CX + TIP_X) / 2;
+const MID_Y = (BUMPER_CY + TIP_Y) / 2;
 
-function armHighlight() {
-  const dx = ARM_TOP_CX - ARM_BASE_CX;
-  const dy = ARM_TOP_CY - ARM_BASE_CY;
-  const len = Math.hypot(dx, dy);
-  const nx = -dy / len, ny = dx / len;
-  const oB = ARM_BASE_W * 0.18;
-  const oT = ARM_TOP_W  * 0.18;
-  return {
-    x1: (ARM_BASE_CX + nx * oB).toFixed(1),
-    y1: (ARM_BASE_CY + ny * oB).toFixed(1),
-    x2: (ARM_TOP_CX  + nx * oT).toFixed(1),
-    y2: (ARM_TOP_CY  + ny * oT).toFixed(1),
-  };
-}
-
-// Anello cromato a metà asta
-function armMidRing() {
-  const mx = (ARM_BASE_CX + ARM_TOP_CX) / 2;
-  const my = (ARM_BASE_CY + ARM_TOP_CY) / 2;
-  const dx = ARM_TOP_CX - ARM_BASE_CX;
-  const dy = ARM_TOP_CY - ARM_BASE_CY;
-  const len = Math.hypot(dx, dy);
-  const ux = dx / len, uy = dy / len;
-  const nx = -uy, ny = ux;
-  const halfMid = ((ARM_BASE_W + ARM_TOP_W) / 2) / 2 + 2.4;
-  const ringLen = 4;
-  const corners = [
-    [mx + ux * (-ringLen) + nx * halfMid, my + uy * (-ringLen) + ny * halfMid],
-    [mx + ux *  ringLen   + nx * halfMid, my + uy *  ringLen   + ny * halfMid],
-    [mx + ux *  ringLen   - nx * halfMid, my + uy *  ringLen   - ny * halfMid],
-    [mx + ux * (-ringLen) - nx * halfMid, my + uy * (-ringLen) - ny * halfMid],
-  ];
-  return corners.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-}
-
-const armPts = armPolygon();
-const armHl = armHighlight();
-const ringPts = armMidRing();
+// Vettore unitario lungo l'asta (per orientare highlight e anello).
+const _dx = TIP_X - BUMPER_CX;
+const _dy = TIP_Y - BUMPER_CY;
+const _len = Math.hypot(_dx, _dy);
+const _ux = _dx / _len, _uy = _dy / _len;
+// angolo dell'asta in gradi (rotazione dell'ellisse-anello)
+const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
 const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
   width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
+    <!-- Pomello rosso laccato (stessi stop del cabinet) -->
     <radialGradient id="leverBall" cx="32%" cy="28%" r="78%">
-      <stop offset="0%"  stop-color="#fff8c0"/>
-      <stop offset="20%" stop-color="#ffe066"/>
-      <stop offset="55%" stop-color="#f5a623"/>
-      <stop offset="85%" stop-color="#a85a00"/>
-      <stop offset="100%" stop-color="#5a3000"/>
+      <stop offset="0%"  stop-color="#ff8a78"/>
+      <stop offset="25%" stop-color="#e8331f"/>
+      <stop offset="65%" stop-color="#c41e1e"/>
+      <stop offset="100%" stop-color="#5a0606"/>
     </radialGradient>
     <radialGradient id="leverBallShine" cx="32%" cy="28%" r="22%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="leverBallBounce" cx="55%" cy="85%" r="40%">
-      <stop offset="0%" stop-color="#ff6a4a" stop-opacity="0.85"/>
-      <stop offset="100%" stop-color="#ff6a4a" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="leverBumper" cx="35%" cy="30%" r="80%">
+    <!-- Cromature (bumper, anello) -->
+    <radialGradient id="leverChrome" cx="35%" cy="30%" r="80%">
       <stop offset="0%"  stop-color="#ffffff"/>
-      <stop offset="20%" stop-color="#d8d8e0"/>
-      <stop offset="55%" stop-color="#7a7a85"/>
+      <stop offset="25%" stop-color="#d8d8e0"/>
+      <stop offset="60%" stop-color="#7a7a85"/>
       <stop offset="100%" stop-color="#2a2a32"/>
     </radialGradient>
-    <linearGradient id="leverArm" x1="0" y1="0" x2="1" y2="0">
+    <!-- Asta cilindrica: gradient orizzontale sul bounding box della line -->
+    <linearGradient id="leverArmGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#0a0a0a"/>
-      <stop offset="35%"  stop-color="#2a2a2e"/>
-      <stop offset="55%"  stop-color="#5a5a64"/>
-      <stop offset="70%"  stop-color="#1a1a1e"/>
+      <stop offset="35%"  stop-color="#3a3a3e"/>
+      <stop offset="55%"  stop-color="#7a7a85"/>
+      <stop offset="75%"  stop-color="#2a2a2e"/>
       <stop offset="100%" stop-color="#0a0a0a"/>
     </linearGradient>
   </defs>
 
   <style>
-    /* Idle MOLTO leggero — quasi statico — per evitare qualsiasi shimmer
-       sul bordo del bumper. La leva resta visibilmente "viva" ma stabile. */
+    /* Idle leggero: oscillazione piccolissima, nessuno shimmer percettibile. */
     @keyframes leverIdle {
-      0%, 100% { transform: rotate(-0.8deg); }
-      50%      { transform: rotate(1.2deg); }
-    }
-    @keyframes leverPulse {
-      0%, 100% { opacity: 1; }
-      50%      { opacity: 0.6; }
+      0%, 100% { transform: rotate(-1deg); }
+      50%      { transform: rotate(1.4deg); }
     }
     @keyframes leverBallGlow {
       0%, 100% { opacity: 0.30; }
@@ -146,81 +86,61 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
       transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
       animation: leverIdle 3.2s ease-in-out infinite;
     }
-    .leverLabel    { animation: leverPulse    1.4s ease-in-out infinite; }
     .leverBallHalo { animation: leverBallGlow 1.8s ease-in-out infinite; }
   </style>
 
-  <!-- ── Bumper (mounting boss) — fisso, ancorato al cabinet ── -->
-  <ellipse cx="${BUMPER_CX + 4}" cy="${BUMPER_CY + 6}" rx="${BUMPER_R + 4}" ry="${BUMPER_R - 4}"
-           fill="#000" opacity="0.45"/>
+  <!-- ── Bumper (mounting boss) — fisso ── -->
+  <ellipse cx="${BUMPER_CX + 3}" cy="${BUMPER_CY + 5}"
+           rx="${BUMPER_R + 3}" ry="${BUMPER_R - 2}"
+           fill="#000" opacity="0.4"/>
   <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R}"
-          fill="#1a0606" stroke="#000" stroke-width="1.4"/>
-  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 5}"
-          fill="url(#leverBumper)" stroke="#3a3a44" stroke-width="0.8"/>
-  <ellipse cx="${BUMPER_CX - 8}" cy="${BUMPER_CY - 10}" rx="11" ry="6"
-           fill="#ffffff" opacity="0.7"/>
+          fill="#1a0606" stroke="#000" stroke-width="1"/>
+  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 3}"
+          fill="url(#leverChrome)"/>
 
-  <!-- ── Leva (gruppo che oscilla attorno al pivot del bumper) ── -->
+  <!-- ── Leva (gruppo rotante) ── -->
   <g class="leverArm">
-    <!-- Halo del pomello -->
-    <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R + 10}"
-            fill="#ffd84a" opacity="0.32" class="leverBallHalo"/>
+    <!-- Halo rosso attorno al pomello -->
+    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
+            fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
 
-    <!-- Asta: trapezoide con prospettiva -->
-    <polygon points="${armPts}" fill="#000" opacity="0.45"
-             transform="translate(2 4)"/>
-    <polygon points="${armPts}" fill="url(#leverArm)"
-             stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
-    <line x1="${armHl.x1}" y1="${armHl.y1}" x2="${armHl.x2}" y2="${armHl.y2}"
-          stroke="#c8c8d0" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
-    <line x1="${armHl.x1}" y1="${armHl.y1}" x2="${armHl.x2}" y2="${armHl.y2}"
-          stroke="#ffffff" stroke-width="0.8" stroke-linecap="round" opacity="0.75"/>
+    <!-- Asta: line singola con cap arrotondato → niente spigoli ai bordi.
+         Va dal pivot del bumper al centro del pomello, quindi ball e arm
+         restano sempre solidali. -->
+    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
+          stroke="#000" stroke-width="9" stroke-linecap="round" opacity="0.55"
+          transform="translate(1 2)"/>
+    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
+          stroke="url(#leverArmGrad)" stroke-width="7" stroke-linecap="round"/>
+    <!-- Highlight cilindrico sull'asta (linea chiara, parallela alla principale) -->
+    <line x1="${(BUMPER_CX + _uy * 1.2).toFixed(2)}"
+          y1="${(BUMPER_CY - _ux * 1.2).toFixed(2)}"
+          x2="${(TIP_X     + _uy * 1.2).toFixed(2)}"
+          y2="${(TIP_Y     - _ux * 1.2).toFixed(2)}"
+          stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.55"/>
 
     <!-- Anello cromato a metà asta -->
-    <polygon points="${ringPts}" fill="url(#leverBumper)"
-             stroke="#000" stroke-width="0.8"/>
+    <ellipse cx="${MID_X.toFixed(2)}" cy="${MID_Y.toFixed(2)}"
+             rx="3.6" ry="5.5"
+             transform="rotate(${ARM_ANGLE_DEG.toFixed(2)} ${MID_X.toFixed(2)} ${MID_Y.toFixed(2)})"
+             fill="url(#leverChrome)" stroke="#000" stroke-width="0.6"/>
 
-    <!-- Tappo cromato all'innesto col pomello -->
-    <circle cx="${ARM_TOP_CX + (BALL_CX - ARM_TOP_CX) * 0.5}"
-            cy="${ARM_TOP_CY + (BALL_CY - ARM_TOP_CY) * 0.5}"
-            r="4" fill="url(#leverBumper)" stroke="#000" stroke-width="0.8"/>
-
-    <!-- ── Pomello sferico giallo ── -->
-    <circle cx="${BALL_CX + 2}" cy="${BALL_CY + 3}" r="${BALL_R}"
+    <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
+    <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
             fill="#000" opacity="0.4"/>
-    <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R}"
-            fill="url(#leverBall)" stroke="#5a3000" stroke-width="2"/>
-    <circle cx="${BALL_CX}" cy="${BALL_CY}" r="${BALL_R - 1}"
-            fill="url(#leverBallBounce)"/>
-    <ellipse cx="${BALL_CX}" cy="${BALL_CY + BALL_R * 0.55}"
-             rx="${BALL_R * 0.7}" ry="2" fill="#ff8a4a" opacity="0.45"/>
-    <circle cx="${BALL_CX - 6}" cy="${BALL_CY - 7}" r="7"
+    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
+            fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
+    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
+            fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
+    <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
             fill="url(#leverBallShine)"/>
-    <circle cx="${BALL_CX - 7}" cy="${BALL_CY - 8}" r="2"
+    <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
             fill="#ffffff" opacity="0.95"/>
   </g>
 
-  <!-- ── Overlay anti-glitch ──
-       Il "foro" centrale del bumper viene RIDISEGNATO sopra l'asta:
-       così, qualunque sia l'angolo di rotazione, la base del polígono
-       resta nascosta dietro questo dischetto scuro fisso. -->
-  <circle cx="${BUMPER_CX + 2}" cy="${BUMPER_CY - 1}" r="4"
-          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.5"/>
-  <circle cx="${BUMPER_CX + 1}" cy="${BUMPER_CY - 2}" r="1"
-          fill="#ffffff" opacity="0.55"/>
-
-  <!-- ── Label "PULL!" sotto il bumper (centrata sul canvas) ── -->
-  <g class="leverLabel" font-family="'Segoe UI','Helvetica Neue',sans-serif"
-     text-anchor="middle">
-    <rect x="${(W - 40) / 2}" y="${BUMPER_CY + BUMPER_R + 10}"
-          width="40" height="16" rx="4"
-          fill="#0a0a18" stroke="#ffd84a" stroke-width="1.2"/>
-    <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 21}"
-          font-size="9" font-weight="900" fill="#ffd84a" letter-spacing="1.4">PULL!</text>
-  </g>
-  <text x="${W / 2}" y="${BUMPER_CY + BUMPER_R + 38}" text-anchor="middle"
-        font-family="'Segoe UI',sans-serif" font-size="6" fill="#7a4400"
-        font-style="italic" letter-spacing="0.3">click to spin</text>
+  <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
+  <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY}" r="3"
+          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
 </svg>`;
 
 export default function handler(req, res) {
