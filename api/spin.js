@@ -382,18 +382,18 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 588;
-  const HDR_H = 72;
+  const SVG_W = 600, SVG_H = 540;
+  const HDR_H = 68;
   // Niente crown: top compatto.
   const CROWN_H = 0;
-  const HDR_TOP = 4;
+  const HDR_TOP = 2;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
-  const PT_H = 86;
-  const PT_Y = HDR_TOP + HDR_H + 4;
+  const PT_H = 80;
+  const PT_Y = HDR_TOP + HDR_H + 2;
   // Margine extra prima dei rulli per ospitare la cornice gialla a lampadine
   // attorno allo "screen" (FRAME_PAD viene definito più in basso).
-  const GY = PT_Y + PT_H + 18;
+  const GY = PT_Y + PT_H + 14;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -668,8 +668,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 
   // ── Result panel ──
   // Pannello in basso, ultimo elemento del cabinet.
-  const PY = GY + GH + FRAME_PAD + 6;
-  const PH = (SVG_H - 12) - PY;
+  const PY = GY + GH + FRAME_PAD + 4;
+  const PH = (SVG_H - 6) - PY;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -759,21 +759,21 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   // Struttura minimale: niente crown/JACKPOT/7-7-7/ornamenti laterali — solo
   // il corpo principale a spalle arrotondate, su cui poggiano header,
   // paytable, screen frame e pannello risultato.
-  const BODY_Y = 4;
+  const BODY_Y = 0;
 
   let cabinetSvg = '';
 
   // Corpo principale.
   cabinetSvg +=
     `<path d="
-       M 24 ${BODY_Y + 28}
-       Q 24 ${BODY_Y} 56 ${BODY_Y}
-       L ${SVG_W - 56} ${BODY_Y}
-       Q ${SVG_W - 24} ${BODY_Y} ${SVG_W - 24} ${BODY_Y + 28}
-       L ${SVG_W - 24} ${SVG_H - 24}
-       Q ${SVG_W - 24} ${SVG_H - 4} ${SVG_W - 44} ${SVG_H - 4}
-       L 44 ${SVG_H - 4}
-       Q 24 ${SVG_H - 4} 24 ${SVG_H - 24}
+       M 24 ${BODY_Y + 24}
+       Q 24 ${BODY_Y} 50 ${BODY_Y}
+       L ${SVG_W - 50} ${BODY_Y}
+       Q ${SVG_W - 24} ${BODY_Y} ${SVG_W - 24} ${BODY_Y + 24}
+       L ${SVG_W - 24} ${SVG_H - 22}
+       Q ${SVG_W - 24} ${SVG_H} ${SVG_W - 50} ${SVG_H}
+       L 50 ${SVG_H}
+       Q 24 ${SVG_H} 24 ${SVG_H - 22}
        Z"
        fill="url(#cab${uid})" stroke="#5a0606" stroke-width="2"/>`;
   cabinetSvg +=
