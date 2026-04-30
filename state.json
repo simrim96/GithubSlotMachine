@@ -1,16 +1,16 @@
 {
-  "totalSpins": 44,
-  "totalWins": 23,
+  "totalSpins": 52,
+  "totalWins": 26,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
-      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777582439917
+    "ts": 1777584018544
   }
 }
