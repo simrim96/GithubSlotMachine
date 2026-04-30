@@ -1,16 +1,16 @@
 {
-  "totalSpins": 98,
-  "totalWins": 61,
+  "totalSpins": 99,
+  "totalWins": 62,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Il nome originale era \"Mocha\", poi \"LiveScript\" e infine \"JavaScript\" — una scelta di marketing per cavalcare l'hype di Java.",
-      "en": "The original name was \"Mocha\", then \"LiveScript\" and finally \"JavaScript\" — a marketing move to ride the Java hype wave."
+      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
     },
-    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
-    "repoName": "GithubSlotMachine",
-    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
-    "ts": 1777587269313
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1777587281966
   }
 }
