@@ -1,16 +1,16 @@
 {
-  "totalSpins": 132,
-  "totalWins": 86,
+  "totalSpins": 133,
+  "totalWins": 87,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.",
-      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777589258340
+    "ts": 1777589272027
   }
 }
