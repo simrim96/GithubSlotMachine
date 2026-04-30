@@ -1,16 +1,16 @@
 {
-  "totalSpins": 76,
-  "totalWins": 45,
+  "totalSpins": 77,
+  "totalWins": 46,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
-      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586608139
+    "ts": 1777586615495
   }
 }
