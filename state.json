@@ -1,16 +1,16 @@
 {
-  "totalSpins": 80,
-  "totalWins": 47,
+  "totalSpins": 81,
+  "totalWins": 48,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "typescript",
+    "langName": "TypeScript",
     "fact": {
-      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
-      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
+      "it": "TypeScript è stato creato da Anders Hejlsberg (papà di C# e Turbo Pascal) in Microsoft e annunciato pubblicamente nel 2012.",
+      "en": "TypeScript was created by Anders Hejlsberg (father of C# and Turbo Pascal) at Microsoft and publicly announced in 2012."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777586672369
+    "ts": 1777586680196
   }
 }
