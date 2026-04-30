@@ -1,16 +1,16 @@
 {
-  "totalSpins": 94,
-  "totalWins": 57,
+  "totalSpins": 95,
+  "totalWins": 58,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
-      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
+      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777587197792
+    "ts": 1777587228691
   }
 }
