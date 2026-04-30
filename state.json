@@ -1,16 +1,16 @@
 {
-  "totalSpins": 137,
-  "totalWins": 91,
+  "totalSpins": 138,
+  "totalWins": 92,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.",
-      "en": "TypeScript's type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level."
+      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.",
+      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
     },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1777589982920
+    "repoUrl": "https://github.com/simrim96/GithubSlotMachine",
+    "repoName": "GithubSlotMachine",
+    "repoDesc": "A playable Slot Machine for GitHub Profiles powered by Python, GitHub Actions, and animated SVGs.",
+    "ts": 1777590043086
   }
 }
