@@ -382,19 +382,19 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 760;
-  const HDR_H = 80;
+  const SVG_W = 600, SVG_H = 680;
+  const HDR_H = 72;
   // Top offset: lasciamo spazio in cima per la marquee arcuata col banner
   // "JACKPOT" + 7-7-7 ai due lati — firma visiva delle slot machine vintage.
-  const CROWN_H = 96;
-  const HDR_TOP = CROWN_H + 12;
+  const CROWN_H = 76;
+  const HDR_TOP = CROWN_H + 6;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
-  const PT_H = 100;
+  const PT_H = 86;
   const PT_Y = HDR_TOP + HDR_H + 4;
   // Margine extra prima dei rulli per ospitare la cornice gialla a lampadine
   // attorno allo "screen" (FRAME_PAD viene definito più in basso).
-  const GY = PT_Y + PT_H + 26;
+  const GY = PT_Y + PT_H + 18;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -668,9 +668,9 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Pannello in basso, sopra al coin tray (trayY = SVG_H - 56).
-  const PY = GY + GH + FRAME_PAD + 10;
-  const PH = (SVG_H - 48) - PY - 6;
+  // Pannello in basso, sopra al coin tray.
+  const PY = GY + GH + FRAME_PAD + 6;
+  const PH = (SVG_H - 38) - PY - 4;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -907,8 +907,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   // "lingotti" dorati (slot di payout), una moneta a destra, e una piccola
   // fessura "INSERT COIN" sopra il tray. Aggiungiamo anche due "feet" decorative
   // alla base per dare al cabinet l'aspetto di una vera macchina su piedi.
-  const trayY = SVG_H - 48;
-  const trayH = 32;
+  const trayY = SVG_H - 38;
+  const trayH = 24;
   const trayInset = 60;
   const trayW = SVG_W - 2 * trayInset;
   const barW = 60, barH = 14, barGap = 14;
@@ -955,7 +955,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
     `<text x="${coinCx}" y="${coinCy + 3}" text-anchor="middle" font-family="'Segoe UI',sans-serif"
            font-size="9" font-weight="900" fill="#7a4400">$</text>`;
   // Feet (zampe decorative) alla base del cabinet
-  const feetY = SVG_H - 6;
+  const feetY = SVG_H - 14;
   coinTraySvg +=
     `<ellipse cx="${trayInset + 14}" cy="${feetY}" rx="22" ry="5" fill="#3a0404"/>` +
     `<ellipse cx="${SVG_W - trayInset - 14}" cy="${feetY}" rx="22" ry="5" fill="#3a0404"/>`;

@@ -11,29 +11,30 @@
 // fuori canvas — questo permette di affiancare la leva al cabinet della slot
 // con zero gap visivo.
 
-const W = 130;
-const H = 760;
+const W = 100;
+const H = 680;
 
-// Bumper sporge dal lato sinistro del canvas: BUMPER_CX è poco a destra del
-// bordo (parte sinistra del bumper viene clippata fuori → si "incastra"
-// otticamente col fianco destro del cabinet della slot, a contatto).
-const BUMPER_CX = 6;
+// Bumper sporge dal lato sinistro del canvas: BUMPER_CX poco a destra del
+// bordo (la metà sinistra del bumper resta clippata fuori) → quando il SVG
+// viene affiancato al cabinet, la leva si "incastra" sul fianco destro
+// della slot senza alcun gap visivo.
+const BUMPER_CX = 0;
 const BUMPER_CY = Math.round(H * 0.58);
-const BUMPER_R  = 30;
+const BUMPER_R  = 24;
 
 // Asta diagonale: parte DENTRO il bumper (per evitare gap di rotazione)
 // e va in alto a destra.
 const ARM_BASE_CX = BUMPER_CX;        // dentro il bumper (era +10 → glitch)
 const ARM_BASE_CY = BUMPER_CY;
-const ARM_TOP_CX  = W - 32;
-const ARM_TOP_CY  = 110;
-const ARM_BASE_W  = 18;   // più largo alla base (più vicino all'osservatore)
-const ARM_TOP_W   = 11;   // più stretto in cima (prospettiva)
+const ARM_TOP_CX  = W - 26;
+const ARM_TOP_CY  = 90;
+const ARM_BASE_W  = 14;   // più largo alla base (più vicino all'osservatore)
+const ARM_TOP_W   = 9;    // più stretto in cima (prospettiva)
 
 // Pomello sferico in cima all'asta
-const BALL_CX = ARM_TOP_CX + 4;
-const BALL_CY = ARM_TOP_CY - 28;
-const BALL_R  = 34;
+const BALL_CX = ARM_TOP_CX + 3;
+const BALL_CY = ARM_TOP_CY - 22;
+const BALL_R  = 26;
 
 // Trapezoide dell'asta: 4 punti calcolati perpendicolarmente alla retta
 // base→top, con larghezza variabile (base wider → tip narrower) per
@@ -211,14 +212,14 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
   <!-- ── Label "PULL!" sotto il bumper ── -->
   <g class="leverLabel" font-family="'Segoe UI','Helvetica Neue',sans-serif"
      text-anchor="middle">
-    <rect x="${BUMPER_CX - 4}" y="${BUMPER_CY + BUMPER_R + 22}"
-          width="86" height="28" rx="6"
-          fill="#0a0a18" stroke="#ffd84a" stroke-width="1.6"/>
-    <text x="${BUMPER_CX + 39}" y="${BUMPER_CY + BUMPER_R + 42}"
-          font-size="15" font-weight="900" fill="#ffd84a" letter-spacing="2">PULL!</text>
+    <rect x="${BUMPER_CX - 4}" y="${BUMPER_CY + BUMPER_R + 18}"
+          width="72" height="24" rx="5"
+          fill="#0a0a18" stroke="#ffd84a" stroke-width="1.4"/>
+    <text x="${BUMPER_CX + 32}" y="${BUMPER_CY + BUMPER_R + 35}"
+          font-size="13" font-weight="900" fill="#ffd84a" letter-spacing="2">PULL!</text>
   </g>
-  <text x="${BUMPER_CX + 39}" y="${BUMPER_CY + BUMPER_R + 64}" text-anchor="middle"
-        font-family="'Segoe UI',sans-serif" font-size="9" fill="#7a4400"
+  <text x="${BUMPER_CX + 32}" y="${BUMPER_CY + BUMPER_R + 54}" text-anchor="middle"
+        font-family="'Segoe UI',sans-serif" font-size="8" fill="#7a4400"
         font-style="italic" letter-spacing="0.5">click to spin</text>
 </svg>`;
 
