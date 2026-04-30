@@ -1,16 +1,16 @@
 {
-  "totalSpins": 116,
-  "totalWins": 74,
+  "totalSpins": 117,
+  "totalWins": 75,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.",
-      "en": "TypeScript's type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level."
+      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.",
+      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588012099
+    "ts": 1777588277005
   }
 }
