@@ -1,16 +1,16 @@
 {
-  "totalSpins": 123,
-  "totalWins": 77,
+  "totalSpins": 124,
+  "totalWins": 78,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt.",
-      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
+      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588324106
+    "ts": 1777588345811
   }
 }
