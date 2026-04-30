@@ -1,16 +1,16 @@
 {
-  "totalSpins": 60,
-  "totalWins": 31,
+  "totalSpins": 61,
+  "totalWins": 32,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.",
-      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
+      "it": "C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio \"moderno\" (Python, Ruby, PHP, Lua…).",
+      "en": "C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it's the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every \"modern\" language (Python, Ruby, PHP, Lua…)."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777585089536
+    "ts": 1777585667377
   }
 }
