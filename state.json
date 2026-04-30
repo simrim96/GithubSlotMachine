@@ -1,16 +1,16 @@
 {
-  "totalSpins": 37,
-  "totalWins": 18,
+  "totalSpins": 38,
+  "totalWins": 19,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
-      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777581880159
+    "ts": 1777581906134
   }
 }
