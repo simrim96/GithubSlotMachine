@@ -382,19 +382,19 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  const SVG_W = 600, SVG_H = 880;
-  const HDR_H = 92;
-  // Top offset: lasciamo spazio in cima per la grande "marquee" arcuata
-  // con banner JACKPOT 777 — firma visiva delle slot machine vintage.
-  const CROWN_H = 110;
-  const HDR_TOP = CROWN_H + 70;
+  const SVG_W = 600, SVG_H = 760;
+  const HDR_H = 80;
+  // Top offset: lasciamo spazio in cima per la marquee arcuata col banner
+  // "JACKPOT" + 7-7-7 ai due lati — firma visiva delle slot machine vintage.
+  const CROWN_H = 96;
+  const HDR_TOP = CROWN_H + 12;
   // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
   // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
-  const PT_H = 112;
+  const PT_H = 100;
   const PT_Y = HDR_TOP + HDR_H + 4;
   // Margine extra prima dei rulli per ospitare la cornice gialla a lampadine
   // attorno allo "screen" (FRAME_PAD viene definito più in basso).
-  const GY = PT_Y + PT_H + 36;
+  const GY = PT_Y + PT_H + 26;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -555,7 +555,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   // (lo "schermo" della slot) con lampadine dorate distribuite uniformemente
   // sui quattro lati. È la firma visiva delle slot machine vintage.
   // In stato "win" pulsano rapidamente; in idle scorrono in chase sequenziale.
-  const FRAME_PAD = 26;            // spessore della cornice gialla
+  const FRAME_PAD = 22;            // spessore della cornice gialla
   const SCR_X = MX - FRAME_PAD;
   const SCR_Y = GY - FRAME_PAD;
   const SCR_W = GW + 2 * FRAME_PAD;
@@ -669,8 +669,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 
   // ── Result panel ──
   // Pannello in basso, sopra al coin tray (trayY = SVG_H - 56).
-  const PY = GY + GH + FRAME_PAD + 12;
-  const PH = (SVG_H - 56) - PY - 8;
+  const PY = GY + GH + FRAME_PAD + 10;
+  const PH = (SVG_H - 48) - PY - 6;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -740,15 +740,13 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const wonTotal = (state.totalWins || 0).toLocaleString('en-US');
   const headerSvg = `
 <rect x="32" y="${HDR_TOP}" width="${SVG_W - 64}" height="${HDR_H - 6}" rx="14" fill="#13122d" opacity="0.92" stroke="#7a4400" stroke-width="1.2"/>
-<text x="${SVG_W / 2}" y="${HDR_TOP + 26}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="22" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
-<text x="${SVG_W / 2}" y="${HDR_TOP + 44}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="10" fill="#8b8baf" letter-spacing="3">SPIN · LEARN · DISCOVER MY PROJECTS</text>
+<text x="${SVG_W / 2}" y="${HDR_TOP + 22}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="19" font-weight="800" fill="url(#hdr${uid})" filter="url(#glow${uid})">DEV STACK SLOT MACHINE</text>
+<text x="${SVG_W / 2}" y="${HDR_TOP + 36}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8.5" fill="#8b8baf" letter-spacing="2.6">SPIN · LEARN · DISCOVER MY PROJECTS</text>
 <g font-family="'Segoe UI',sans-serif">
-  <text x="50" y="${HDR_TOP + 59}" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>
-  <text x="50" y="${HDR_TOP + 70}" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">giri totali</text>
-  <text x="50" y="${HDR_TOP + 84}" font-size="15" font-weight="800" fill="#ffd700">${total}</text>
-  <text x="${SVG_W - 50}" y="${HDR_TOP + 59}" text-anchor="end" font-size="9" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>
-  <text x="${SVG_W - 50}" y="${HDR_TOP + 70}" text-anchor="end" font-size="7" fill="#5d5d80" font-style="italic" letter-spacing="0.6">vincite</text>
-  <text x="${SVG_W - 50}" y="${HDR_TOP + 84}" text-anchor="end" font-size="15" font-weight="800" fill="#4ade80">${wonTotal}</text>
+  <text x="50" y="${HDR_TOP + 53}" font-size="8.5" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>
+  <text x="50" y="${HDR_TOP + 68}" font-size="14" font-weight="800" fill="#ffd700">${total}</text>
+  <text x="${SVG_W - 50}" y="${HDR_TOP + 53}" text-anchor="end" font-size="8.5" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>
+  <text x="${SVG_W - 50}" y="${HDR_TOP + 68}" text-anchor="end" font-size="14" font-weight="800" fill="#4ade80">${wonTotal}</text>
 </g>`;
 
   // ── Border ──
@@ -859,34 +857,21 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
            font-family="'Impact','Arial Black','Segoe UI',sans-serif" font-size="18"
            font-weight="900" fill="#ffd84a" letter-spacing="3"
            filter="url(#glow${uid})">JACKPOT</text>`;
-  // Stelle dorate ai due angoli del crown
-  cabinetSvg += star(CROWN_X - 14, ARC_Y_BASE - 6, 12, 'url(#frame' + uid + ')');
-  cabinetSvg += star(CROWN_X + CROWN_W + 14, ARC_Y_BASE - 6, 12, 'url(#frame' + uid + ')');
+  // Stelle dorate ai due angoli esterni del crown (oltre i "7" laterali)
+  cabinetSvg += star(CROWN_X - 64, ARC_Y_BASE - 6, 11, 'url(#frame' + uid + ')');
+  cabinetSvg += star(CROWN_X + CROWN_W + 64, ARC_Y_BASE - 6, 11, 'url(#frame' + uid + ')');
   // Piccole stelle sull'arco
   cabinetSvg += star(SVG_W / 2 - 130, ARC_Y_BASE - 18, 6, '#fff4a8');
   cabinetSvg += star(SVG_W / 2 + 130, ARC_Y_BASE - 18, 6, '#fff4a8');
 
-  // 4. Tre "7" rossi decorativi sotto il banner (icona classica casino).
-  //    Disposti uno a sinistra del header, uno al centro (dietro), uno a destra.
-  //    Rendiamo solo i due laterali per non oscurare il titolo.
-  const sevenY = HDR_TOP + 8;
-  const drawSeven = (cx) =>
-    `<g transform="translate(${cx} ${sevenY})">` +
-    `<rect x="-18" y="-2" width="36" height="50" rx="4" fill="url(#darkPanel${uid})" stroke="#7a4400" stroke-width="1.4"/>` +
-    `<text x="0" y="36" text-anchor="middle" font-family="'Impact','Arial Black',sans-serif"
-           font-size="40" font-weight="900" fill="url(#red7${uid})" stroke="#3a0404" stroke-width="1">7</text>` +
-    `</g>`;
-  // 7-7-7 in un'unica vetrina centrata sopra l'header (sotto il crown).
-  const tripletY = BODY_Y + 14;
-  const tripletX = SVG_W / 2;
-  cabinetSvg +=
-    `<rect x="${tripletX - 80}" y="${tripletY}" width="160" height="40" rx="6"
-           fill="url(#darkPanel${uid})" stroke="#7a4400" stroke-width="1.6"/>` +
-    `<rect x="${tripletX - 76}" y="${tripletY + 3}" width="152" height="6" rx="2"
-           fill="#ffffff" opacity="0.08"/>`;
-  for (let k = -1; k <= 1; k++) {
+  // 4. "7" rossi laterali al banner JACKPOT (firma classica casino),
+  //    incastonati nel crown invece di occupare una vetrina separata.
+  const sevenY = ribbY + 17;
+  for (const sx of [CROWN_X - 36, CROWN_X + CROWN_W + 36]) {
     cabinetSvg +=
-      `<text x="${tripletX + k * 44}" y="${tripletY + 32}" text-anchor="middle"
+      `<rect x="${sx - 18}" y="${sevenY - 22}" width="36" height="44" rx="4"
+             fill="url(#darkPanel${uid})" stroke="#7a4400" stroke-width="1.4"/>` +
+      `<text x="${sx}" y="${sevenY + 12}" text-anchor="middle"
              font-family="'Impact','Arial Black',sans-serif" font-size="34"
              font-weight="900" fill="url(#red7${uid})" stroke="#3a0404" stroke-width="0.8"
              filter="url(#glow${uid})">7</text>`;
@@ -922,8 +907,8 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   // "lingotti" dorati (slot di payout), una moneta a destra, e una piccola
   // fessura "INSERT COIN" sopra il tray. Aggiungiamo anche due "feet" decorative
   // alla base per dare al cabinet l'aspetto di una vera macchina su piedi.
-  const trayY = SVG_H - 56;
-  const trayH = 38;
+  const trayY = SVG_H - 48;
+  const trayH = 32;
   const trayInset = 60;
   const trayW = SVG_W - 2 * trayInset;
   const barW = 60, barH = 14, barGap = 14;
