@@ -1,13 +1,13 @@
 {
-  "totalSpins": 16,
-  "totalWins": 4,
+  "totalSpins": 17,
+  "totalWins": 5,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
-    "fact": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
+    "langId": "glsl",
+    "langName": "GLSL",
+    "fact": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777578422734
+    "ts": 1777578782909
   }
 }
