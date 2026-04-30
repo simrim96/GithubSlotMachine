@@ -11,8 +11,8 @@
 // fuori canvas — questo permette di affiancare la leva al cabinet della slot
 // con zero gap visivo.
 
-const W = 56;
-const H = 160;
+const W = 70;
+const H = 200;
 
 // Bumper sporge dal lato sinistro del canvas: BUMPER_CX poco a destra del
 // bordo (la metà sinistra del bumper resta clippata fuori) → quando il SVG
