@@ -1,16 +1,16 @@
 {
-  "totalSpins": 127,
-  "totalWins": 81,
+  "totalSpins": 128,
+  "totalWins": 82,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
+      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588367031
+    "ts": 1777588375669
   }
 }
