@@ -382,12 +382,13 @@ function wrap(text, maxChars) {
 // ─── SVG Generator ───────────────────────────────────────────────────────────
 function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const CW = 84, CH = 84, GAP = 8;
-  // Altezza maggiorata per accogliere la PAYTABLE in basso.
   const SVG_W = 600, SVG_H = 700;
   const HDR_H = 92;
-  // Striscia paytable: una riga compatta in fondo allo SVG.
-  const PT_H = 96;
-  const GY = HDR_H + 14;
+  // PAYTABLE in alto, sotto l'header: spiega che le icone con più pallini
+  // sono quelle che il proprietario padroneggia meglio → e quindi "pagano" di più.
+  const PT_H = 112;
+  const PT_Y = HDR_H + 12;
+  const GY = PT_Y + PT_H + 14;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const GH = ROWS * CH;
   const MX = Math.floor((SVG_W - GW) / 2);
@@ -418,7 +419,16 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   const isBigWin = maxWin >= 4 && !isJackpot;
   const isWin = wins.length > 0;
   const winCells = new Set();
-  for (const w of wins) for (const p of w.positions) winCells.add(`${p.c},${p.r}`);
+  // Evidenzia solo le celle della payline vincente "migliore" (= count
+  // più alto, a parità la prima trovata). Così lo schermo non si riempie
+  // di glow quando lo stesso simbolo capita anche su V/Λ accidentalmente:
+  // viene evidenziata solo UNA linea per spin.
+  const bestWin = wins.length
+    ? wins.reduce((a, b) => (b.count > a.count ? b : a))
+    : null;
+  if (bestWin) {
+    for (const p of bestWin.positions) winCells.add(`${p.c},${p.r}`);
+  }
 
   // ED = end-of-spin time. Solo se il near-miss è l'ultimo rullo prolunghiamo;
   // altrimenti l'ultimo rullo è già il più lento e termina di suo dopo.
@@ -567,9 +577,10 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
   }
 
   // ── Result panel ──
-  // Lasciamo spazio in basso alla paytable: PY..(SVG_H - PT_H - 32).
+  // Pannello in basso. Senza paytable in coda lo possiamo lasciare ampio
+  // fino al footer (il footer occupa circa 18px in basso).
   const PY = GY + GH + 14;
-  const PH = SVG_H - PY - PT_H - 28;
+  const PH = SVG_H - PY - 28;
   let panelSvg = '';
   if (isWin && winningLang) {
     const factEn = (fact && fact.en) || '';
@@ -657,36 +668,35 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
       ? `stroke="#16a34a" stroke-width="2.5"`
       : `stroke="#3a3666" stroke-width="2"`;
 
-  // ── Paytable ──
-  // Striscia in fondo allo SVG: per ogni linguaggio mostriamo
-  // [mini-icona] + nome + N pallini pieni / 5 (= competence dell'owner).
-  // Il titolo \u00e8 EN primario + IT secondario, in linea con il resto della UI.
-  const PTY = SVG_H - PT_H - 8;
+  // ── Paytable (TOP) ──
+  // Sezione in alto, sotto l'header e prima dei rulli. Comunica esplicitamente
+  // che si tratta delle competenze del proprietario: più pallini = miglior
+  // padronanza = simbolo che "paga di più" nella slot.
   const ptCount = LANGUAGES.length;
   const ptInner = SVG_W - 28;
   const ptCellW = ptInner / ptCount;
-  const ptIconSize = 36;
-  let paytableSvg = '';
-  paytableSvg += `<rect x="14" y="${PTY}" width="${SVG_W - 28}" height="${PT_H}" rx="14" fill="#13122d" opacity="0.85"/>`;
-  paytableSvg += `<text x="28" y="${PTY + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#8b8baf" letter-spacing="2">PAYTABLE \u00b7 SKILL LEVEL</text>`;
-  paytableSvg += `<text x="28" y="${PTY + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#5d5d80" letter-spacing="0.6">tabella valori \u00b7 livello di competenza dell'owner</text>`;
-  // Scala max: 5. Pallini pieni = competence, vuoti = 5 - competence.
+  const ptIconSize = 38;
   const PT_MAX = 5;
+  let paytableSvg = '';
+  paytableSvg += `<rect x="14" y="${PT_Y}" width="${SVG_W - 28}" height="${PT_H}" rx="14"
+                         fill="#13122d" stroke="#26244a" stroke-width="1" opacity="0.92"/>`;
+  paytableSvg += `<text x="28" y="${PT_Y + 16}" font-family="'Segoe UI',sans-serif" font-size="10" font-weight="800" fill="#ffd700" letter-spacing="2">PAYTABLE \u00b7 HIGHER MASTERY = HIGHER PAYOUT</text>`;
+  paytableSvg += `<text x="28" y="${PT_Y + 28}" font-family="'Segoe UI',sans-serif" font-size="8" font-style="italic" fill="#8b8baf" letter-spacing="0.5">Più pallini = livello di padronanza dell'owner = simbolo che paga di più nella slot</text>`;
+  paytableSvg += `<text x="${SVG_W - 28}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">EXPERT</text>`;
+  paytableSvg += `<text x="${SVG_W - 28 - 88}" y="${PT_Y + 16}" text-anchor="end" font-family="'Segoe UI',sans-serif" font-size="8" fill="#6d6d8e" letter-spacing="0.5">FAMILIAR</text>`;
   for (let i = 0; i < ptCount; i++) {
     const lang = LANGUAGES[i];
     const cx = 14 + ptCellW * i + ptCellW / 2;
     const iconX = cx - ptIconSize / 2;
-    const iconY = PTY + 32;
+    const iconY = PT_Y + 36;
     paytableSvg += symbolUse(uid, lang.id, iconX, iconY, ptIconSize, ptIconSize);
-    // Nome sotto l'icona.
     paytableSvg += `<text x="${cx}" y="${iconY + ptIconSize + 11}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="9" font-weight="700" fill="#d4d4e8">${escapeXml(lang.name)}</text>`;
-    // Pallini di competenza.
     const lvl = Math.max(0, Math.min(PT_MAX, lang.competence ?? 0));
-    const dotR = 2.1;
-    const dotGap = 5.2;
+    const dotR = 2.2;
+    const dotGap = 5.4;
     const dotsTotalW = PT_MAX * dotGap - (dotGap - 2 * dotR);
     const dotsX0 = cx - dotsTotalW / 2 + dotR;
-    const dotsY = iconY + ptIconSize + 20;
+    const dotsY = iconY + ptIconSize + 22;
     for (let d = 0; d < PT_MAX; d++) {
       const filled = d < lvl;
       paytableSvg += `<circle cx="${(dotsX0 + d * dotGap).toFixed(2)}" cy="${dotsY}" r="${dotR}" `
@@ -705,6 +715,7 @@ function buildSVG({ grid, uid, state, winningLang, fact, repoMatch }) {
 <rect x="4" y="4" width="${SVG_W - 8}" height="${SVG_H - 8}" rx="18" fill="none" ${borderAttr}/>
 ${lightsSvg}
 ${headerSvg}
+${paytableSvg}
 ${colBGs}
 ${reelsSvg}
 ${nmShineSvg}
@@ -714,7 +725,6 @@ ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}
 ${panelSvg}
-${paytableSvg}
 ${footer}
 </svg>`;
 }
