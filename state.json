@@ -1,16 +1,16 @@
 {
-  "totalSpins": 35,
-  "totalWins": 16,
+  "totalSpins": 36,
+  "totalWins": 17,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
+      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777581358676
+    "ts": 1777581862934
   }
 }
