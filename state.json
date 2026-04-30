@@ -1,16 +1,16 @@
 {
-  "totalSpins": 28,
-  "totalWins": 10,
+  "totalSpins": 32,
+  "totalWins": 13,
   "lastWin": {
     "langId": "glsl",
     "langName": "GLSL",
     "fact": {
-      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
-      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.",
+      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777579800625
+    "ts": 1777580706768
   }
 }
