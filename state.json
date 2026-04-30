@@ -1,16 +1,16 @@
 {
-  "totalSpins": 124,
-  "totalWins": 78,
+  "totalSpins": 125,
+  "totalWins": 79,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
-      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588345811
+    "ts": 1777588349001
   }
 }
