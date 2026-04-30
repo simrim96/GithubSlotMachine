@@ -32,10 +32,11 @@ export async function readState(token, owner, repo) {
   return { state: { ...DEFAULTS, ...parsed }, sha: data.sha };
 }
 
-export async function writeState(token, owner, repo, state, sha) {
+export async function writeState(token, owner, repo, state, sha, _retry = false) {
+  const encoded = Buffer.from(JSON.stringify(state, null, 2)).toString('base64');
   const body = {
     message: '🎰 Update slot stats',
-    content: Buffer.from(JSON.stringify(state, null, 2)).toString('base64'),
+    content: encoded,
   };
   if (sha) body.sha = sha;
   const r = await fetch(
@@ -51,5 +52,10 @@ export async function writeState(token, owner, repo, state, sha) {
       body: JSON.stringify(body),
     }
   );
+  if (r.status === 409 && !_retry) {
+    // SHA stale: rifetch e riprova una volta.
+    const { sha: freshSha } = await readState(token, owner, repo);
+    return writeState(token, owner, repo, state, freshSha, true);
+  }
   if (!r.ok) throw new Error(`state put: ${r.status}`);
 }

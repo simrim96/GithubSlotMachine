@@ -161,8 +161,9 @@ async function ghGet(token, repo, path) {
   return r.ok ? r.json() : null;
 }
 
-async function ghPut(token, repo, path, content, sha, message) {
-  const body = { message, content: Buffer.from(content).toString('base64') };
+async function ghPut(token, repo, path, content, sha, message, _retry = false) {
+  const encoded = Buffer.from(content).toString('base64');
+  const body = { message, content: encoded };
   if (sha) body.sha = sha;
   const r = await fetch(
     `https://api.github.com/repos/${OWNER}/${repo}/contents/${path}`,
@@ -177,6 +178,11 @@ async function ghPut(token, repo, path, content, sha, message) {
       body: JSON.stringify(body),
     }
   );
+  if (r.status === 409 && !_retry) {
+    // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
+    const fresh = await ghGet(token, repo, path);
+    return ghPut(token, repo, path, content, fresh?.sha ?? null, message, true);
+  }
   if (!r.ok) throw new Error(`PUT ${repo}/${path}: ${r.status}`);
 }
 
