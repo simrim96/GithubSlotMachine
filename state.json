@@ -1,16 +1,16 @@
 {
-  "totalSpins": 119,
-  "totalWins": 75,
+  "totalSpins": 130,
+  "totalWins": 84,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.",
-      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\".",
+      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777588277005
+    "ts": 1777588485508
   }
 }
