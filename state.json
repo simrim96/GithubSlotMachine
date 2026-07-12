@@ -1,16 +1,16 @@
 {
-  "totalSpins": 162,
-  "totalWins": 112,
+  "totalSpins": 163,
+  "totalWins": 113,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.",
-      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+      "it": "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+      "en": "With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783882821265
+    "ts": 1783882880585
   }
 }
