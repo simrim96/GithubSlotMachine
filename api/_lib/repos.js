@@ -7,8 +7,13 @@
 //
 // Se Redis non è configurato, la cache resta solo in-memory (comportamento
 // originale, con stall possibile sui cold start).
+//
+// NON-BLOCCANTE: se la cache è fredda, NON aspettiamo lo stall di refresh — lo
+// lanciamo in background e ritorniamo subito il valore corrente (spesso null al
+// primo giro → il redirect punta al profilo). La cache si popola per il prossimo
+// spin. Così il tempo tra click e reload non dipende mai dallo stall GitHub.
 
-import { kv, kvEnabled } from './kv.js';
+import { kvGet, kvSet, kvEnabled } from './kv.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
 const KV_KEY = 'gsm:repoCache';
@@ -26,25 +31,18 @@ function ghHeaders(token) {
 
 async function loadFromKv() {
   if (!kvEnabled || kvLoaded) return;
-  try {
-    const data = await kv.get(KV_KEY);
-    if (data && data.ts) {
-      cache.ts = data.ts;
-      cache.byLangId = data.byLangId || {};
-    }
-  } catch (e) {
-    console.warn('repo cache kv load failed:', e.message);
+  const data = await kvGet(KV_KEY);
+  if (data && data.ts) {
+    cache.ts = data.ts;
+    cache.byLangId = data.byLangId || {};
   }
   kvLoaded = true;
 }
 
-async function saveToKv() {
+function saveToKv() {
   if (!kvEnabled) return;
-  try {
-    await kv.set(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId });
-  } catch (e) {
-    console.warn('repo cache kv save failed:', e.message);
-  }
+  // Fire-and-forget: non blocchiamo lo spin per il salvataggio della cache.
+  kvSet(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(() => {});
 }
 
 async function refreshCache(token, owner, languages) {
@@ -102,19 +100,17 @@ async function refreshCache(token, owner, languages) {
 
   cache.ts = Date.now();
   cache.byLangId = byLangId;
-  await saveToKv();
+  saveToKv();
 }
 
 export async function getRepoForLanguage(token, owner, lang, languages) {
   await loadFromKv();
   const fresh = Date.now() - cache.ts < TTL_MS;
   if (!fresh) {
-    try {
-      await refreshCache(token, owner, languages);
-    } catch (e) {
-      // In caso di errore non bloccare lo spin.
-      console.warn('repos cache refresh failed:', e.message);
-    }
+    // NON bloccare il redirect: popola la cache in background, ritorna subito.
+    refreshCache(token, owner, languages).catch((e) =>
+      console.warn('repos cache refresh failed:', e.message)
+    );
   }
   return cache.byLangId[lang.id] || null;
 }

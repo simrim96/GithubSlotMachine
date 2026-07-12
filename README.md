@@ -110,12 +110,32 @@ plenty for a profile widget):
 - the language→repo lookup cache — survives Vercel cold starts, so the **first
   spin no longer stalls for up to 1–3s** fetching `/languages`
 
+> ⚠️ **Region matters — a lot.** Upstash REST calls are plain HTTPS round-trips.
+> If your Upstash database is in a **different region** from your Vercel
+> deployment (e.g. Upstash on `us-east-1`, Vercel on `fra1`/Europe), every KV
+> read/write pays a cross-continent latency tax and the slot gets **slower** than
+> the GitHub-only version. **Create the Upstash DB in the SAME region as your
+> Vercel project** (Vercel → Project → Settings → General shows the region;
+> pick the matching Upstash region at DB creation). A same-region Redis is ~10–20ms
+> per call; cross-region can be 150ms+ and dominate the spin time.
+
+> 🚀 **Non-blocking spin.** Once Redis is configured, `api/spin` no longer waits
+> for every write before redirecting. It writes `slot.svg` + the counters to Redis
+> (~10–20ms), then redirects **immediately**; the profile-README update happens in
+> the background. The redirect target is computed *before* any slow write, and the
+> language→repo cache refreshes in the background on a cold cache, so the time from
+> *click → page reload* is bounded only by the fast KV writes, never by a GitHub
+> PUT or a cold `/languages` scan. Every KV call also has a **200ms timeout** with
+> automatic fallback to GitHub, so a slow/down Redis can never make the slot slower
+> than the original.
+
 If the env vars are **absent**, the code transparently falls back to the original
 GitHub-Contents behaviour, so local `vercel dev` and forks without Redis keep
 working unchanged. No code changes needed to toggle between the two.
 
-> **Get an Upstash DB:** upstash.com → "Redis" → create a free database → copy the
-> `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` into Vercel's env vars.
+> **Get an Upstash DB:** upstash.com → "Redis" → create a free database **in the
+> same region as your Vercel project** → copy the `UPSTASH_REDIS_REST_URL` and
+> `UPSTASH_REDIS_REST_TOKEN` into Vercel's env vars.
 
 You can also override the redirect target per-request with
 `/api/spin?user=OTHERNAME` (handy for demos).

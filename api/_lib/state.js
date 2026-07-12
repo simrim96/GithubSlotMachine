@@ -3,8 +3,11 @@
 // Priorità: Upstash Redis (veloce, same-region ~10ms, nessuno spam nella git
 // history). Fallback: file state.json committato nel repo della slot (usato
 // solo se Redis non è configurato, es. dev locale).
+//
+// Tutte le chiamate KV passano dai wrapper con timeout in kv.js, così Redis
+// lento/cross-region non blocca mai lo spin.
 
-import { kv, kvEnabled } from './kv.js';
+import { kvGet, kvSet, kvEnabled } from './kv.js';
 
 const STATE_KEY = 'gsm:state';
 const STATE_PATH = 'state.json';
@@ -70,31 +73,24 @@ async function writeStateGitHub(token, owner, repo, state, sha, _retry = false) 
 // ── API pubblica ───────────────────────────────────────────────────────────────
 export async function readState(token, owner, repo) {
   if (kvEnabled) {
-    try {
-      const state = await kv.get(STATE_KEY);
-      if (state) return { state: { ...DEFAULTS, ...state }, sha: null };
-      // Primo avvio: importa lo storico da GitHub per non perderlo, poi seed-a KV.
-      const gh = await readStateGitHub(token, owner, repo).catch(() => null);
-      if (gh) {
-        await kv.set(STATE_KEY, gh.state).catch(() => {});
-        return { state: gh.state, sha: null };
-      }
-      return { state: { ...DEFAULTS }, sha: null };
-    } catch (e) {
-      console.warn('kv state read failed, falling back to github:', e.message);
+    const state = await kvGet(STATE_KEY);
+    if (state) return { state: { ...DEFAULTS, ...state }, sha: null };
+    // Primo avvio (o KV vuoto/timeout): importa lo storico da GitHub per non
+    // perderlo, poi seed-a KV. Se anche GitHub fallisce, torniamo ai default.
+    const gh = await readStateGitHub(token, owner, repo).catch(() => null);
+    if (gh) {
+      await kvSet(STATE_KEY, gh.state);
+      return { state: gh.state, sha: null };
     }
+    return { state: { ...DEFAULTS }, sha: null };
   }
   return readStateGitHub(token, owner, repo);
 }
 
 export async function writeState(token, owner, repo, state, _sha) {
   if (kvEnabled) {
-    try {
-      await kv.set(STATE_KEY, state);
-      return;
-    } catch (e) {
-      console.warn('kv state write failed, falling back to github:', e.message);
-    }
+    await kvSet(STATE_KEY, state);
+    return;
   }
   return writeStateGitHub(token, owner, repo, state, _sha);
 }

@@ -52,6 +52,7 @@ export default async function handler(req, res) {
   const ts = Date.now();
 
   try {
+    // Letture in parallelo: slot.svg (KV), README (GitHub), stato (KV).
     const [slotFile, readmeFile, stateBundle] = await Promise.all([
       loadSlotSvg(token, SLOT_REPO),
       ghGet(token, PROFILE_REPO, 'README.md'),
@@ -73,6 +74,9 @@ export default async function handler(req, res) {
     if (winningLang) {
       state.totalWins = (state.totalWins || 0) + 1;
       fact = pickFact(winningLang);
+      // Repo lookup: se la cache è fredda, getRepoForLanguage la popola in
+      // background e ritorna subito (spesso null → redirect al profilo).
+      // Il redirect NON aspetta mai lo stall di 1-3s delle GitHub API.
       try {
         repoMatch = await getRepoForLanguage(token, OWNER, winningLang, LANGUAGES);
       } catch (e) {
@@ -91,38 +95,9 @@ export default async function handler(req, res) {
 
     const svg = buildSVG({ grid, uid: ts, state, winningLang, fact, repoMatch });
 
-    const updates = [
-      saveSlotSvg(token, SLOT_REPO, svg, slotFile?.sha),
-      writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
-        console.warn('state write:', e.message)
-      ),
-    ];
-
-    if (readmeFile) {
-      const oldReadme = Buffer.from(readmeFile.content, 'base64').toString('utf-8');
-      let newReadme = oldReadme.replace(
-        /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-        `api/image?v=${ts}`
-      );
-      newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
-      if (newReadme !== oldReadme) {
-        updates.push(
-          ghPut(token, PROFILE_REPO, 'README.md', newReadme, readmeFile.sha, '🎰 Update slot')
-        );
-      }
-    }
-
-    await Promise.all(updates);
-
-    // Redirect target can be overridden via ?user=OTHERNAME (handy for demos
-    // or when embedding the slot for someone else). Falls back to OWNER.
-    const targetOwner = (req.query?.user && String(req.query.user).trim()) || OWNER;
-
-    // Redirect:
-    //  • Jackpot (5 in fila): porta alla lista filtrata di TUTTE le repo dell'utente
-    //    in quel linguaggio → "discover all my projects".
-    //  • Win normale: porta alla repo migliore per quel linguaggio.
-    //  • Niente win: porta al profilo.
+    // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
+    const targetOwner =
+      (req.query?.user && String(req.query.user).trim()) || OWNER;
     const isJackpot = wins.some((w) => w.count === 5);
     let dest;
     if (winningLang && isJackpot) {
@@ -131,7 +106,35 @@ export default async function handler(req, res) {
     } else {
       dest = repoMatch?.url || `https://github.com/${OWNER}`;
     }
+
+    // ── Scritture ────────────────────────────────────────────────────────────
+    // 1) slot.svg DEVE essere aggiornato PRIMA del reload, altrimenti la slot
+    //    mostrerebbe il risultato precedente. Su KV è ~10-20ms.
+    // 2) Contatori su KV (~10-20ms).
+    // 3) README (PUT GitHub, ~300ms) è NON critico per il reload → fire-and-forget.
+    await saveSlotSvg(token, SLOT_REPO, svg, slotFile?.sha);
+    await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
+      console.warn('state write:', e.message)
+    );
+
+    // Redirect IMMEDIATO: l'utente vede il reload appena slot.svg+state sono
+    // scritti, senza aspettare la PUT del README su GitHub.
     res.redirect(302, dest);
+
+    // Aggiornamento README in background (non blocca il redirect).
+    if (readmeFile) {
+      const oldReadme = Buffer.from(readmeFile.content, 'base64').toString('utf-8');
+      let newReadme = oldReadme.replace(
+        /api\/image\?(?:v|cache_buster)=[0-9]*/g,
+        `api/image?v=${ts}`
+      );
+      newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
+      if (newReadme !== oldReadme) {
+        ghPut(token, PROFILE_REPO, 'README.md', newReadme, readmeFile.sha, '🎰 Update slot').catch(
+          (e) => console.warn('readme put:', e.message)
+        );
+      }
+    }
   } catch (err) {
     res.status(500).send('Errore: ' + err.message);
   }
@@ -184,7 +187,7 @@ function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function escapeMarkdown(s) { return String(s).replace(/[*_`[\]]/g, '\\$&'); }
 
 // ─── GitHub API ──────────────────────────────────────────────────────────────
-import { kv, kvEnabled } from './_lib/kv.js';
+import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
 
 // ghGet: GET /repos/{OWNER}/{repo}/contents/{path} -> json o null (anche su 404)
 async function ghGet(token, repo, path) {
@@ -229,15 +232,13 @@ async function ghPut(token, repo, path, content, sha, message, _retry = false) {
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
 // Su Upstash Redis (kv:gsm:slotSvg) se configurato: letture/scritture ~10ms
 // same-region, eliminando il GET su GitHub (150-400ms) ad ogni caricamento della
-// slot. Fallback su GitHub Contents se Redis non è disponibile.
+// slot. Fallback su GitHub Contents se Redis non è disponibile o in timeout.
+// Tutte le chiamate KV passano dai wrapper con timeout (200ms) in kv.js.
 async function saveSlotSvg(token, repo, svg, sha) {
   if (kvEnabled) {
-    try {
-      await kv.set('gsm:slotSvg', svg);
-      return;
-    } catch (e) {
-      console.warn('kv slotSvg save failed, falling back to github:', e.message);
-    }
+    const ok = await kvSet('gsm:slotSvg', svg);
+    if (ok) return;
+    console.warn('kv slotSvg save failed/timed out, falling back to github');
   }
   await ghPut(token, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
 }
@@ -245,12 +246,8 @@ async function saveSlotSvg(token, repo, svg, sha) {
 // Carica lo slot.svg corrente per l'update incrementale (Redis, poi GitHub).
 async function loadSlotSvg(token, repo) {
   if (kvEnabled) {
-    try {
-      const svg = await kv.get('gsm:slotSvg');
-      if (svg) return { content: svg, sha: null };
-    } catch (e) {
-      console.warn('kv slotSvg load failed, falling back to github:', e.message);
-    }
+    const svg = await kvGet('gsm:slotSvg');
+    if (svg) return { content: svg, sha: null };
   }
   const data = await ghGet(token, repo, 'slot.svg');
   if (!data) return { content: null, sha: null };
