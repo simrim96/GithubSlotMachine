@@ -1,16 +1,16 @@
 {
   "totalSpins": 165,
-  "totalWins": 115,
+  "totalWins": 114,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.",
-      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
+      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783882989965
+    "ts": 1783882960867
   }
 }
