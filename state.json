@@ -1,16 +1,16 @@
 {
-  "totalSpins": 168,
-  "totalWins": 116,
+  "totalSpins": 169,
+  "totalWins": 117,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
-      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783883016752
+    "ts": 1783887000492
   }
 }
