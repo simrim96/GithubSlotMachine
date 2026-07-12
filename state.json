@@ -1,16 +1,16 @@
 {
-  "totalSpins": 176,
-  "totalWins": 121,
+  "totalSpins": 177,
+  "totalWins": 122,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
-      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
+      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.",
+      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783889566001
+    "ts": 1783891749115
   }
 }
