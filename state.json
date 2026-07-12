@@ -1,16 +1,16 @@
 {
-  "totalSpins": 174,
-  "totalWins": 120,
+  "totalSpins": 175,
+  "totalWins": 121,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "TypeScript è stato creato da Anders Hejlsberg (papà di C# e Turbo Pascal) in Microsoft e annunciato pubblicamente nel 2012.",
-      "en": "TypeScript was created by Anders Hejlsberg (father of C# and Turbo Pascal) at Microsoft and publicly announced in 2012."
+      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.",
+      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783889541686
+    "ts": 1783889566001
   }
 }
