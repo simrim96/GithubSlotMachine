@@ -1,16 +1,16 @@
 {
-  "totalSpins": 165,
-  "totalWins": 114,
+  "totalSpins": 166,
+  "totalWins": 115,
   "lastWin": {
     "langId": "cpp",
     "langName": "C++",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1783882960867
+    "ts": 1783883005346
   }
 }
