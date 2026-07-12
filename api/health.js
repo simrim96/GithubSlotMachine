@@ -45,6 +45,17 @@ export default async function handler(req, res) {
   } else {
     steps.kv_enabled = false;
     steps.kv_note = 'Upstash NON configurato (uso fallback GitHub).';
+    // Diagnostica: quali nomi env sono presenti (solo presenza, mai i valori).
+    steps.kv_env_seen = {
+      UPSTASH_REDIS_REST_URL: Boolean(process.env.UPSTASH_REDIS_REST_URL),
+      UPSTASH_REDIS_REST_TOKEN: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
+      KV_REST_API_URL: Boolean(process.env.KV_REST_API_URL),
+      KV_REST_API_TOKEN: Boolean(process.env.KV_REST_API_TOKEN),
+    };
+    steps.kv_fix_hint =
+      'Nessuna env Upstash trovata. In Vercel: Project → Settings → Environment Variables, ' +
+      'OPPURE Storage → collega Upstash Redis e conferma che le env (UPSTASH_REDIS_REST_URL/_TOKEN ' +
+      'o KV_REST_API_URL/_TOKEN) appaiano nel progetto. Poi redeploy.';
   }
 
   // ── 2. GitHub README GET (hop che lo spin aspettava prima del redirect) ───

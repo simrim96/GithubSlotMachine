@@ -17,8 +17,21 @@
 
 import { Redis } from '@upstash/redis';
 
-const url = process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Upstash può essere collegato in due modi, con nomi env DIVERSI:
+//  1) Standalone (crei il DB su upstash.com e copi le env):
+//       UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+//  2) Integrato in Vercel ("Upstash Redis" / Vercel KV storage integration):
+//       KV_REST_API_URL + KV_REST_API_TOKEN (+ KV_REST_API_READ_ONLY_TOKEN)
+// Supportiamo entrambi, così kvEnabled è true qualunque modo tu lo abbia collegato.
+const url =
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.KV_REST_API_URL ||
+  '';
+const token =
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.KV_REST_API_TOKEN ||
+  process.env.KV_REST_API_READ_ONLY_TOKEN ||
+  '';
 
 export const kvEnabled = Boolean(url && token);
 
