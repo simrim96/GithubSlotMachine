@@ -10,6 +10,9 @@
   "scripts": {
     "start": "vercel dev"
   },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
+  },
   "keywords": [
     "github",
     "profile-readme",

@@ -1,8 +1,19 @@
 // Look-up cache per (linguaggio → miglior repo dell'owner con ≥30% di quel lang).
-// La cache è module-level: persiste finché l'istanza Vercel resta calda.
+//
+// Cache a due livelli:
+//   1. in-memory (module-level) — velocissima finché l'istanza Vercel resta calda
+//   2. Upstash Redis — persiste TRA i cold start di Vercel, quindi il primo spin
+//      a freddo NON fa più lo stall di 1-3s (fino a 100 chiamate /languages).
+//
+// Se Redis non è configurato, la cache resta solo in-memory (comportamento
+// originale, con stall possibile sui cold start).
+
+import { kv, kvEnabled } from './kv.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
+const KV_KEY = 'gsm:repoCache';
 const cache = { ts: 0, byLangId: {} };
+let kvLoaded = false;
 
 function ghHeaders(token) {
   const h = {
@@ -11,6 +22,29 @@ function ghHeaders(token) {
   };
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
+}
+
+async function loadFromKv() {
+  if (!kvEnabled || kvLoaded) return;
+  try {
+    const data = await kv.get(KV_KEY);
+    if (data && data.ts) {
+      cache.ts = data.ts;
+      cache.byLangId = data.byLangId || {};
+    }
+  } catch (e) {
+    console.warn('repo cache kv load failed:', e.message);
+  }
+  kvLoaded = true;
+}
+
+async function saveToKv() {
+  if (!kvEnabled) return;
+  try {
+    await kv.set(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId });
+  } catch (e) {
+    console.warn('repo cache kv save failed:', e.message);
+  }
 }
 
 async function refreshCache(token, owner, languages) {
@@ -68,9 +102,11 @@ async function refreshCache(token, owner, languages) {
 
   cache.ts = Date.now();
   cache.byLangId = byLangId;
+  await saveToKv();
 }
 
 export async function getRepoForLanguage(token, owner, lang, languages) {
+  await loadFromKv();
   const fresh = Date.now() - cache.ts < TTL_MS;
   if (!fresh) {
     try {

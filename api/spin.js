@@ -53,7 +53,7 @@ export default async function handler(req, res) {
 
   try {
     const [slotFile, readmeFile, stateBundle] = await Promise.all([
-      ghGet(token, SLOT_REPO, 'slot.svg'),
+      loadSlotSvg(token, SLOT_REPO),
       ghGet(token, PROFILE_REPO, 'README.md'),
       readState(token, OWNER, SLOT_REPO).catch(() => ({
         state: { totalSpins: 0, totalWins: 0, lastWin: null },
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
     const svg = buildSVG({ grid, uid: ts, state, winningLang, fact, repoMatch });
 
     const updates = [
-      ghPut(token, SLOT_REPO, 'slot.svg', svg, slotFile?.sha, '🎰 Spin'),
+      saveSlotSvg(token, SLOT_REPO, svg, slotFile?.sha),
       writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
         console.warn('state write:', e.message)
       ),
@@ -184,6 +184,9 @@ function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function escapeMarkdown(s) { return String(s).replace(/[*_`[\]]/g, '\\$&'); }
 
 // ─── GitHub API ──────────────────────────────────────────────────────────────
+import { kv, kvEnabled } from './_lib/kv.js';
+
+// ghGet: GET /repos/{OWNER}/{repo}/contents/{path} -> json o null (anche su 404)
 async function ghGet(token, repo, path) {
   const r = await fetch(
     `https://api.github.com/repos/${OWNER}/${repo}/contents/${path}`,
@@ -221,6 +224,40 @@ async function ghPut(token, repo, path, content, sha, message, _retry = false) {
     return ghPut(token, repo, path, content, fresh?.sha ?? null, message, true);
   }
   if (!r.ok) throw new Error(`PUT ${repo}/${path}: ${r.status}`);
+}
+
+// ── Persistenza slot.svg ──────────────────────────────────────────────────────
+// Su Upstash Redis (kv:gsm:slotSvg) se configurato: letture/scritture ~10ms
+// same-region, eliminando il GET su GitHub (150-400ms) ad ogni caricamento della
+// slot. Fallback su GitHub Contents se Redis non è disponibile.
+async function saveSlotSvg(token, repo, svg, sha) {
+  if (kvEnabled) {
+    try {
+      await kv.set('gsm:slotSvg', svg);
+      return;
+    } catch (e) {
+      console.warn('kv slotSvg save failed, falling back to github:', e.message);
+    }
+  }
+  await ghPut(token, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
+}
+
+// Carica lo slot.svg corrente per l'update incrementale (Redis, poi GitHub).
+async function loadSlotSvg(token, repo) {
+  if (kvEnabled) {
+    try {
+      const svg = await kv.get('gsm:slotSvg');
+      if (svg) return { content: svg, sha: null };
+    } catch (e) {
+      console.warn('kv slotSvg load failed, falling back to github:', e.message);
+    }
+  }
+  const data = await ghGet(token, repo, 'slot.svg');
+  if (!data) return { content: null, sha: null };
+  return {
+    content: Buffer.from(data.content, 'base64').toString('utf-8'),
+    sha: data.sha,
+  };
 }
 
 // ─── Grid generation ─────────────────────────────────────────────────────────

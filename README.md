@@ -87,6 +87,36 @@ the slot at **your** profile **without editing code** via Vercel env vars:
 | `PROFILE_REPO` | `= SLOT_OWNER`   | Your profile README repo (`<user>/<user>`) |
 | `GITHUB_PAT`   | _(required)_     | Token used for both reads and writes     |
 
+### ⚡ Upstash Redis (optional but recommended)
+
+By default the slot persists `slot.svg` and the community counters by **committing
+to the GitHub repo** (`state.json` + `slot.svg` via the Contents API). This works,
+but every spin does 2–3 GitHub writes (slow on cold starts, clutters git history,
+and can hit rate limits).
+
+To make the slot **instant** (the screen shows the reels in ~10ms instead of
+~300ms per image load), point it at an **Upstash Redis** database:
+
+| Env var                    | Purpose                              |
+| -------------------------- | ------------------------------------ |
+| `UPSTASH_REDIS_REST_URL`   | REST URL of your Upstash Redis DB    |
+| `UPSTASH_REDIS_REST_TOKEN` | REST token of your Upstash Redis DB  |
+
+When both are set, the following move to Redis (free tier: 10k commands/day is
+plenty for a profile widget):
+
+- `slot.svg` live image — read by `api/image`, written by `api/spin`
+- community counters (`totalSpins` / `totalWins`) — `state.json` becomes a Redis key
+- the language→repo lookup cache — survives Vercel cold starts, so the **first
+  spin no longer stalls for up to 1–3s** fetching `/languages`
+
+If the env vars are **absent**, the code transparently falls back to the original
+GitHub-Contents behaviour, so local `vercel dev` and forks without Redis keep
+working unchanged. No code changes needed to toggle between the two.
+
+> **Get an Upstash DB:** upstash.com → "Redis" → create a free database → copy the
+> `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` into Vercel's env vars.
+
 You can also override the redirect target per-request with
 `/api/spin?user=OTHERNAME` (handy for demos).
 
@@ -111,6 +141,16 @@ Use a markdown table to keep them on the same row with no gap:
 Only the lever is wrapped in the spin link — the slot itself is read-only, which
 makes the call-to-action explicit and prevents accidental clicks while reading
 the result. The `?v=` query busts GitHub Camo's image cache after each spin.
+
+> **⏱️ Performance note — GitHub Camo proxy.** When the slot is embedded in a
+> README, the `<img>` is served through **GitHub's Camo proxy** (not directly from
+> Vercel). Camo adds its own latency and caches aggressively, so the *fastest*
+> experience is on your **Vercel app URL** (`https://YOUR-VERCEL-APP.vercel.app/api/image`)
+> — open that link to see the slot update instantly. With Upstash Redis the image
+> read itself drops from ~300ms to ~10ms; Camo is the only hop left in front when
+> viewed from the README. Animated CSS inside the SVG runs fine on the Vercel URL
+> and is generally preserved by Camo, but treat the README embed as a live preview
+> rather than a guaranteed real-time view.
 
 ---
 
