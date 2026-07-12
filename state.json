@@ -1,16 +1,16 @@
 {
-  "totalSpins": 161,
-  "totalWins": 111,
+  "totalSpins": 162,
+  "totalWins": 112,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
-      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
+      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.",
+      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1777591034451
+    "ts": 1783882821265
   }
 }
