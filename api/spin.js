@@ -52,10 +52,13 @@ export default async function handler(req, res) {
   const ts = Date.now();
 
   try {
-    // Letture in parallelo: slot.svg (KV), README (GitHub), stato (KV).
-    const [slotFile, readmeFile, stateBundle] = await Promise.all([
+    // Letture CRITICHE (percorso click→reload): solo slot.svg (KV) + stato (KV).
+    // La GET del README su GitHub (~150-400ms) è stata SPOSTATA fuori dal
+    // percorso critico: serve solo ad aggiornare i marker nel profilo, NON
+    // per calcolare né l'SVG né il redirect. Viene fatta in background dopo
+    // il redirect, così non allunga più il tempo percepito.
+    const [slotFile, stateBundle] = await Promise.all([
       loadSlotSvg(token, SLOT_REPO),
-      ghGet(token, PROFILE_REPO, 'README.md'),
       readState(token, OWNER, SLOT_REPO).catch(() => ({
         state: { totalSpins: 0, totalWins: 0, lastWin: null },
         sha: null,
@@ -63,6 +66,7 @@ export default async function handler(req, res) {
     ]);
 
     let { state, sha: stateSha } = stateBundle;
+    let readmeFile = null; // caricato in background per l'update README
     state.totalSpins = (state.totalSpins || 0) + 1;
 
     const wins = checkWins(grid);
@@ -111,30 +115,37 @@ export default async function handler(req, res) {
     // 1) slot.svg DEVE essere aggiornato PRIMA del reload, altrimenti la slot
     //    mostrerebbe il risultato precedente. Su KV è ~10-20ms.
     // 2) Contatori su KV (~10-20ms).
-    // 3) README (PUT GitHub, ~300ms) è NON critico per il reload → fire-and-forget.
+    // 3) README (GET + PUT GitHub, ~300-600ms) è NON critico per il reload →
+    //    tutto in background, fuori dal percorso click→reload.
     await saveSlotSvg(token, SLOT_REPO, svg, slotFile?.sha);
     await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
       console.warn('state write:', e.message)
     );
 
     // Redirect IMMEDIATO: l'utente vede il reload appena slot.svg+state sono
-    // scritti, senza aspettare la PUT del README su GitHub.
+    // scritti (~10-40ms), senza aspettare GitHub (README) né scan repo.
     res.redirect(302, dest);
 
-    // Aggiornamento README in background (non blocca il redirect).
-    if (readmeFile) {
-      const oldReadme = Buffer.from(readmeFile.content, 'base64').toString('utf-8');
-      let newReadme = oldReadme.replace(
-        /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-        `api/image?v=${ts}`
-      );
-      newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
-      if (newReadme !== oldReadme) {
-        ghPut(token, PROFILE_REPO, 'README.md', newReadme, readmeFile.sha, '🎰 Update slot').catch(
-          (e) => console.warn('readme put:', e.message)
+    // ── Aggiornamento README in background (non blocca il redirect) ──────────
+    // Carica il README solo ora, in parallelo all'update, senza aspettare il
+    // redirect. Se il fetch fallisce, skip silenzioso: il profilo non è critico.
+    (async () => {
+      try {
+        const rf = await ghGet(token, PROFILE_REPO, 'README.md');
+        if (!rf) return;
+        const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
+        let newReadme = oldReadme.replace(
+          /api\/image\?(?:v|cache_buster)=[0-9]*/g,
+          `api/image?v=${ts}`
         );
+        newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
+        if (newReadme !== oldReadme) {
+          await ghPut(token, PROFILE_REPO, 'README.md', newReadme, rf.sha, '🎰 Update slot');
+        }
+      } catch (e) {
+        console.warn('readme background update skipped:', e.message);
       }
-    }
+    })();
   } catch (err) {
     res.status(500).send('Errore: ' + err.message);
   }
