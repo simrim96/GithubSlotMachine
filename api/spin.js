@@ -149,22 +149,38 @@ export default async function handler(req, res) {
     // ── Aggiornamento README in background (non blocca il redirect) ──────────
     // Carica il README solo ora, in parallelo all'update, senza aspettare il
     // redirect. Se il fetch fallisce, skip silenzioso: il profilo non è critico.
+    // Con retry e backoff esponenziale per prevenire silent failures.
     (async () => {
-      try {
-        const rf = await ghGet(token, PROFILE_REPO, 'README.md');
-        if (!rf) return;
-        const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
-        let newReadme = oldReadme.replace(
-          /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-          `api/image?v=${ts}`
-        );
-        newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
-        if (newReadme !== oldReadme) {
-          await ghPut(token, PROFILE_REPO, 'README.md', newReadme, rf.sha, '🎰 Update slot');
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY_MS = 1000;
+      
+      let lastError = null;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const rf = await ghGet(token, PROFILE_REPO, 'README.md');
+          if (!rf) return;
+          
+          const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
+          let newReadme = oldReadme.replace(
+            /api\/image\?(?:v|cache_buster)=[0-9]*/g,
+            `api/image?v=${ts}`
+          );
+          newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
+          
+          if (newReadme !== oldReadme) {
+            await ghPut(token, PROFILE_REPO, 'README.md', newReadme, rf.sha, '🎰 Update slot');
+          }
+          return; // Successo
+        } catch (e) {
+          lastError = e;
+          console.warn(`README update attempt ${attempt + 1} failed:`, e.message);
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS * Math.pow(2, attempt)));
+          }
         }
-      } catch (e) {
-        console.warn('readme background update skipped:', e.message);
       }
+      // Se tutti i retry falliscono, logga l'errore finale
+      console.error('README update failed after', MAX_RETRIES, 'attempts:', lastError?.message);
     })();
   } catch (err) {
     // Degrado graceful: invece di un 500 che "rompe" la leva, proviamo a
