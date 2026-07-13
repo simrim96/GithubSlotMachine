@@ -41,6 +41,28 @@ export {
   WILD_ID, SCATTER_ID,
 };
 
+// ─── Analytics Tracking ──────────────────────────────────────────────────────
+// Invia metriche a Vercel Analytics per monitoraggio produzione
+async function trackSpin(metrics) {
+  if (process.env.VERCEL) {
+    try {
+      await fetch('https://api.vercel.com/v1/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          events: [{
+            event: 'spin',
+            timestamp: Date.now(),
+            ...metrics,
+          }],
+        }),
+      }).catch(() => {}); // Silently ignore analytics failures
+    } catch (e) {
+      console.warn('analytics track failed:', e.message);
+    }
+  }
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const token = process.env.GITHUB_PAT;
@@ -49,7 +71,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const ts = Date.now();
+  const spinStart = Date.now();
 
   try {
     // generateGrid è DENTRO il try: se lancia, degrada a errore graceful.
@@ -96,12 +118,12 @@ export default async function handler(req, res) {
         repoUrl: repoMatch?.url || null,
         repoName: repoMatch?.name || null,
         repoDesc: repoMatch?.description || null,
-        ts,
+        ts: spinStart,
       };
     }
 
     const svg = buildSVG({
-      grid, uid: ts, state, winningLang, fact, repoMatch, owner: OWNER,
+      grid, uid: spinStart, state, winningLang, fact, repoMatch, owner: OWNER,
     });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
@@ -118,6 +140,9 @@ export default async function handler(req, res) {
     } else {
       dest = repoMatch?.url || `https://github.com/${OWNER}`;
     }
+
+    const githubLatency = Date.now() - spinStart;
+    const kvEnabled = !!process.env.UPSTASH_REDIS_REST_URL;
 
     // ── Scritture ────────────────────────────────────────────────────────────
     // 1) slot.svg DEVE essere aggiornato PRIMA del reload, altrimenti la slot
@@ -136,6 +161,15 @@ export default async function handler(req, res) {
         console.warn('state write:', w.message)
       );
       res.redirect(302, dest);
+      // Track analytics (non bloccante)
+      await trackSpin({
+        win: isWin ? 'win' : 'loss',
+        win_type: isJackpot ? 'jackpot' : (isWin ? 'near-miss' : 'loss'),
+        lang_id: winningLang?.id || null,
+        redis_hit: kvEnabled,
+        github_latency_ms: githubLatency,
+        error: null,
+      });
       return;
     }
     await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
@@ -145,6 +179,16 @@ export default async function handler(req, res) {
     // Redirect IMMEDIATO: l'utente vede il reload appena slot.svg+state sono
     // scritti (~10-40ms), senza aspettare GitHub (README) né scan repo.
     res.redirect(302, dest);
+
+    // Track analytics (non bloccante)
+    await trackSpin({
+      win: isWin ? 'win' : 'loss',
+      win_type: isJackpot ? 'jackpot' : (isWin ? 'near-miss' : 'loss'),
+      lang_id: winningLang?.id || null,
+      redis_hit: kvEnabled,
+      github_latency_ms: githubLatency,
+      error: null,
+    });
 
     // ── Aggiornamento README in background (non blocca il redirect) ──────────
     // Carica il README solo ora, in parallelo all'update, senza aspettare il
@@ -163,7 +207,7 @@ export default async function handler(req, res) {
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
           let newReadme = oldReadme.replace(
             /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-            `api/image?v=${ts}`
+            `api/image?v=${spinStart}`
           );
           newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
           
@@ -199,5 +243,14 @@ export default async function handler(req, res) {
     } catch {
       res.status(500).send('Errore temporaneo, riprova.');
     }
+    // Track analytics (non bloccante)
+    await trackSpin({
+      win: 'error',
+      win_type: 'error',
+      lang_id: null,
+      redis_hit: kvEnabled,
+      github_latency_ms: Date.now() - spinStart,
+      error: err?.message || String(err),
+    });
   }
 }

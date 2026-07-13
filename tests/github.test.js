@@ -117,3 +117,106 @@ describe('updateReadmeMarkers', () => {
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
   });
 });
+
+// ─── Circuit Breaker Tests ─────────────────────────────────────────────────────
+import { GitHubCircuitBreaker, githubCircuitBreaker } from '../api/_lib/github.js';
+
+describe('GitHubCircuitBreaker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('inizia con stato closed', () => {
+    const cb = new GitHubCircuitBreaker();
+    expect(cb.state).toBe('closed');
+    expect(cb.isOpen()).toBe(false);
+  });
+
+  it('rimane closed dopo successo', async () => {
+    const cb = new GitHubCircuitBreaker();
+    const result = await cb.call(async () => 'successo');
+    expect(result).toBe('successo');
+    expect(cb.state).toBe('closed');
+    expect(cb.failures).toBe(0);
+  });
+
+  it('incrementa failure e passa a open dopo 3 failure', async () => {
+    const cb = new GitHubCircuitBreaker(3, 60000);
+    await expect(cb.call(async () => { throw new Error('fail 1'); })).rejects.toThrow();
+    expect(cb.state).toBe('closed');
+    expect(cb.failures).toBe(1);
+
+    await expect(cb.call(async () => { throw new Error('fail 2'); })).rejects.toThrow();
+    expect(cb.state).toBe('closed');
+    expect(cb.failures).toBe(2);
+
+    await expect(cb.call(async () => { throw new Error('fail 3'); })).rejects.toThrow();
+    expect(cb.state).toBe('open');
+    expect(cb.failures).toBe(3);
+  });
+
+  it('lancia errore se circuit è open', async () => {
+    const cb = new GitHubCircuitBreaker(1, 60000);
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    expect(cb.state).toBe('open');
+
+    await expect(cb.call(async () => 'dovrebbe fallire')).rejects.toThrow(
+      'GitHub API circuit open - trying again later'
+    );
+  });
+
+  it('passa a half-open dopo resetTimeout', async () => {
+    const cb = new GitHubCircuitBreaker(1, 1000);
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    expect(cb.state).toBe('open');
+
+    // Avanza il tempo di 1.5 secondi (oltre il timeout)
+    vi.advanceTimersByTime(1500);
+    expect(cb.isOpen()).toBe(false); // Si resetta automaticamente
+    expect(cb.state).toBe('half-open');
+  });
+
+  it('resetta lo stato dopo successo in half-open', async () => {
+    const cb = new GitHubCircuitBreaker(1, 1000);
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    expect(cb.state).toBe('open');
+
+    vi.advanceTimersByTime(1500);
+    // Dopo il timeout, isOpen() chiama reset() e passa a half-open
+    expect(cb.isOpen()).toBe(false);
+    expect(cb.state).toBe('half-open');
+
+    // Ora la funzione di callback ha successo
+    const result = await cb.call(async () => 'successo');
+    expect(result).toBe('successo');
+    expect(cb.state).toBe('closed');
+    expect(cb.failures).toBe(0);
+  });
+
+  it('resette le failures dopo successo', async () => {
+    const cb = new GitHubCircuitBreaker(3, 60000);
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    expect(cb.failures).toBe(2);
+
+    await cb.call(async () => 'successo');
+    expect(cb.failures).toBe(0);
+    expect(cb.state).toBe('closed');
+  });
+
+  it('istanza export usa default threshold=3 e resetTimeout=60000', () => {
+    expect(githubCircuitBreaker.threshold).toBe(3);
+    expect(githubCircuitBreaker.resetTimeout).toBe(60000);
+    expect(githubCircuitBreaker.state).toBe('closed');
+  });
+});
+
+describe('github.test.js', () => {
+  it('test placeholder per future test su ghGet/ghPut', () => {
+    expect(true).toBe(true);
+  });
+});

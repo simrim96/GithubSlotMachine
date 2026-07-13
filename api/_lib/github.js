@@ -3,6 +3,65 @@
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
 
+// ─── Circuit Breaker per GitHub API ──────────────────────────────────────────
+// Previene failure cascading quando GitHub API ha outage o rate limit.
+// Stati: 'closed' (normale), 'open' (bloccato), 'half-open' (tentativo recupero)
+export class GitHubCircuitBreaker {
+  constructor(failureThreshold = 3, resetTimeout = 60000) {
+    this.failures = 0;
+    this.threshold = failureThreshold;
+    this.resetTimeout = resetTimeout;
+    this.lastFailure = 0;
+    this.state = 'closed'; // 'closed', 'open', 'half-open'
+  }
+
+  isOpen() {
+    if (this.state === 'closed') return false;
+    if (this.state === 'half-open') return false; // half-open permette una chiamata di prova
+    if (this.state === 'open' && Date.now() - this.lastFailure > this.resetTimeout) {
+      this.reset();
+      return false;
+    }
+    return true;
+  }
+
+  onSuccess() {
+    this.failures = 0;
+    this.state = 'closed';
+  }
+
+  onFailure() {
+    this.failures++;
+    this.lastFailure = Date.now();
+    if (this.failures >= this.threshold) {
+      this.state = 'open';
+      console.warn(`GitHub API circuit open after ${this.failures} failures`);
+    }
+  }
+
+  reset() {
+    this.failures = 0;
+    this.state = 'half-open';
+  }
+
+  async call(fn) {
+    if (this.isOpen()) {
+      throw new Error('GitHub API circuit open - trying again later');
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (err) {
+      this.onFailure();
+      throw err;
+    }
+  }
+}
+
+export const githubCircuitBreaker = new GitHubCircuitBreaker(3, 60000);
+
 export function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -12,42 +71,46 @@ export function escapeMarkdown(s) {
 
 // ghGet: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
 export async function ghGet(token, owner, repo, path) {
-  const r = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'GithubSlotMachine',
-      },
-    }
-  );
-  return r.ok ? r.json() : null;
+  return githubCircuitBreaker.call(async () => {
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'GithubSlotMachine',
+        },
+      }
+    );
+    return r.ok ? r.json() : null;
+  });
 }
 
 export async function ghPut(token, owner, repo, path, content, sha, message, _retry = false) {
-  const encoded = Buffer.from(content).toString('base64');
-  const body = { message, content: encoded };
-  if (sha) body.sha = sha;
-  const r = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'GithubSlotMachine',
-      },
-      body: JSON.stringify(body),
+  return githubCircuitBreaker.call(async () => {
+    const encoded = Buffer.from(content).toString('base64');
+    const body = { message, content: encoded };
+    if (sha) body.sha = sha;
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'GithubSlotMachine',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    if (r.status === 409 && !_retry) {
+      // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
+      const fresh = await ghGet(token, owner, repo, path);
+      return ghPut(token, owner, repo, path, content, fresh?.sha ?? null, message, true);
     }
-  );
-  if (r.status === 409 && !_retry) {
-    // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
-    const fresh = await ghGet(token, owner, repo, path);
-    return ghPut(token, owner, repo, path, content, fresh?.sha ?? null, message, true);
-  }
-  if (!r.ok) throw new Error(`PUT ${owner}/${repo}/${path}: ${r.status}`);
+    if (!r.ok) throw new Error(`PUT ${owner}/${repo}/${path}: ${r.status}`);
+  });
 }
 
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
