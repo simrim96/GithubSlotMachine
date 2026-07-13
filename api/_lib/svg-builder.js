@@ -552,3 +552,20 @@ ${coinTraySvg}
 ${footer}
 </svg>`;
 }
+
+// ─── SVG di errore (degrado graceful) ───────────────────────────────────────
+// Usato quando la generazione normale fallisce: restituisce comunque un SVG
+// valido e leggibile invece di far esplodere lo slot con un 500. La leva
+// continua a funzionare (il redirect avviene comunque verso il profilo).
+export function errorSVG({ owner = 'simrim96', message = 'Slot temporaneamente indisponibile' } = {}) {
+  const msg = escapeXml(message).slice(0, 80);
+  const base64 = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="624" viewBox="0 0 600 624">
+  <rect width="600" height="624" rx="20" fill="#0e1326"/>
+  <rect x="40" y="60" width="520" height="380" rx="18" fill="#161d3a" stroke="#2a3568" stroke-width="2"/>
+  <text x="300" y="230" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="64" fill="#f5b642">🎰</text>
+  <text x="300" y="300" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700" fill="#ffffff">${msg}</text>
+  <text x="300" y="340" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="14" fill="#9fb0e0">Riprova tra un attimo — lo stato è salvo.</text>
+  <text x="300" y="560" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="14" fill="#6f80b8">github.com/${escapeXml(owner)}</text>
+</svg>`).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
+}

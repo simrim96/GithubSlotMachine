@@ -15,7 +15,7 @@ import {
   generateGrid, engineerWin, engineerNearMiss,
   checkWins, countScatters, detectNearMiss, winningLangId, wrap,
 } from './_lib/game.js';
-import { buildSVG } from './_lib/svg-builder.js';
+import { buildSVG, errorSVG } from './_lib/svg-builder.js';
 import {
   ghGet, ghPut, saveSlotSvg, loadSlotSvg, updateReadmeMarkers,
 } from './_lib/github.js';
@@ -49,10 +49,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  const grid = generateGrid();
   const ts = Date.now();
 
   try {
+    // generateGrid è DENTRO il try: se lancia, degrada a errore graceful.
+    const grid = generateGrid();
+
     // Letture CRITICHE (percorso click→reload): solo slot.svg (KV) + stato (KV).
     // La GET del README su GitHub (~150-400ms) è stata SPOSTATA fuori dal
     // percorso critico: serve solo ad aggiornare i marker nel profilo, NON
@@ -123,7 +125,19 @@ export default async function handler(req, res) {
     // 2) Contatori su KV (~10-20ms).
     // 3) README (GET + PUT GitHub, ~300-600ms) è NON critico per il reload →
     //    tutto in background, fuori dal percorso click→reload.
-    await saveSlotSvg(token, OWNER, SLOT_REPO, svg, slotFile?.sha);
+    // La scrittura di slot.svg è protetta: se fallisce, l'utente ha già il
+    // redirect (vedrà il risultato precedente una volta), ma lo slot NON
+    // esplode con un 500.
+    try {
+      await saveSlotSvg(token, OWNER, SLOT_REPO, svg, slotFile?.sha);
+    } catch (e) {
+      console.warn('slot.svg write failed (redirect anyway):', e.message);
+      await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((w) =>
+        console.warn('state write:', w.message)
+      );
+      res.redirect(302, dest);
+      return;
+    }
     await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
       console.warn('state write:', e.message)
     );
@@ -153,6 +167,21 @@ export default async function handler(req, res) {
       }
     })();
   } catch (err) {
-    res.status(500).send('Errore: ' + err.message);
+    // Degrado graceful: invece di un 500 che "rompe" la leva, proviamo a
+    // salvare un SVG di errore su slot.svg (best-effort) e poi facciamo
+    // comunque il redirect verso il profilo dell'owner. L'utente non vede mai
+    // una pagina rotta; al prossimo spin (se l'errore era transitorio) torna
+    // tutto normale. Lo stato dei contatori è già stato incrementato in
+    // memoria ma non persistito, quindi non si perdono dati critici.
+    console.error('spin handler error:', err?.message || err);
+    try {
+      const fallback = errorSVG({ owner: OWNER, message: 'Ops, riprova un attimo!' });
+      await saveSlotSvg(token, OWNER, SLOT_REPO, fallback).catch(() => {});
+    } catch { /* ignora: non blocchiamo il redirect per il fallback */ }
+    try {
+      res.redirect(302, `https://github.com/${OWNER}`);
+    } catch {
+      res.status(500).send('Errore temporaneo, riprova.');
+    }
   }
 }
