@@ -531,7 +531,7 @@ export function buildSVG({
 
   const footer = '';
 
-  return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  return `<svg width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-testid="slot-svg" class="slot-machine">
 <defs>${defs}</defs>
 <style>${css}</style>
 ${cabinetSvg}
