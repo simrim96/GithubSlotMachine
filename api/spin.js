@@ -22,7 +22,7 @@ import {
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
-import { rateLimit, isValidUser, clientIp } from './_lib/ratelimit.js';
+import { isValidUser } from './_lib/ratelimit.js';
 
 // ─── Owner / repo config ─────────────────────────────────────────────────────
 // Fork-ready: every value falls back to the original owner's repos, but you can
@@ -46,15 +46,6 @@ export default async function handler(req, res) {
   const token = process.env.GITHUB_PAT;
   if (!token) {
     res.status(500).send('GITHUB_PAT non configurato.');
-    return;
-  }
-
-  // Rate-limit per IP (token-bucket 1 spin / 3s). Risposta 429 + Retry-After.
-  const ip = clientIp(req);
-  const { allowed, retryAfter } = rateLimit(ip);
-  if (!allowed) {
-    res.setHeader('Retry-After', String(retryAfter));
-    res.status(429).send('Too many spins, slow down!');
     return;
   }
 
