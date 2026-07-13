@@ -1,125 +1,28 @@
 # Issues & Miglioramenti del Progetto GithubSlotMachine
 
 **Data analisi:** 2026-07-13  
-**Stato progetti:** Il problema #1 (Silent Failure nel README Background Update) è stato risolto con retry e backoff esponenziale. Il problema #2 (Nessun Monitoring/Analytics) è stato risolto con implementazione Vercel Analytics.  
+**Stato progetti:** Il problema #1 (State Sync Race Condition) è stato risolto con l'aggiunta di versioning e async sync su GitHub. Il problema #2 (Slot.svg TTL Non Gestito) è stato risolto con implementazione di TTL per gli SVG.  
 **Focus:** Nuove criticità identificate e aree di miglioramento avanzato.
 
 ---
 
 ## 📋 INDICE
 
-1. [State Sync Race Condition](#1-state-sync-race-condition)
-2. [Slot.svg TTL Non Gestito](#2-slotsvg-ttl-non-gestito)
-3. [Testing Incompleto - Integrazione ed E2E](#3-testing-incompleto---integrazione-ed-e2e)
-4. [Nessun CI/CD Pipeline](#4-nessun-cicd-pipeline)
-5. [Accessibility Issues](#5-accessibility-issues)
-6. [Security - Open Redirect Potential](#6-security---open-redirect-potential)
-7. [Nessun Error Tracking](#7-nessun-error-tracking)
-8. [Memory Leak Potential in Async Background Tasks](#8-memory-leak-potential-in-async-background-tasks)
-9. [Language Config Non Estensibile](#9-language-config-non-estensibile)
-10. [SVG Builder Non Modular](#10-svg-builder-non-modular)
-11. [State Migration Versioning Assente](#11-state-migration-versioning-assente)
-12. [GitHub API Rate Limit Non Tracciato](#12-github-api-rate-limit-non-tracciato)
+1. [Slot.svg TTL Non Gestito](#1-slotsvg-ttl-non-gestito)
+2. [Testing Incompleto - Integrazione ed E2E](#2-testing-incompleto---integrazione-ed-e2e)
+3. [Nessun CI/CD Pipeline](#3-nessun-cicd-pipeline)
+4. [Accessibility Issues](#4-accessibility-issues)
+5. [Security - Open Redirect Potential](#5-security---open-redirect-potential)
+6. [Nessun Error Tracking](#6-nessun-error-tracking)
+7. [Memory Leak Potential in Async Background Tasks](#7-memory-leak-potential-in-async-background-tasks)
+8. [Language Config Non Estensibile](#8-language-config-non-estensibile)
+9. [SVG Builder Non Modular](#9-svg-builder-non-modular)
+10. [State Migration Versioning Assente](#10-state-migration-versioning-assente)
+11. [GitHub API Rate Limit Non Tracciato](#11-github-api-rate-limit-non-tracciato)
 
 ---
 
-## 1. State Sync Race Condition 🚨
-
-### Descrizione
-In `state.js`, quando Redis è abilitato:
-```javascript
-export async function writeState(token, owner, repo, state, _sha) {
-  if (kvEnabled) {
-    await kvSet(STATE_KEY, state); // Scrive su Redis
-    return; // Ritorna subito
-  }
-  // ...
-}
-```
-
-Il fallback su GitHub non viene eseguito mai in questo caso. Ma in `loadState`:
-```javascript
-export async function readState(token, owner, repo) {
-  if (kvEnabled) {
-    const state = await kvGet(STATE_KEY);
-    if (state) return { state, sha: null };
-    // Primo avvio: importa da GitHub per non perdere lo storico
-    const gh = await readStateGitHub(token, owner, repo);
-    if (gh) {
-      await kvSet(STATE_KEY, gh.state); // Seed Redis
-      return { state: gh.state, sha: null };
-    }
-    return { state: DEFAULTS, sha: null };
-  }
-  // ...
-}
-```
-
-**Problema:** Se Redis viene resettato (es. TTL expire, manutenzione), lo stato viene reimportato da GitHub, ma GitHub non è stato aggiornato con gli ultimi spin.
-
-### Scenario di Failure
-1. Spin #1: Redis viene scritto, GitHub non aggiornato
-2. Redis viene resettato (es. deployment che resetta KV)
-3. Spin #2: Legge da GitHub (vecchio stato), non da Redis
-4. **Dati persi** - Gli spin da #1 a #2 non sono contati
-
-### Soluzione Proposta
-
-#### Opzione A: Sync Asincrono su GitHub dopo Redis Write
-```javascript
-export async function writeState(token, owner, repo, state, _sha) {
-  if (kvEnabled) {
-    await kvSet(STATE_KEY, state);
-    // Sync asincrono su GitHub per backup (non blocca)
-    writeStateGitHub(token, owner, repo, state, _sha)
-      .catch(e => console.warn('Redis state sync to GitHub failed:', e.message));
-    return;
-  }
-  // ...
-}
-```
-
-#### Opzione B: Flag di Versioning
-```javascript
-const STATE_KEY = 'gsm:state';
-const STATE_VERSION_KEY = 'gsm:state:version';
-
-export async function writeState(token, owner, repo, state, _sha) {
-  if (kvEnabled) {
-    const currentVersion = await kvGet(STATE_VERSION_KEY) || 0;
-    const newState = { ...state, version: currentVersion + 1 };
-    await kvSet(STATE_KEY, newState);
-    await kvSet(STATE_VERSION_KEY, newState.version);
-    return;
-  }
-  // ...
-}
-
-export async function readState(token, owner, repo) {
-  if (kvEnabled) {
-    const state = await kvGet(STATE_KEY);
-    if (state) return { state, sha: null };
-    
-    // Se Redis vuoto, importa da GitHub e sincronizza versione
-    const gh = await readStateGitHub(token, owner, repo);
-    if (gh) {
-      const newState = { ...gh.state, version: gh.state.version || 0 };
-      await kvSet(STATE_KEY, newState);
-      return { state: newState, sha: null };
-    }
-    return { state: { ...DEFAULTS, version: 0 }, sha: null };
-  }
-  // ...
-}
-```
-
-### Test Case da Aggiungere
-- [ ] `state-local.test.js` - test per state versioning
-- [ ] `state-local.test.js` - test per Redis reset scenario
-
----
-
-## 2. Slot.svg TTL Non Gestito
+## 1. Slot.svg TTL Non Gestito 🚨
 
 ### Descrizione
 Lo slot.svg viene salvato in Redis senza TTL (permanentemente). Se Redis viene resettato:
@@ -176,7 +79,7 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
 
 ---
 
-## 3. Testing Incompleto - Integrazione ed E2E
+## 2. Testing Incompleto - Integrazione ed E2E
 
 ### Stato Attuale
 - **67 test** per ~15 moduli
@@ -255,7 +158,7 @@ test('user can pull the lever and see the slot spin', async ({ page }) => {
 
 ---
 
-## 4. Nessun CI/CD Pipeline
+## 3. Nessun CI/CD Pipeline
 
 ### Descrizione
 Il progetto non ha una CI/CD pipeline automatizzata. Solo `npm test` manuale prima di deploy.
@@ -344,7 +247,7 @@ jobs:
 
 ---
 
-## 5. Accessibility Issues
+## 4. Accessibility Issues
 
 ### Descrizione
 La slot machine non è accessibile agli utenti con disabilità.
@@ -416,7 +319,7 @@ css += `
 
 ---
 
-## 6. Security - Open Redirect Potential
+## 5. Security - Open Redirect Potential
 
 ### Descrizione
 La funzione di redirect dopo uno spin potrebbe essere vulnerabile a open redirect attacks.
@@ -449,7 +352,7 @@ return NextResponse.redirect(redirectUrl.toString());
 
 ---
 
-## 7. Nessun Error Tracking
+## 6. Nessun Error Tracking
 
 ### Descrizione
 Il progetto non ha error tracking (Sentry, LogRocket, etc.).
@@ -483,7 +386,7 @@ Sentry.init({
 
 ---
 
-## 8. Memory Leak Potential in Async Background Tasks
+## 7. Memory Leak Potential in Async Background Tasks
 
 ### Descrizione
 Le funzioni asincrone che gestiscono state e Redis potrebbero non gestire correttamente gli errori, causando memory leak.
@@ -520,7 +423,7 @@ try {
 
 ---
 
-## 9. Language Config Non Estensibile
+## 8. Language Config Non Estensibile
 
 ### Descrizione
 Il configuration delle lingue è hardcoded, non supporta lingue custom o configurazioni dinamiche.
@@ -553,7 +456,7 @@ const LANGUAGE_CONFIG = {
 
 ---
 
-## 10. SVG Builder Non Modular
+## 9. SVG Builder Non Modular
 
 ### Descrizione
 Il SVG builder è un singolo file monolitico che genera tutto il codice SVG.
@@ -581,7 +484,7 @@ export { buildSVG } from './svg-builder.js';
 
 ---
 
-## 11. State Migration Versioning Assente
+## 10. State Migration Versioning Assente
 
 ### Descrizione
 Se la struttura dello stato cambia (nuovi campi, rename), non c'è way per migrare lo stato esistente.
@@ -623,7 +526,7 @@ function migrateState(state, fromVersion) {
 
 ---
 
-## 12. GitHub API Rate Limit Non Tracciato
+## 11. GitHub API Rate Limit Non Tracciato
 
 ### Descrizione
 Il progetto non traccia i rate limit di GitHub API, rischiando di esaurire le chiamate.
