@@ -63,6 +63,10 @@ export function engineerWin(grid) {
   grid[4][pl[4]] = breaker;
 }
 
+// Unifica la generazione del near-miss con il rilevamento: dopo aver creato
+// la geometria, verifichiamo che detectNearMiss la riconosca. Se no,
+// rigeneriamo con un'ancora diversa. Questo elimina la fragilità da accoppiamento
+// tra le due funzioni.
 export function engineerNearMiss(grid) {
   const pl = PAYLINES[0];
   let anchor = grid[0][pl[0]];
@@ -73,22 +77,40 @@ export function engineerNearMiss(grid) {
     anchor = SYMBOL_IDS[Math.floor(Math.random() * SYMBOL_IDS.length)];
     grid[0][pl[0]] = anchor;
   }
-  // Near-miss "shallow": 2 anchor consecutivi sulla payline centrale (count=2 →
-  // NON è una win, che parte da 3) e poi un "break" con anchor adiacente nel
-  // rullo successivo. 2 soli anchor garantiscono che engineerNearMiss generi
-  // SEMPRE un near-miss e MAI una vittoria accidentale (il bug precedente
-  // allineava 3-4 simboli, che checkWins leggeva come win vera).
-  const matchLen = 2;
-  for (let c = 1; c < matchLen; c++) grid[c][pl[c]] = anchor;
-  if (matchLen >= COLS) return;
-  const others = SYMBOL_IDS.filter((i) => i !== anchor);
-  if (others.length === 0) return;
-  // Rullo "di rottura" — quello che evidenziamo come near-miss.
-  const breakCol = matchLen;
-  grid[breakCol][pl[breakCol]] = others[Math.floor(Math.random() * others.length)];
-  // Anchor adiacente nello stesso rullo → near-miss visivo.
-  const adjR = pl[breakCol] > 0 ? pl[breakCol] - 1 : pl[breakCol] + 1;
-  if (adjR >= 0 && adjR < ROWS) grid[breakCol][adjR] = anchor;
+
+  // Max 10 tentativi: se non riusciamo a creare un near-miss riconoscibile,
+  // falliamo silenziosamente (chiama di nuovo generateGrid).
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // Near-miss "shallow": 2 anchor consecutivi sulla payline centrale (count=2 →
+    // NON è una win, che parte da 3) e poi un "break" con anchor adiacente nel
+    // rullo successivo. 2 soli anchor garantiscono che engineerNearMiss generi
+    // SEMPRE un near-miss e MAI una vittoria accidentale (il bug precedente
+    // allineava 3-4 simboli, che checkWins leggeva come win vera).
+    const matchLen = 2;
+    for (let c = 1; c < matchLen; c++) grid[c][pl[c]] = anchor;
+    if (matchLen >= COLS) continue;
+    const others = SYMBOL_IDS.filter((i) => i !== anchor);
+    if (others.length === 0) continue;
+    // Rullo "di rottura" — quello che evidenziamo come near-miss.
+    const breakCol = matchLen;
+    grid[breakCol][pl[breakCol]] = others[Math.floor(Math.random() * others.length)];
+    // Anchor adiacente nello stesso rullo → near-miss visivo.
+    const adjR = pl[breakCol] > 0 ? pl[breakCol] - 1 : pl[breakCol] + 1;
+    if (adjR >= 0 && adjR < ROWS) grid[breakCol][adjR] = anchor;
+
+    // VERIFICA: rileggiamo il near-miss per assicurarci che sia riconoscibile.
+    // Se detectNearMiss non lo trova, rigeneriamo con un'ancora diversa.
+    const detected = detectNearMiss(grid, checkWins(grid));
+    if (detected >= 0) return; // OK, near-miss riconosciuto!
+
+    // Ripristiniamo la colonna di rottura per il prossimo tentativo.
+    grid[breakCol][pl[breakCol]] = anchor;
+    if (adjR >= 0 && adjR < ROWS) grid[breakCol][adjR] = anchor;
+    // Cambia l'ancora per il prossimo tentativo.
+    anchor = others[Math.floor(Math.random() * others.length)];
+    grid[0][pl[0]] = anchor;
+    for (let c = 1; c < matchLen; c++) grid[c][pl[c]] = anchor;
+  }
 }
 
 // ─── Game logic ──────────────────────────────────────────────────────────────
