@@ -8,8 +8,13 @@ import {
   pickFact,
   escapeXml,
 } from './_lib/languages.js';
+
+// Re-export the shared constants so the test suite can import them from here
+// without reaching into the (private) _lib implementation.
+export { WILD_ID, SCATTER_ID };
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
+import { rateLimit, isValidUser } from './_lib/ratelimit.js';
 
 // ─── Owner / repo config ─────────────────────────────────────────────────────
 // Fork-ready: every value falls back to the original owner's repos, but you can
@@ -21,30 +26,40 @@ const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 const PROFILE_REPO = process.env.PROFILE_REPO || OWNER;
 
 // ─── Slot config ─────────────────────────────────────────────────────────────
-const SYMBOL_IDS = LANGUAGES.map((l) => l.id);
+export const SYMBOL_IDS = LANGUAGES.map((l) => l.id);
 // Reel: linguaggi più wild. SCATTER non viene più inserito (free-spin rimosso).
-const REEL = [
+export const REEL = [
   ...LANGUAGES.flatMap((l) => Array(5).fill(l.id)),
   WILD_ID, WILD_ID, WILD_ID, WILD_ID,
 ];
 // Probabilità di forzare una vincita garantita su una payline (post-RNG rigging).
-const FORCED_WIN_PROB = 0.35;
-const COLS = 5;
-const ROWS = 3;
-const PAYLINES = [
+export const FORCED_WIN_PROB = 0.35;
+export const COLS = 5;
+export const ROWS = 3;
+export const PAYLINES = [
   [1, 1, 1, 1, 1], // center
   [0, 0, 0, 0, 0], // top
   [2, 2, 2, 2, 2], // bottom
   [0, 1, 2, 1, 0], // V
   [2, 1, 0, 1, 2], // Λ
 ];
-const PL_COLORS = ['#ffd700', '#ff6b6b', '#4ecdc4', '#a855f7', '#fb923c'];
+export const PL_COLORS = ['#ffd700', '#ff6b6b', '#4ecdc4', '#a855f7', '#fb923c'];
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const token = process.env.GITHUB_PAT;
   if (!token) {
     res.status(500).send('GITHUB_PAT non configurato.');
+    return;
+  }
+
+  // ── Sicurezza: rate-limit per IP (1 spin / RL_WINDOW_SEC) ──────────────────
+  // Blocca gli abusi prima di sprecare chiamate GitHub/Redis. Risponde 429 con
+  // Retry-After se l'IP ha spinnato troppo di recente.
+  const rl = await rateLimit(req);
+  if (!rl.ok) {
+    res.setHeader('Retry-After', String(rl.retryAfter));
+    res.status(429).send('Troppi spin troppo veloci. Riprova tra qualche secondo.');
     return;
   }
 
@@ -100,8 +115,11 @@ export default async function handler(req, res) {
     const svg = buildSVG({ grid, uid: ts, state, winningLang, fact, repoMatch });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
-    const targetOwner =
-      (req.query?.user && String(req.query.user).trim()) || OWNER;
+    // ?user= è validato con isValidUser(): solo login GitHub [A-Za-z0-9-]{1,39}.
+    // Qualsiasi valore non valido (path, slash, caratteri strani) cade sul
+    // proprietario di default → chiude l'open-redirect verso altri host/percorsi.
+    const rawUser = req.query?.user ? String(req.query.user).trim() : '';
+    const targetOwner = rawUser && isValidUser(rawUser) ? rawUser : OWNER;
     const isJackpot = wins.some((w) => w.count === 5);
     let dest;
     if (winningLang && isJackpot) {
@@ -269,7 +287,7 @@ async function loadSlotSvg(token, repo) {
 }
 
 // ─── Grid generation ─────────────────────────────────────────────────────────
-function generateGrid() {
+export function generateGrid() {
   const grid = [];
   for (let c = 0; c < COLS; c++) {
     grid[c] = [];
@@ -296,22 +314,20 @@ function generateGrid() {
 }
 
 // Forza 3-4 simboli uguali sulla payline centrale per garantire una win.
-function engineerWin(grid) {
+export function engineerWin(grid) {
   const pl = PAYLINES[0];
   const lang = SYMBOL_IDS[Math.floor(Math.random() * SYMBOL_IDS.length)];
-  // 3 di base; con 30% chance ne aggiunge un 4°.
-  const count = Math.random() < 0.3 ? 4 : 3;
-  for (let c = 0; c < count; c++) grid[c][pl[c]] = lang;
-  // Spezza la sequenza con un simbolo diverso per evitare 5-in-a-row accidentale.
-  if (count < COLS) {
-    const others = SYMBOL_IDS.filter((i) => i !== lang);
-    if (others.length) {
-      grid[count][pl[count]] = others[Math.floor(Math.random() * others.length)];
-    }
-  }
+  // 3 di base sulle prime 3 colonne della payline centrale (count=3).
+  for (let c = 0; c <= 2; c++) grid[c][pl[c]] = lang;
+  // Spezza esplicitamente le colonne 3-4 sulla payline centrale con un simbolo
+  // DIVERSO: altrimenti un valore già presente nella griglia di partenza
+  // potrebbe allinearsi e chiudere un 5-in-a-row (jackpot involontario).
+  const breaker = SYMBOL_IDS.find((i) => i !== lang) || lang;
+  grid[3][pl[3]] = breaker;
+  grid[4][pl[4]] = breaker;
 }
 
-function engineerNearMiss(grid) {
+export function engineerNearMiss(grid) {
   const pl = PAYLINES[0];
   let anchor = grid[0][pl[0]];
   // Se l'ancora "naturale" è wild/scatter, sostituiamola con un linguaggio reale
@@ -321,9 +337,12 @@ function engineerNearMiss(grid) {
     anchor = SYMBOL_IDS[Math.floor(Math.random() * SYMBOL_IDS.length)];
     grid[0][pl[0]] = anchor;
   }
-  // Costruiamo un near-miss "profondo": 3 (o 4) anchor consecutivi sulla payline
-  // centrale e poi un "break" con anchor adiacente al rullo successivo.
-  const matchLen = Math.random() < 0.35 ? 4 : 3;
+  // Near-miss "shallow": 2 anchor consecutivi sulla payline centrale (count=2 →
+  // NON è una win, che parte da 3) e poi un "break" con anchor adiacente nel
+  // rullo successivo. 2 soli anchor garantiscono che engineerNearMiss generi
+  // SEMPRE un near-miss e MAI una vittoria accidentale (il bug precedente
+  // allineava 3-4 simboli, che checkWins leggeva come win vera).
+  const matchLen = 2;
   for (let c = 1; c < matchLen; c++) grid[c][pl[c]] = anchor;
   if (matchLen >= COLS) return;
   const others = SYMBOL_IDS.filter((i) => i !== anchor);
@@ -337,7 +356,7 @@ function engineerNearMiss(grid) {
 }
 
 // ─── Game logic ──────────────────────────────────────────────────────────────
-function checkWins(grid) {
+export function checkWins(grid) {
   const wins = [];
   for (let p = 0; p < PAYLINES.length; p++) {
     const pl = PAYLINES[p];
@@ -368,7 +387,7 @@ function checkWins(grid) {
   return wins;
 }
 
-function countScatters(grid) {
+export function countScatters(grid) {
   const pos = [];
   for (let c = 0; c < COLS; c++)
     for (let r = 0; r < ROWS; r++)
@@ -376,7 +395,7 @@ function countScatters(grid) {
   return pos;
 }
 
-function detectNearMiss(grid, wins) {
+export function detectNearMiss(grid, wins) {
   if (wins.length > 0) return -1;
   // Scansioniamo TUTTE le paylines, non solo quella centrale: qualsiasi
   // 2+ in fila con un anchor adiacente nel rullo successivo è un near-miss
@@ -404,7 +423,7 @@ function detectNearMiss(grid, wins) {
   return -1;
 }
 
-function winningLangId(wins) {
+export function winningLangId(wins) {
   let best = null;
   for (const w of wins) {
     if (w.symbol === WILD_ID || w.symbol === SCATTER_ID) continue;
@@ -416,7 +435,7 @@ function winningLangId(wins) {
 }
 
 // ─── Word wrap ───────────────────────────────────────────────────────────────
-function wrap(text, maxChars) {
+export function wrap(text, maxChars) {
   const words = String(text).split(/\s+/);
   const lines = [];
   let cur = '';

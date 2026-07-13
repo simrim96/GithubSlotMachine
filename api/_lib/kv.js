@@ -57,10 +57,11 @@ export async function kvGet(key) {
   }
 }
 
-export async function kvSet(key, val) {
+export async function kvSet(key, val, ttlSec = 0) {
   if (!kvEnabled) return false;
   try {
-    await withTimeout(kv.set(key, val));
+    if (ttlSec > 0) await withTimeout(kv.set(key, val, { ex: ttlSec }));
+    else await withTimeout(kv.set(key, val));
     return true;
   } catch {
     return false;

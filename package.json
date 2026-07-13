@@ -8,10 +8,15 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "vercel dev"
+    "start": "vercel dev",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   },
   "keywords": [
     "github",
