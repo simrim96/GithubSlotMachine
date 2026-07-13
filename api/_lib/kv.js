@@ -37,7 +37,7 @@ export const kvEnabled = Boolean(url && token);
 
 export const kv = kvEnabled ? new Redis({ url, token }) : null;
 
-const KV_TIMEOUT_MS = 200;
+const KV_TIMEOUT_MS = parseInt(process.env.KV_TIMEOUT_MS) || 500;
 
 function withTimeout(p, ms = KV_TIMEOUT_MS) {
   return Promise.race([
@@ -88,3 +88,6 @@ export async function kvMset(obj) {
     return false;
   }
 }
+
+// Esportato per testing
+export { withTimeout };
