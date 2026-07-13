@@ -1,60 +1,15 @@
-1|# Issues & Criticità del Progetto
-2|Questo documento documenta le criticità identificate nel progetto GithubSlotMachine, con analisi dettagliata, impatti e possibili soluzioni.
-3|---
-4|
-5|## 📋 INDICE
-6|
-7|1. [Near-Miss Logic Fragile](#1-near-miss-logic-fragile)
-8|2. [Language Matching Aggressivo](#2-language-matching-aggressivo)
-9|3. [Missing Monitoring/Logging](#3-missing-monitoringlogging)
-10|
-11|---
-12|
-13|## 1. Near-Miss Logic Fragile
-14|
-15|### Descrizione
-16|Due funzioni `engineerNearMiss` e `detectNearMiss` sono strettamente accoppiate. Se una cambia, l'altra potrebbe non riconoscere il near-miss generato.
-17|
-18|### File Correlati
-19|- `api/_lib/game.js` - righe 66-92 (`engineerNearMiss`), 134-160 (`detectNearMiss`)
-20|- `tests/game.test.js` - righe 208-270 (test suite near-miss)
-21|
-22|### Problema Identificato
-23|
-24|Il test "invariant: a detected near-miss column matches the near-miss geometry" (righe 237-269) esiste **proprio perché** la coupling è notoriamente fragile.
-25|
-26|**Flusso di near-miss:**
-27|1. `engineerNearMiss` modifica la grid in-place:
-28|   - 2 simboli consecutivi sulla payline centrale
-29|   - 1 simbolo diverso (breaker) nel rullo successivo
-30|   - 1 simbolo adiacente nello stesso rullo (near-miss visivo)
-31|2. `detectNearMiss` scansiona la grid per trovare near-miss:
-32|   - Cerca 2+ symbol consecutivi + anchor adiacente nel rullo successivo
-33|3. Se i due algoritmi divergono → near-miss generato ma non evidenziato
-34|
-35|### Test Case Esistenti
-36|```javascript
-37|it('invariant: a detected near-miss column matches the near-miss geometry', () => {
-38|  for (let i = 0; i < 400; i++) {
-39|    const g = generateGrid();
-40|    const col = detectNearMiss(g, checkWins(g));
-41|    if (col < 0) continue;
-42|    // Replicate la scan e conferma che col corrisponde a near-miss reale
-43|    // ...
-44|    expect(ok).toBe(true);
-45|  }
-46|});
-47|```
-48|
-49|### Miglioramenti Proposti
-50|
-51|1. **Unificare la logica**: `engineerNearMiss` dovrebbe chiamare `detectNearMiss` per verificare che il near-miss sia riconosciuto
-52|2. **Aggiungere test di regressione** che testano casi edge (wild, scatter, multiple paylines)
-53|3. **Documentare esplicitamente** il contratto tra le due funzioni in commenti
-54|
-55|---
-56|
-57|## 2. Language Matching Aggressivo
+1|1|# Issues & Criticità del Progetto
+2|2|Questo documento documenta le criticità identificate nel progetto GithubSlotMachine, con analisi dettagliata, impatti e possibili soluzioni.
+3|3|---
+4|4|
+5|5|## 📋 INDICE
+6|6|
+7|7|7|1. [Language Matching Aggressivo](#1-language-matching-aggressivo)
+8|8|8|2. [Missing Monitoring/Logging](#2-missing-monitoringlogging)
+9|9|
+10|10|---
+11|11|
+12|12|12|## 1. Language Matching Aggressivo
 58|
 59|### Descrizione
 60|Il matching tra linguaggio vincente e repo dell'owner usa soglie fisse troppo permissive:
@@ -96,7 +51,7 @@
 96|
 97|---
 98|
-99|## 3. Missing Monitoring/Logging
+## 3. Missing Monitoring/Logging
 100|
 101|### Descrizione
 102|Nessun sistema di monitoraggio o logging per la produzione. Solo `console.warn` per errori.
@@ -158,11 +113,10 @@
 158|
 159|## 📌 PRIORITÀ DI RISOLUZIONE
 160|
-160|| Issue | Priorità | Tempo Stimato |
-161||-------|----------|---------------|
-162||1. Near-Miss Logic Fragile | MEDIA | 1-2 giorni |
-163||2. Language Matching | BASSA | 1 giorno |
-164||3. Missing Monitoring/Logging | ALTA | 1 giorno |
+|| Issue | Priorità | Tempo Stimato |
+||-------|----------|---------------|
+||1. Language Matching | BASSA | 1 giorno |
+||2. Missing Monitoring/Logging | ALTA | 1 giorno |
 165|
 166|---
 167|
