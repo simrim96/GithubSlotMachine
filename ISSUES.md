@@ -1,111 +1,31 @@
-# Issues & Miglioramenti del Progetto GithubSlotMachine
-
-**Data analisi:** 2026-07-13  
-**Stato progetti:** I problemi principali (state su GitHub, error handling, test coverage) sono stati risolti.  
-**Focus:** Nuove criticità identificate e aree di miglioramento avanzato.
-
----
-
-## 📋 INDICE
-
-1. [Silent Failure nel README Background Update](#1-silent-failure-nel-readme-background-update)
-2. [Nessun Monitoring/Analytics](#2-nessun-monitoringanalytics)
-3. [Circuit Breaker per GitHub API Assente](#3-circuit-breaker-per-github-api-assente)
-4. [State Sync Race Condition](#4-state-sync-race-condition)
-5. [Slot.svg TTL Non Gestito](#5-slotsvg-ttl-non-gestito)
-6. [Testing Incompleto - Integrazione ed E2E](#6-testing-incompleto---integrazione-ed-e2e)
-7. [Nessun CI/CD Pipeline](#7-nessun-cicd-pipeline)
-8. [Accessibility Issues](#8-accessibility-issues)
-9. [Security - Open Redirect Potential](#9-security---open-redirect-potential)
-10. [Nessun Error Tracking](#10-nessun-error-tracking)
-11. [Memory Leak Potential in Async Background Tasks](#11-memory-leak-potential-in-async-background-tasks)
-12. [Language Config Non Estensibile](#12-language-config-non-estensibile)
-13. [SVG Builder Non Modular](#13-svg-builder-non-modular)
-14. [State Migration Versioning Assente](#14-state-migration-versioning-assente)
-15. [GitHub API Rate Limit Non Tracciato](#15-github-api-rate-limit-non-tracciato)
-
----
-
-## 1. Silent Failure nel README Background Update ⚠️
-
-### Descrizione
-L'aggiornamento del README avviene in un IIFE asincrono (`async () => { ... }()`) in spin.js (righe 152-168). Se fallisce, il failure è silenzioso:
-- `console.warn('readme background update skipped:', e.message)` viene stampato
-- Ma non c'è way per l'admin di sapere che il README non si è aggiornato
-- Se fallisce ripetutamente, il README rimane vecchio indefinitamente
-
-### File Correlato
-- `api/spin.js` - righe 152-168
-
-### Impatto
-- **MEDIUM** - L'utente finale non vede i marker aggiornati, ma lo slot continua a funzionare
-- **BASSA** - Il fallback su slot.svg persiste comunque, solo il README è vecchio
-
-### Scenario di Fallimento
-```javascript
-(async () => {
-  try {
-    const rf = await ghGet(token, PROFILE_REPO, 'README.md');
-    if (!rf) return; // Fallisce silenzioso se README non esiste
-    // ...
-  } catch (e) {
-    console.warn('readme background update skipped:', e.message);
-    // Nessuna notifica, nessun fallback, nessun retry
-  }
-})();
-// Niente aspetta che questo finisca → redirect immediato
-```
-
-### Soluzione Proposta
-
-#### Opzione A: Retry con Backoff Esponenziale
-```javascript
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-
-(async () => {
-  let lastError = null;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const rf = await ghGet(token, PROFILE_REPO, 'README.md');
-      if (!rf) return;
-      
-      const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
-      let newReadme = oldReadme.replace(
-        /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-        `api/image?v=${ts}`
-      );
-      newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
-      
-      if (newReadme !== oldReadme) {
-        await ghPut(token, PROFILE_REPO, 'README.md', newReadme, rf.sha, '🎰 Update slot');
-      }
-      return; // Successo
-    } catch (e) {
-      lastError = e;
-      console.warn(`README update attempt ${attempt + 1} failed:`, e.message);
-      if (attempt < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * Math.pow(2, attempt)));
-      }
-    }
-  }
-  // Se tutti i retry falliscono, logga l'errore finale
-  console.error('README update failed after', MAX_RETRIES, 'attempts:', lastError?.message);
-})();
-```
-
-#### Opzione B: Queue di Failed Updates
-- Usa Redis per tenere traccia dei README failed
-- Job cron che retry periodicamente
-- Alert se fail > N volte
-
-### Test Case da Aggiungere
-- [ ] `spin.test.js` - test per README update failure con retry
-- [ ] `spin.test.js` - test per README update success after retry
-
----
-
-## 2. Nessun Monitoring/Analytics 🚨
+1|# Issues & Miglioramenti del Progetto GithubSlotMachine
+2|
+3|**Data analisi:** 2026-07-13  
+4|**Stato progetti:** Il problema #1 (Silent Failure nel README Background Update) è stato risolto con retry e backoff esponenziale.  
+5|**Focus:** Nuove criticità identificate e aree di miglioramento avanzato.
+6|
+7|---
+8|
+9|## 📋 INDICE
+10|
+11|1. [Nessun Monitoring/Analytics](#2-nessun-monitoringanalytics)
+12|2. [Circuit Breaker per GitHub API Assente](#3-circuit-breaker-per-github-api-assente)
+13|3. [State Sync Race Condition](#4-state-sync-race-condition)
+14|4. [Slot.svg TTL Non Gestito](#5-slotsvg-ttl-non-gestito)
+15|5. [Testing Incompleto - Integrazione ed E2E](#6-testing-incompleto---integrazione-ed-e2e)
+16|6. [Nessun CI/CD Pipeline](#7-nessun-cicd-pipeline)
+17|7. [Accessibility Issues](#8-accessibility-issues)
+18|8. [Security - Open Redirect Potential](#9-security---open-redirect-potential)
+19|9. [Nessun Error Tracking](#10-nessun-error-tracking)
+20|10. [Memory Leak Potential in Async Background Tasks](#11-memory-leak-potential-in-async-background-tasks)
+21|11. [Language Config Non Estensibile](#12-language-config-non-estensibile)
+22|12. [SVG Builder Non Modular](#13-svg-builder-non-modular)
+23|13. [State Migration Versioning Assente](#14-state-migration-versioning-assente)
+24|14. [GitHub API Rate Limit Non Tracciato](#15-github-api-rate-limit-non-tracciato)
+25|
+26|---
+27|
+28|## 2. Nessun Monitoring/Analytics 🚨
 
 ### Descrizione
 Nessun sistema di monitoraggio per la produzione. Solo `console.warn` per errori.
