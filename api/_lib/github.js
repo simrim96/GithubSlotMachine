@@ -3,6 +3,11 @@
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
 
+// TTL per slot.svg: 7 giorni (604800 secondi)
+// Gli SVG sono persistenti per definizione, ma vogliamo che scadeano dopo un periodo
+// ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
+const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
+
 // ─── Circuit Breaker per GitHub API ──────────────────────────────────────────
 // Previene failure cascading quando GitHub API ha outage o rate limit.
 // Stati: 'closed' (normale), 'open' (bloccato), 'half-open' (tentativo recupero)
@@ -120,7 +125,7 @@ export async function ghPut(token, owner, repo, path, content, sha, message, _re
 // Tutte le chiamate KV passano dai wrapper con timeout (200ms) in kv.js.
 export async function saveSlotSvg(token, owner, repo, svg, sha) {
   if (kvEnabled) {
-    const ok = await kvSet('gsm:slotSvg', svg);
+    const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
     if (ok) return;
     console.warn('kv slotSvg save failed/timed out, falling back to github');
   }

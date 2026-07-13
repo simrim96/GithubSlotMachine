@@ -1,85 +1,27 @@
 # Issues & Miglioramenti del Progetto GithubSlotMachine
 
 **Data analisi:** 2026-07-13  
-**Stato progetti:** Il problema #1 (State Sync Race Condition) è stato risolto con l'aggiunta di versioning e async sync su GitHub. Il problema #2 (Slot.svg TTL Non Gestito) è stato risolto con implementazione di TTL per gli SVG.  
+**Stato progetti:** Il problema #1 (Slot.svg TTL Non Gestito) è stato risolto con l'aggiunta di TTL di 7 giorni per gli SVG salvati in Redis. Il problema #2 (Testing Incompleto - Integrazione ed E2E) è il prossimo da affrontare.  
 **Focus:** Nuove criticità identificate e aree di miglioramento avanzato.
 
 ---
 
 ## 📋 INDICE
 
-1. [Slot.svg TTL Non Gestito](#1-slotsvg-ttl-non-gestito)
-2. [Testing Incompleto - Integrazione ed E2E](#2-testing-incompleto---integrazione-ed-e2e)
-3. [Nessun CI/CD Pipeline](#3-nessun-cicd-pipeline)
-4. [Accessibility Issues](#4-accessibility-issues)
-5. [Security - Open Redirect Potential](#5-security---open-redirect-potential)
-6. [Nessun Error Tracking](#6-nessun-error-tracking)
-7. [Memory Leak Potential in Async Background Tasks](#7-memory-leak-potential-in-async-background-tasks)
-8. [Language Config Non Estensibile](#8-language-config-non-estensibile)
-9. [SVG Builder Non Modular](#9-svg-builder-non-modular)
-10. [State Migration Versioning Assente](#10-state-migration-versioning-assente)
-11. [GitHub API Rate Limit Non Tracciato](#11-github-api-rate-limit-non-tracciato)
+1. [Testing Incompleto - Integrazione ed E2E](#1-testing-incompleto---integrazione-ed-e2e)
+2. [Nessun CI/CD Pipeline](#2-nessun-cicd-pipeline)
+3. [Accessibility Issues](#3-accessibility-issues)
+4. [Security - Open Redirect Potential](#4-security---open-redirect-potential)
+5. [Nessun Error Tracking](#5-nessun-error-tracking)
+6. [Memory Leak Potential in Async Background Tasks](#6-memory-leak-potential-in-async-background-tasks)
+7. [Language Config Non Estensibile](#7-language-config-non-estensibile)
+8. [SVG Builder Non Modular](#8-svg-builder-non-modular)
+9. [State Migration Versioning Assente](#9-state-migration-versioning-assente)
+10. [GitHub API Rate Limit Non Tracciato](#10-github-api-rate-limit-non-tracciato)
 
 ---
 
-## 1. Slot.svg TTL Non Gestito 🚨
-
-### Descrizione
-Lo slot.svg viene salvato in Redis senza TTL (permanentemente). Se Redis viene resettato:
-- Tutti gli SVG vengono persi
-- Gli utenti vedono placeholder "🎰 Pull the lever to spin!" indefinitamente
-- Niente way per recuperare l'ultimo stato
-
-### File Correlato
-- `api/_lib/github.js` - `saveSlotSvg` e `loadSlotSvg`
-
-### Impatto
-- **MEDIA** - Gli utenti possono vedere SVG vecchi o placeholder
-- **BASSA** - Il fallback su GitHub Contents esiste ma non viene usato se Redis non è configurato
-
-### Soluzione Proposta
-
-#### Opzione A: TTL per Slot.svg
-```javascript
-// In github.js:
-const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
-
-export async function saveSlotSvg(token, owner, repo, svg, sha) {
-  if (kvEnabled) {
-    const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
-    if (ok) return;
-    console.warn('kv slotSvg save failed/timed out, falling back to github');
-  }
-  await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
-}
-```
-
-#### Opzione B: Cache Multi-Layer
-```javascript
-// Cache layer: Redis (fast) → GitHub (slow but persistent) → tmp (fallback)
-
-export async function saveSlotSvg(token, owner, repo, svg, sha) {
-  // Layer 1: Redis
-  if (kvEnabled) {
-    const ok = await kvSet('gsm:slotSvg', svg, 604800); // 7 giorni
-    if (ok) return;
-  }
-  
-  // Layer 2: GitHub
-  await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
-  
-  // Layer 3: Local fallback
-  await saveSlotSvgLocal(svg);
-}
-```
-
-### Test Case da Aggiungere
-- [ ] `github.test.js` - test per slot.svg TTL
-- [ ] `github.test.js` - test per multi-layer cache fallback
-
----
-
-## 2. Testing Incompleto - Integrazione ed E2E
+## 1. Testing Incompleto - Integrazione ed E2E
 
 ### Stato Attuale
 - **67 test** per ~15 moduli
@@ -158,7 +100,7 @@ test('user can pull the lever and see the slot spin', async ({ page }) => {
 
 ---
 
-## 3. Nessun CI/CD Pipeline
+## 2. Nessun CI/CD Pipeline
 
 ### Descrizione
 Il progetto non ha una CI/CD pipeline automatizzata. Solo `npm test` manuale prima di deploy.
@@ -247,7 +189,7 @@ jobs:
 
 ---
 
-## 4. Accessibility Issues
+## 3. Accessibility Issues
 
 ### Descrizione
 La slot machine non è accessibile agli utenti con disabilità.
@@ -319,7 +261,7 @@ css += `
 
 ---
 
-## 5. Security - Open Redirect Potential
+## 4. Security - Open Redirect Potential
 
 ### Descrizione
 La funzione di redirect dopo uno spin potrebbe essere vulnerabile a open redirect attacks.
@@ -352,7 +294,7 @@ return NextResponse.redirect(redirectUrl.toString());
 
 ---
 
-## 6. Nessun Error Tracking
+## 5. Nessun Error Tracking
 
 ### Descrizione
 Il progetto non ha error tracking (Sentry, LogRocket, etc.).
@@ -386,7 +328,7 @@ Sentry.init({
 
 ---
 
-## 7. Memory Leak Potential in Async Background Tasks
+## 6. Memory Leak Potential in Async Background Tasks
 
 ### Descrizione
 Le funzioni asincrone che gestiscono state e Redis potrebbero non gestire correttamente gli errori, causando memory leak.
@@ -423,7 +365,7 @@ try {
 
 ---
 
-## 8. Language Config Non Estensibile
+## 7. Language Config Non Estensibile
 
 ### Descrizione
 Il configuration delle lingue è hardcoded, non supporta lingue custom o configurazioni dinamiche.
@@ -456,7 +398,7 @@ const LANGUAGE_CONFIG = {
 
 ---
 
-## 9. SVG Builder Non Modular
+## 8. SVG Builder Non Modular
 
 ### Descrizione
 Il SVG builder è un singolo file monolitico che genera tutto il codice SVG.
@@ -484,7 +426,7 @@ export { buildSVG } from './svg-builder.js';
 
 ---
 
-## 10. State Migration Versioning Assente
+## 9. State Migration Versioning Assente
 
 ### Descrizione
 Se la struttura dello stato cambia (nuovi campi, rename), non c'è way per migrare lo stato esistente.
@@ -526,7 +468,7 @@ function migrateState(state, fromVersion) {
 
 ---
 
-## 11. GitHub API Rate Limit Non Tracciato
+## 10. GitHub API Rate Limit Non Tracciato
 
 ### Descrizione
 Il progetto non traccia i rate limit di GitHub API, rischiando di esaurire le chiamate.
