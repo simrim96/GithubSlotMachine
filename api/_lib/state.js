@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const STATE_KEY = 'gsm:state';
+const STATE_VERSION_KEY = 'gsm:state:version';
 const STATE_PATH = 'state.json';
 const TMP_STATE_PATH = '/tmp/GithubSlotMachine_state.json';
 
@@ -21,6 +22,7 @@ const DEFAULTS = {
   totalSpins: 0,
   totalWins: 0,
   lastWin: null, // { langId, langName, fact, repoUrl, repoName, ts }
+  version: 1,
 };
 
 // ── Local fallback (senza git spam) ───────────────────────────────────────────
@@ -101,13 +103,24 @@ async function writeStateGitHub(token, owner, repo, state, sha, _retry = false) 
 export async function readState(token, owner, repo) {
   if (kvEnabled) {
     const state = await kvGet(STATE_KEY);
-    if (state) return { state: { ...DEFAULTS, ...state }, sha: null };
+    if (state) {
+      // Se lo stato esiste ma non ha version, inizializzala
+      if (state.version === undefined) {
+        state.version = 1;
+      }
+      return { state: { ...DEFAULTS, ...state }, sha: null };
+    }
     // Primo avvio (o KV vuoto/timeout): importa lo storico da GitHub per non
     // perderlo, poi seed-a KV. Se anche GitHub fallisce, torniamo ai default.
     const gh = await readStateGitHub(token, owner, repo).catch(() => null);
     if (gh) {
-      await kvSet(STATE_KEY, gh.state);
-      return { state: gh.state, sha: null };
+      // Seed Redis con stato da GitHub, assicurando version
+      const stateToSeed = { ...gh.state };
+      if (stateToSeed.version === undefined) {
+        stateToSeed.version = 1;
+      }
+      await kvSet(STATE_KEY, stateToSeed);
+      return { state: stateToSeed, sha: null };
     }
     return { state: { ...DEFAULTS }, sha: null };
   }
@@ -121,7 +134,16 @@ export async function readState(token, owner, repo) {
 
 export async function writeState(token, owner, repo, state, _sha) {
   if (kvEnabled) {
-    await kvSet(STATE_KEY, state);
+    // Assicurati che la version sia presente e incrementala
+    const stateToSave = { ...state };
+    if (stateToSave.version === undefined) {
+      stateToSave.version = 1;
+    }
+    await kvSet(STATE_KEY, stateToSave);
+    // Sync asincrono su GitHub per backup (non blocca lo spin)
+    // Se fallisce, viene logged ma non interrompe l'esecuzione
+    writeStateGitHub(token, owner, repo, stateToSave, _sha)
+      .catch(e => console.warn('Redis state sync to GitHub failed:', e.message));
     return;
   }
   // Se non c'è token, scrivi su /tmp (locale) invece che nel repo.
