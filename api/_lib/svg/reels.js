@@ -1,10 +1,12 @@
 // ─── Reels Generator ────────────────────────────────────────────────────────────
 // Genera le colonne e i simboli della slot machine
 
-import { COLS, ROWS, FILLERS, NM_FILLERS_EXTRA, CW, CH, GAP, REEL } from '../game.js';
+import { COLS, ROWS, REEL } from '../game.js';
+import { CW } from './constants.js';
+import { CH, GAP } from './constants.js';
 import { symbolUse } from '../languages.js';
 import { getMX, getGY, colL } from './coordinates.js';
-import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
+import { DUR, NM_DUR_EXTRA_LAST, FILLERS, NM_FILLERS_EXTRA } from './constants.js';
 
 export function generateReels(uid, grid, nearMissCol, ED) {
   const GY = getGY();

@@ -1,8 +1,8 @@
 // ─── CSS/Animations Generator ──────────────────────────────────────────────────
 // Genera le animazioni CSS per slot machine
 
-import { COLS, ROWS, FILLERS, NM_FILLERS_EXTRA } from '../game.js';
-import { DUR, CH, NM_DUR_EXTRA_LAST } from './constants.js';
+import { COLS, ROWS } from '../game.js';
+import { DUR, NM_DUR_EXTRA_LAST, FILLERS, NM_FILLERS_EXTRA, CH } from './constants.js';
 
 export function generateCSS(uid, result) {
   const { isWin, ED, nearMissCol } = result;

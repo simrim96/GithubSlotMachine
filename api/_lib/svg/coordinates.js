@@ -1,8 +1,8 @@
 // ─── Coordinate Helpers ─────────────────────────────────────────────────────────
 // Funzioni helper per coordinate e posizioni
 
-import { CW, CH, GAP, PT_Y, PT_H, FRAME_PAD, ROWS, SVG_W } from './constants.js';
-import { COLS } from '../game.js';
+import { CW, CH, GAP, PT_Y, PT_H, FRAME_PAD, SVG_W } from './constants.js';
+import { COLS, ROWS } from '../game.js';
 
 // Helper functions per coordinate
 export function getMX() {

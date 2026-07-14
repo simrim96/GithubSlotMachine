@@ -1,8 +1,10 @@
 // ─── Marquee Bulbs Generator ───────────────────────────────────────────────────
 // Genera le luci del marquee attorno allo schermo
 
-import { FRAME_PAD, COLS, ROWS, FILLERS, CW, CH } from '../game.js';
+import { COLS, ROWS } from '../game.js';
+import { CW, CH, FRAME_PAD, GAP } from './constants.js';
 import { getMX, getGY } from './coordinates.js';
+import { DUR, NM_DUR_EXTRA_LAST, FILLERS } from './constants.js';
 
 export function generateMarqueeBulbs(uid, isWin, ED) {
   const bulbR = 5.5;
@@ -48,5 +50,3 @@ export function generateMarqueeBulbs(uid, isWin, ED) {
   }
   return svg;
 }
-
-import { GAP } from '../game.js';

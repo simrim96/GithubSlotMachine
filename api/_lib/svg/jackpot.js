@@ -1,8 +1,10 @@
 // ─── Jackpot Overlay Generator ──────────────────────────────────────────────────
 // Genera l'overlay per jackpot
 
-import { COLS, ROWS, CW, CH, GAP } from '../game.js';
-import { wrap } from './utils-extended.js';
+import { COLS, ROWS } from '../game.js';
+import { CW, CH } from './constants.js';
+import { GAP } from './constants.js';
+import { wrap } from '../game.js';
 import { colL, getMX, getGY } from './coordinates.js';
 
 export function generateJackpotOverlay(uid, winningLang, ED) {

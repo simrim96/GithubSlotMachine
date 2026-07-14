@@ -1,8 +1,9 @@
 // ─── Result Panel Generator ─────────────────────────────────────────────────────
 // Genera il pannello dei risultati in basso
 
-import { COLS, ROWS, FRAME_PAD, SVG_W, PT_Y, PT_H, CH } from '../game.js';
-import { wrap, escapeXml } from './utils-extended.js';
+import { COLS, ROWS, wrap } from '../game.js';
+import { escapeXml } from './utils.js';
+import { CH, FRAME_PAD, PT_H, PT_Y, SVG_W } from './constants.js';
 import { cellY, getGY, colL, getMX, getGY as getGYFn } from './coordinates.js';
 import { PT_H as PT_H_CONST } from './constants.js';
 

@@ -1,9 +1,12 @@
 // ─── Defs Generator (Gradients, Filters, ClipPaths) ───────────────────────────
 // Genera gradienti, filtri e clip paths per SVG
 
-import { LANGUAGES, buildSymbolDefs, REEL, ROWS, FILLERS, CW, CH, FRAME_PAD, COLS, GAP } from '../game.js';
-import { getGY, getMX, PT_Y, PT_H } from './coordinates.js';
+import { REEL, ROWS, COLS } from '../game.js';
+import { LANGUAGES, buildSymbolDefs } from '../languages.js';
+import { CW, CH, GAP, FRAME_PAD } from './constants.js';
+import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
 import { PT_H as PT_H_CONST } from './constants.js';
+import { getMX, getGY } from './coordinates.js';
 
 export function generateDefs(uid, winningLang) {
   let defs = '';

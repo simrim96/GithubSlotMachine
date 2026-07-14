@@ -1,8 +1,11 @@
 // ─── Screen Frame Generator ──────────────────────────────────────────────────────
 // Genera il frame dello schermo della slot machine
 
-import { COLS, ROWS, CW, CH, GAP, FRAME_PAD } from '../game.js';
+import { COLS, ROWS } from '../game.js';
+import { CW, CH, FRAME_PAD } from './constants.js';
+import { GAP } from './constants.js';
 import { getMX, getGY, colL } from './coordinates.js';
+import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
 
 export function generateScreenFrame(uid, isWin, ED, nearMissCol) {
   const MX = getMX();

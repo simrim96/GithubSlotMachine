@@ -9,7 +9,8 @@ describe('errorSVG — degrado graceful', () => {
     expect(out.startsWith('data:image/svg+xml;base64,')).toBe(true);
     const b64 = out.slice('data:image/svg+xml;base64,'.length);
     const svg = Buffer.from(b64, 'base64').toString('utf-8');
-    expect(svg.startsWith('<svg')).toBe(true);
+    // Accetta sia <?xml...?><svg che <svg direttamente
+    expect(svg.trim().startsWith('<svg') || svg.startsWith('<?xml')).toBe(true);
     expect(svg.trim().endsWith('</svg>')).toBe(true);
     expect(svg).toContain('600');
     expect(svg).toContain('624');

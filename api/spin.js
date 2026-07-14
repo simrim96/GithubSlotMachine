@@ -15,7 +15,8 @@ import {
   generateGrid, engineerWin, engineerNearMiss,
   checkWins, countScatters, detectNearMiss, winningLangId, wrap,
 } from './_lib/game.js';
-import { buildSVG, buildAccessibleSVG, errorSVG } from './_lib/svg-builder.js';
+import { buildSVG } from './_lib/svg-builder.js';
+import { buildAccessibleSVG, errorSVG } from './_lib/svg-builder-accessible.js';
 import {
   ghGet, ghPut, saveSlotSvg, loadSlotSvg, updateReadmeMarkers,
 } from './_lib/github.js';

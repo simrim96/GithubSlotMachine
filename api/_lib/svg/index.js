@@ -2,7 +2,8 @@
 // Export centralizzati per tutti i moduli SVG
 
 // Core utilities
-export { escapeXml, wrap } from './utils-extended.js';
+export { escapeXml } from './utils.js';
+export { wrap } from '../game.js';
 
 // Constants
 export { 
@@ -33,4 +34,4 @@ export { generatePaytable } from './paytable.js';
 
 // Main build function (re-exports from svg-builder.js)
 // Note: svg-builder.js is the main entry point, this is just for convenience
-export { buildSVG } from './svg-builder.js';
+export { buildSVG } from '../svg-builder.js';

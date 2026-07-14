@@ -12,6 +12,10 @@ import {
 } from './languages.js';
 import { COLS, ROWS } from './game.js';
 import { escapeXml } from './svg/utils.js';
+import { errorSVG as errorSVGAccessible } from './svg-builder-accessible.js';
+
+// Re-export errorSVG and escapeXml for backward compatibility
+export { errorSVGAccessible as errorSVG, escapeXml };
 
 // Importa tutti i moduli
 import { analyzeResult } from './svg/analysis.js';

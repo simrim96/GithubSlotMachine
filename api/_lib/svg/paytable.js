@@ -1,8 +1,11 @@
 // ─── Paytable Generator ──────────────────────────────────────────────────────────
 // Genera la paytable in basso a sinistra
 
-import { COLS, ROWS, CW, CH, GAP, PT_Y, PT_H, FRAME_PAD } from '../game.js';
+import { COLS, ROWS } from '../game.js';
+import { CW, CH, FRAME_PAD, PT_H, PT_Y } from './constants.js';
+import { GAP } from './constants.js';
 import { getMX, getGY } from './coordinates.js';
+import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
 
 export function generatePaytable(uid, winningLang) {
   const GY = PT_Y + PT_H + 18;
