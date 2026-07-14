@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".vercel/output",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "vercel",
+  "env": {
+    "SENTRY_DSN": "https://your-dsn@o123456.ingest.sentry.io/789012",
+    "SENTRY_TRACES_SAMPLE_RATE": "1.0",
+    "SENTRY_PROFILES_SAMPLE_RATE": "1.0"
+  }
+}

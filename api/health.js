@@ -8,6 +8,7 @@
 import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { LANGUAGES } from './_lib/languages.js';
+import * as Sentry from "@sentry/node";
 
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
 
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
       await kvGet(probe);
       kvOk = true;
     } catch (e) {
+      Sentry.captureException(e);
       steps.kv_error = e.message;
     }
     steps.kv_roundtrip_ms = now() - t0;
@@ -69,6 +71,7 @@ export default async function handler(req, res) {
       steps.github_readme_get_ms = now() - t0;
       steps.github_status = r.status;
     } catch (e) {
+      Sentry.captureException(e);
       steps.github_readme_get_ms = now() - t0;
       steps.github_error = e.message;
     }

@@ -42,7 +42,10 @@ const _ux = _dx / _len, _uy = _dy / _len;
 const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
 const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-  width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
+  role="button" aria-label="Pulla la leva per girare la slot machine" tabindex="0">
+  <title>Leva slot machine</title>
+  <desc>Elemento interattivo per avviare la rotazione dei rulli della slot machine.</desc>
   <defs>
     <!-- Pomello rosso laccato (stessi stop del cabinet) -->
     <radialGradient id="leverBall" cx="32%" cy="28%" r="78%">

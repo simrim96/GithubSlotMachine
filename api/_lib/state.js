@@ -18,12 +18,50 @@ const STATE_VERSION_KEY = 'gsm:state:version';
 const STATE_PATH = 'state.json';
 const TMP_STATE_PATH = '/tmp/GithubSlotMachine_state.json';
 
+// Versione attuale dello schema di stato
+export const STATE_VERSION = 2;
+
 const DEFAULTS = {
   totalSpins: 0,
   totalWins: 0,
   lastWin: null, // { langId, langName, fact, repoUrl, repoName, ts }
-  version: 1,
+  version: STATE_VERSION,
+  // v2 fields:
+  settings: {
+    theme: 'auto', // 'auto' | 'light' | 'dark'
+    sound: true,
+  },
+  stats: {
+    longestStreak: 0,
+    currentStreak: 0,
+    winsByLang: {}, // { python: 10, rust: 5, ... }
+  },
 };
+
+// ── Migration System ───────────────────────────────────────────────────────────
+function migrateState(state, fromVersion) {
+  // Migrate da versione 1 a 2
+  if (fromVersion === 1) {
+    const migrated = {
+      ...state,
+      version: 2,
+      settings: {
+        theme: 'auto',
+        sound: true,
+      },
+      stats: {
+        longestStreak: 0,
+        currentStreak: 0,
+        winsByLang: {},
+      },
+    };
+    console.log(`[state] Migrated state from v${fromVersion} to v${migrated.version}`);
+    return migrated;
+  }
+  
+  // Se è già alla versione corrente o più recente, restituisce lo stato così com'è
+  return { ...state, version: STATE_VERSION };
+}
 
 // ── Local fallback (senza git spam) ───────────────────────────────────────────
 // Se GITHUB_PAT non è configurato, evitiamo di scrivere nello repo della slot.
@@ -104,7 +142,15 @@ export async function readState(token, owner, repo) {
   if (kvEnabled) {
     const state = await kvGet(STATE_KEY);
     if (state) {
-      // Se lo stato esiste ma non ha version, inizializzala
+      // Esegui la migrazione se necessario
+      const currentVersion = state.version || 1;
+      if (currentVersion < STATE_VERSION) {
+        const migrated = migrateState(state, currentVersion);
+        // Salva lo stato migrato in KV
+        await kvSet(STATE_KEY, migrated);
+        return { state: migrated, sha: null };
+      }
+      // Assicurati che la version sia presente
       if (state.version === undefined) {
         state.version = 1;
       }
@@ -114,10 +160,13 @@ export async function readState(token, owner, repo) {
     // perderlo, poi seed-a KV. Se anche GitHub fallisce, torniamo ai default.
     const gh = await readStateGitHub(token, owner, repo).catch(() => null);
     if (gh) {
-      // Seed Redis con stato da GitHub, assicurando version
-      const stateToSeed = { ...gh.state };
+      // Migrate se necessario prima di salvare in KV
+      let stateToSeed = { ...gh.state };
       if (stateToSeed.version === undefined) {
         stateToSeed.version = 1;
+      }
+      if (stateToSeed.version < STATE_VERSION) {
+        stateToSeed = migrateState(stateToSeed, stateToSeed.version);
       }
       await kvSet(STATE_KEY, stateToSeed);
       return { state: stateToSeed, sha: null };
@@ -127,9 +176,19 @@ export async function readState(token, owner, repo) {
   // Se Redis non è attivo, usa GitHub solo se c'è un token valido (dev/prod).
   // Altrimenti, usa il fallback locale (nessun git spam).
   if (!token) {
-    return readStateLocal();
+    const res = await readStateLocal();
+    // Migrazione per state locale
+    if (res.state.version < STATE_VERSION) {
+      res.state = migrateState(res.state, res.state.version);
+    }
+    return res;
   }
-  return readStateGitHub(token, owner, repo);
+  const res = await readStateGitHub(token, owner, repo);
+  // Migrazione per state GitHub
+  if (res.state.version < STATE_VERSION) {
+    res.state = migrateState(res.state, res.state.version);
+  }
+  return res;
 }
 
 export async function writeState(token, owner, repo, state, _sha) {

@@ -1,23 +1,50 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  LANGUAGES CONFIG
-//  Per aggiungere un nuovo linguaggio basta appendere un oggetto a `LANGUAGES`.
-//  Ogni voce supporta:
-//    id          chiave interna unica
-//    name        nome mostrato all'utente
-//    short       label compatto sulla slot (max ~5 chars)
-//    color       colore di sfondo del simbolo
-//    accent      colore secondario (bordo / highlight)
-//    text        colore del testo sul simbolo
-//    githubLang  nome esatto come riportato dalla GitHub Languages API
+//  Configurazione estensibile: supporta linguaggi hardcoded + esterni (JSON/YAML).
+//  
+//  PER AGGIUNGERE LINGUAGGI:
+//  1. **Linguaggi hardcoded** (default): modifca questo file, aggiungi un oggetto
+//     all'array LANGUAGES_BASE.
+//  2. **Linguaggi esterni** (raccomandato): crea `languages-external.json` nella
+//     root del progetto o in `config/`. Schema:
+//     ```json
+//     {
+//       "languages": [
+//         {
+//           "id": "rust",
+//           "name": "Rust",
+//           "short": "Rust",
+//           "color": "#DEA584",
+//           "accent": "#F0C7A5",
+//           "text": "#ffffff",
+//           "githubLang": "Rust",
+//           "topic": "rust-lang",
+//           "competence": 3,
+//           "icon": "<svg>...</svg>",
+//           "facts": [
+//             { "it": "Fact in italiano", "en": "Fact in English" }
+//           ]
+//         }
+//       ]
+//     }
+//     ```
+//  
+//  OGNI VOCE SUPPORTA:
+//    id          chiave interna unica (obbligatorio)
+//    name        nome mostrato all'utente (obbligatorio)
+//    short       label compatto sulla slot (max ~5 chars, obbligatorio)
+//    color       colore di sfondo del simbolo (obbligatorio)
+//    accent      colore secondario (bordo / highlight, obbligatorio)
+//    text        colore del testo sul simbolo (obbligatorio)
+//    githubLang  nome esatto come riportato dalla GitHub Languages API (obbligatorio)
 //    topic       (opzionale) topic richiesto sul repo (utile per framework)
-//    icon        SVG markup interno (centrato in viewBox 84x84) col logo "ufficiale"
-//    competence  (1-5) il tuo livello di confidenza con quella tech: viene
-//                mostrato nella PAYTABLE come N pallini pieni su 5. Aggiornalo
-//                liberamente: è un valore soggettivo del proprietario della slot.
-//    facts       lista di fun-fact in formato { it, en } — uno scelto random
+//    competence  (1-5, opzionale) livello di confidenza mostrato nella PAYTABLE
+//    icon        SVG markup interno (opzionale, viewBox 84x84)
+//    facts       (opzionale) lista di fun-fact in formato { it, en }
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const LANGUAGES = [
+// ══════════════════════════ LINGUAGGI HARDCODED (DEFAULT) ═════════════════════
+export const LANGUAGES_BASE = [
   {
     id: 'cpp',
     name: 'C++',
@@ -70,15 +97,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio "moderno" (Python, Ruby, PHP, Lua…).',
-        en: 'C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it\'s the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every "modern" language (Python, Ruby, PHP, Lua…).',
+        it: 'C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio "moderno" (Python, Ruby, PHP, Lua…)',
+        en: 'C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it\'s the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every "modern" language (Python, Ruby, PHP, Lua…)',
       },
       {
-        it: 'Il libro "The C Programming Language" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio "hello, world".',
+        it: 'Il libro "The C Programming Language" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio "hello, world"',
         en: '"The C Programming Language" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic "hello, world" example.',
       },
       {
-        it: 'Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R.',
+        it: 'Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R',
         en: 'The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility.',
       },
     ],
@@ -103,15 +130,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader.',
+        it: 'GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader',
         en: 'GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions.',
       },
       {
-        it: 'In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo.',
+        it: 'In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo',
         en: 'GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation.',
       },
       {
-        it: "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno.",
+        it: "Con un solo fragment shader e una signed-distance-function si possono ray-marciare interi mondi 3D (vedi ShaderToy): è l'arte del demoscene moderno",
         en: 'With a single fragment shader and a signed-distance function you can ray-march entire 3D worlds (see ShaderToy): the art of the modern demoscene.',
       },
     ],
@@ -135,15 +162,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo.',
+        it: 'React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo',
         en: 'React was created in 2013 by Jordan Walke (Facebook), inspired by PHP\'s XHP. Today it\'s the most-used UI framework in the world.',
       },
       {
-        it: 'React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità.',
+        it: 'React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità',
         en: 'React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible.',
       },
       {
-        it: 'Il Virtual DOM non è "veloce di per sé": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale.',
+        it: 'Il Virtual DOM non è "veloce di per sé": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale',
         en: 'The Virtual DOM isn\'t "inherently fast": it\'s a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM.',
       },
     ],
@@ -165,15 +192,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape.',
+        it: 'JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape',
         en: 'JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape.',
       },
       {
-        it: 'Il nome originale era "Mocha", poi "LiveScript" e infine "JavaScript" — una scelta di marketing per cavalcare l\'hype di Java.',
+        it: 'Il nome originale era "Mocha", poi "LiveScript" e infine "JavaScript" — una scelta di marketing per cavalcare l\'hype di Java',
         en: 'The original name was "Mocha", then "LiveScript" and finally "JavaScript" — a marketing move to ride the Java hype wave.',
       },
       {
-        it: 'ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno.',
+        it: 'ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno',
         en: 'ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year.',
       },
     ],
@@ -198,15 +225,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'Python prende il nome dai Monty Python\'s Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show.',
+        it: 'Python prende il nome dai Monty Python\'s Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show',
         en: 'Python is named after Monty Python\'s Flying Circus, not the snake: Guido van Rossum was a huge fan of the show.',
       },
       {
-        it: 'Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio.',
+        it: 'Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio',
         en: 'Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language\'s philosophy.',
       },
       {
-        it: "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python.",
+        it: "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
         en: 'Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python.',
       },
     ],
@@ -228,15 +255,15 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'TypeScript è stato creato da Anders Hejlsberg (papà di C# e Turbo Pascal) in Microsoft e annunciato pubblicamente nel 2012.',
+        it: 'TypeScript è stato creato da Anders Hejlsberg (papà di C# e Turbo Pascal) in Microsoft e annunciato pubblicamente nel 2012',
         en: 'TypeScript was created by Anders Hejlsberg (father of C# and Turbo Pascal) at Microsoft and publicly announced in 2012.',
       },
       {
-        it: 'TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime.',
+        it: 'TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime',
         en: 'TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime.',
       },
       {
-        it: 'Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi.',
+        it: 'Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi',
         en: 'TypeScript\'s type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level.',
       },
     ],
@@ -259,21 +286,22 @@ export const LANGUAGES = [
       </g>`,
     facts: [
       {
-        it: 'Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera "Q" che piaceva al font Emacs di Haavard.',
+        it: 'Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera "Q" che piaceva al font Emacs di Haavard',
         en: 'Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter "Q", which looked nice in Haavard\'s Emacs font.',
       },
       {
-        it: 'Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l\'infotainment di moltissime auto sono basati su Qt.',
+        it: 'Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l\'infotainment di moltissime auto sono basati su Qt',
         en: 'Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt.',
       },
       {
-        it: 'Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre.',
+        it: 'Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre',
         en: 'Qt\'s signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide.',
       },
     ],
   },
 ];
 
+// ══════════════════════════ WILD E SCATTER ════════════════════════
 export const WILD = {
   id: 'wild',
   short: 'WILD',
@@ -290,8 +318,6 @@ export const WILD = {
     </g>`,
 };
 
-// SCATTER (BONUS) — mantenuto come export per retro-compat ma non più inserito
-// nel reel né usato per logiche di gioco (free spin rimosso in favore del JACKPOT).
 export const SCATTER = {
   id: 'scatter',
   short: 'BONUS',
@@ -305,7 +331,81 @@ export const SCATTER = {
     </g>`,
 };
 
-export const ALL_SYMBOLS = [...LANGUAGES, WILD, SCATTER];
+// ══════════════════════════ LINGUAGGI ESTERNI (DINAMICI) ═════════════════════
+// Carica linguaggi da file esterni (JSON/YAML) se disponibili.
+// Ritorna promise per caricamento asincrono.
+let externalLanguagesPromise = null;
+
+// Variabile per memorizzare i linguaggi completi (hardcoded + esterni)
+let mergedLanguages = null;
+
+async function loadExternalLanguages() {
+  if (externalLanguagesPromise) return externalLanguagesPromise;
+  
+  externalLanguagesPromise = (async () => {
+    try {
+      const { loadExternalLanguages: loader, mergeLanguages } = await import('./config-loader.js');
+      const external = await loader();
+      mergedLanguages = mergeLanguages(LANGUAGES_BASE, external);
+      
+      if (external.length > 0) {
+        console.log(`[Languages] Caricati ${external.length} linguaggi esterni. Totale: ${mergedLanguages.length}`);
+      } else {
+        mergedLanguages = LANGUAGES_BASE;
+        console.log('[Languages] Nessun linguaggio esterno trovato, usando hardcoded base');
+      }
+      
+      return mergedLanguages;
+    } catch (err) {
+      console.warn('[Languages] Error loading external languages, using base only:', err.message);
+      mergedLanguages = LANGUAGES_BASE;
+      return LANGUAGES_BASE;
+    }
+  })();
+  
+  return externalLanguagesPromise;
+}
+
+// Costruisci symbol/lookup basati sui linguaggi caricati (dinamicamente)
+export function buildLookups(languages) {
+  const ALL_SYMBOLS = [...languages, WILD, SCATTER];
+  const SYMBOL_BY_ID = Object.fromEntries(ALL_SYMBOLS.map((s) => [s.id, s]));
+  const LANGUAGE_BY_ID = Object.fromEntries(languages.map((l) => [l.id, l]));
+  
+  return { ALL_SYMBOLS, SYMBOL_BY_ID, LANGUAGE_BY_ID };
+}
+
+// Vista pubblica di LANGUAGES (supporto dinamico)
+// Ritorna LANGUAGES_BASE per backward compatibility (sync),
+// oppure la funzione loadExternalLanguages() per caricare esterni.
+export async function getLanguages() {
+  return loadExternalLanguages();
+}
+
+// Getter sync per backward compatibility (usa sempre LANGUAGES_BASE)
+// Se hai bisogno dei linguaggi esterni, usa getLanguages()
+export const LANGUAGES = LANGUAGES_BASE;
+
+// Getter sync per gli export dinamici (fallback su BASE se non caricati)
+// Per ottenere i dati COMPLETI (con esterni), usa getFullLookups()
+export function getDynamicLookups() {
+  if (mergedLanguages) {
+    return buildLookups(mergedLanguages);
+  }
+  // Fallback: ritorna lookups basati su BASE
+  return buildLookups(LANGUAGES_BASE);
+}
+
+// Ritorna le lookups complete (asincrono) dopo aver caricato tutti i linguaggi esterni
+export async function getFullLookups() {
+  const languages = await getLanguages();
+  return buildLookups(languages);
+}
+
+// Compatibilità: ALL_SYMBOLS, SYMBOL_BY_ID, LANGUAGE_BY_ID sync per now usano BASE
+// Per dati completi, chiama getFullLookups()
+export const ALL_SYMBOLS = LANGUAGES_BASE.map(l => l);
+ALL_SYMBOLS.push(WILD, SCATTER);
 export const SYMBOL_BY_ID = Object.fromEntries(ALL_SYMBOLS.map((s) => [s.id, s]));
 export const LANGUAGE_BY_ID = Object.fromEntries(LANGUAGES.map((l) => [l.id, l]));
 

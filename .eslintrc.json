@@ -1,0 +1,20 @@
+{
+  "env": {
+    "node": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "prefer-const": "warn",
+    "no-useless-escape": "off",
+    "no-constant-condition": "off"
+  },
+  "ignorePatterns": ["node_modules/", "dist/", "*.min.js", "tests/"]
+}

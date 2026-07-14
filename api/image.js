@@ -9,6 +9,7 @@
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).
 
 import { kv, kvEnabled } from './_lib/kv.js';
+import * as Sentry from "@sentry/node";
 
 const SVG_PATH = 'slot.svg';
 
@@ -32,6 +33,7 @@ export default async function handler(req, res) {
         return res.status(200).send(svg);
       }
     } catch (e) {
+      Sentry.captureException(e);
       console.warn('kv image read failed, falling back to github:', e.message);
     }
   }

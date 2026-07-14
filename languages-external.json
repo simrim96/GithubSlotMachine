@@ -1,0 +1,56 @@
+{
+  "languages": [
+    {
+      "id": "rust",
+      "name": "Rust",
+      "short": "Rust",
+      "color": "#DEA584",
+      "accent": "#F0C7A5",
+      "text": "#ffffff",
+      "githubLang": "Rust",
+      "topic": "rust-lang",
+      "competence": 3,
+      "icon": "<g transform=\"translate(42,38)\"><rect x=\"-22\" y=\"-22\" width=\"44\" height=\"44\" rx=\"4\" fill=\"#DEA584\"/><text x=\"0\" y=\"8\" text-anchor=\"middle\" font-family=\"'Segoe UI',sans-serif\" font-size=\"24\" font-weight=\"900\" fill=\"#ffffff\">Rust</text></g>",
+      "facts": [
+        {
+          "it": "Rust garantisce memory safety senza garbage collector: il borrow checker analizza il codice a compile-time.",
+          "en": "Rust guarantees memory safety without garbage collection: the borrow checker analyzes code at compile-time."
+        },
+        {
+          "it": "Rust è stato eleito \"most beloved programming language\" su Stack Overflow per 7 anni consecutivi (2016-2022).",
+          "en": "Rust was elected \"most beloved programming language\" on Stack Overflow for 7 consecutive years (2016-2022)."
+        },
+        {
+          "it": "Il compiler di Rust (rustc) è uno dei più veloci tra i linguaggi moderni: spesso più veloce di C++ in benchmark.",
+          "en": "Rust's compiler (rustc) is one of the fastest among modern languages: often faster than C++ in benchmarks."
+        }
+      ]
+    },
+    {
+      "id": "go",
+      "name": "Go",
+      "short": "Go",
+      "color": "#00ADD8",
+      "accent": "#63B0FF",
+      "text": "#ffffff",
+      "githubLang": "Go",
+      "topic": "go",
+      "competence": 2,
+      "icon": "<g transform=\"translate(42,38)\"><circle cx=\"0\" cy=\"0\" r=\"22\" fill=\"#00ADD8\"/><text x=\"0\" y=\"8\" text-anchor=\"middle\" font-family=\"'Segoe UI',sans-serif\" font-size=\"24\" font-weight=\"900\" fill=\"#ffffff\">Go</text></g>",
+      "facts": [
+        {
+          "it": "Go è stato creato da Google nel 2007 da Robert Griesemer, Rob Pike e Ken Thompson (co-creatore di Unix e C).",
+          "en": "Go was created at Google in 2007 by Robert Griesemer, Rob Pike and Ken Thompson (co-creator of Unix and C)."
+        },
+        {
+          "it": "Il nome \"Go\" (non \"Golang\") deriva dal comando `go run` che avvia il programma. Golang è solo un nickname comunemente usato.",
+          "en": "The name \"Go\" (not \"Golang\") comes from the `go run` command that starts the program. Golang is just a commonly used nickname."
+        },
+        {
+          "it": "Go ha introdotto le goroutine: thread lightweight gestiti dal runtime, non dal kernel, per concorrenza massiva efficiente.",
+          "en": "Go introduced goroutines: lightweight threads managed by the runtime, not the kernel, for efficient massive concurrency."
+        }
+      ]
+    }
+  ]
+}

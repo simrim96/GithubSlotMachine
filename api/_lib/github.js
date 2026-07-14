@@ -2,6 +2,8 @@
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
+import { RateLimitTracker, RateLimitQueue, parseRateLimitHeaders, getDefaultTracker, getDefaultQueue } from './ratelimit-tracker.js';
+import * as Sentry from "@sentry/node";
 
 // TTL per slot.svg: 7 giorni (604800 secondi)
 // Gli SVG sono persistenti per definizione, ma vogliamo che scadeano dopo un periodo
@@ -70,51 +72,79 @@ export const githubCircuitBreaker = new GitHubCircuitBreaker(3, 60000);
 export function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
 export function escapeMarkdown(s) {
   return String(s).replace(/[*_`\[\]]/g, '\\$&');
 }
 
 // ghGet: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
+// Le chiamate passano attraverso la queue per gestire il rate limit
 export async function ghGet(token, owner, repo, path) {
-  return githubCircuitBreaker.call(async () => {
-    const r = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      {
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'GithubSlotMachine',
-        },
+  const queue = getDefaultQueue();
+  
+  return queue.add(async () => {
+    return githubCircuitBreaker.call(async () => {
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+              'User-Agent': 'GithubSlotMachine',
+            },
+          }
+        );
+
+        // Traccia i rate limit headers
+        getDefaultTracker().updateFromResponse(response);
+
+        return response.ok ? await response.json() : null;
+      } catch (error) {
+        Sentry.captureException(error);
+        throw error;
       }
-    );
-    return r.ok ? r.json() : null;
+    });
   });
 }
 
 export async function ghPut(token, owner, repo, path, content, sha, message, _retry = false) {
-  return githubCircuitBreaker.call(async () => {
-    const encoded = Buffer.from(content).toString('base64');
-    const body = { message, content: encoded };
-    if (sha) body.sha = sha;
-    const r = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'GithubSlotMachine',
-        },
-        body: JSON.stringify(body),
+  const queue = getDefaultQueue();
+  
+  return queue.add(async () => {
+    return githubCircuitBreaker.call(async () => {
+      try {
+        const encoded = Buffer.from(content).toString('base64');
+        const body = { message, content: encoded };
+        if (sha) body.sha = sha;
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json',
+              'User-Agent': 'GithubSlotMachine',
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        // Traccia i rate limit headers
+        getDefaultTracker().updateFromResponse(response);
+
+        if (response.status === 409 && !_retry) {
+          // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
+          const fresh = await ghGet(token, owner, repo, path);
+          return ghPut(token, owner, repo, path, content, fresh?.sha ?? null, message, true);
+        }
+        if (!response.ok) throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
+      } catch (error) {
+        Sentry.captureException(error);
+        throw error;
       }
-    );
-    if (r.status === 409 && !_retry) {
-      // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
-      const fresh = await ghGet(token, owner, repo, path);
-      return ghPut(token, owner, repo, path, content, fresh?.sha ?? null, message, true);
-    }
-    if (!r.ok) throw new Error(`PUT ${owner}/${repo}/${path}: ${r.status}`);
+    });
   });
 }
 
@@ -125,9 +155,13 @@ export async function ghPut(token, owner, repo, path, content, sha, message, _re
 // Tutte le chiamate KV passano dai wrapper con timeout (200ms) in kv.js.
 export async function saveSlotSvg(token, owner, repo, svg, sha) {
   if (kvEnabled) {
-    const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
-    if (ok) return;
-    console.warn('kv slotSvg save failed/timed out, falling back to github');
+    try {
+      const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
+      if (ok) return;
+    } catch (e) {
+      Sentry.captureException(e);
+      console.warn('kv slotSvg save failed/timed out, falling back to github');
+    }
   }
   await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
 }
