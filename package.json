@@ -10,7 +10,7 @@
   "scripts": {
     "start": "vercel dev",
     "dev": "vercel dev",
-    "build": "vercel build",
+    "build": "echo 'No build step required for serverless functions'",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "playwright test tests/integration",
