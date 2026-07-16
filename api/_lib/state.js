@@ -39,9 +39,10 @@ const DEFAULTS = {
 };
 
 // ── Migration System ───────────────────────────────────────────────────────────
-function migrateState(state, fromVersion) {
-  // Migrate da versione 1 a 2
-  if (fromVersion === 1) {
+// Multi-version state migration framework
+// Supporta migrazioni da qualsiasi versione a quella corrente
+const MIGRATIONS = {
+  1: (state) => {
     const migrated = {
       ...state,
       version: 2,
@@ -55,12 +56,50 @@ function migrateState(state, fromVersion) {
         winsByLang: {},
       },
     };
-    console.log(`[state] Migrated state from v${fromVersion} to v${migrated.version}`);
+    console.log(`[state] Migrated state from v1 to v2`);
     return migrated;
+  },
+  
+  // Placeholder per future migrazioni (v2 → v3)
+  // Implementare quando necessaria nuova versione dello schema
+  2: (state) => {
+    const migrated = {
+      ...state,
+      version: 3,
+      // Esempio: aggiungere nuovi campi per v3
+      // featureFlags: {},
+      // auditLog: [],
+    };
+    console.log(`[state] Migrated state from v2 to v3`);
+    return migrated;
+  },
+};
+
+/**
+ * Migrate state from any version to the current version
+ * @param {Object} state - Current state object
+ * @param {number} fromVersion - Starting version (default: inferred from state)
+ * @returns {Object} Migrated state at current STATE_VERSION
+ * @throws {Error} If no migration path exists for a version step
+ */
+export function migrateState(state, fromVersion) {
+  const currentVersion = state.version || fromVersion || 1;
+  let result = { ...state };
+  
+  // Loop attraverso tutte le versioni intermedie fino alla corrente
+  while (currentVersion < STATE_VERSION) {
+    const migration = MIGRATIONS[currentVersion];
+    if (!migration) {
+      throw new Error(
+        `No migration defined for version ${currentVersion} → ${currentVersion + 1}. ` +
+        `Please implement MIGRATIONS[${currentVersion}] in state.js`
+      );
+    }
+    
+    result = migration(result);
   }
   
-  // Se è già alla versione corrente o più recente, restituisce lo stato così com'è
-  return { ...state, version: STATE_VERSION };
+  return result;
 }
 
 // ── Local fallback (senza git spam) ───────────────────────────────────────────

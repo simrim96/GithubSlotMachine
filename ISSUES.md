@@ -1,6 +1,6 @@
 # GithubSlotMachine - Analisi Critica del Progetto
 
-**Data analisi:** 2026-07-14  
+**Data analisi:** 2026-07-16  
 **Analista:** AI Code Review  
 **Stato progetto:** Portfolio GitHub Slot Machine (Vercel serverless)  
 **Obiettivo:** Documentazione tecnica dettagliata di problemi, bug, limiti architetturali e miglioramenti
@@ -22,6 +22,7 @@
 - ⚠️ CI/CD pipeline completamente assente
 - ⚠️ Accessibility migliorabile (no ARIA labels, no reduced-motion)
 - ⚠️ Rate limit tracking non esposto pubblicamente
+- ⚠️ Paytable non visibile
 
 ---
 
@@ -29,7 +30,51 @@
 
 ---
 
-## 1. Test Fallenti - Regressioni Non Rilevate
+## 1. Paytable Non Visibile
+**Data rilevamento:** 2026-07-16  
+**Stato:** Da investigare
+
+### Descrizione
+Gli ultimi aggiornamenti hanno reso la paytable non visibile. Gli utenti non possono vedere i premi e i multipli delle vincite.
+
+### Impatto: ALTA
+- Utenti non sanno quanto vengono pagate le diverse combinazioni
+- Mancano informazioni fondamentali sulla UX della slot machine
+- Riduce l'engagement e la comprensibilità del gioco
+
+### Area Colpita
+Probabilmente in uno dei seguenti file:
+- `public/index.html`
+- `api/_lib/paytable.js`
+- Componenti UI che gestiscono la visualizzazione della paytable
+
+### Next Steps
+1. Identificare il componente/elemento che dovrebbe mostrare la paytable
+2. Verificare se è stato rimosso, nascosto (display:none), o se c'è un errore di rendering
+3. Controllare console JavaScript per errori relativi alla paytable
+4. Verificare se ci sono cambiamenti recenti nel CSS o nel markup
+5. Restaurare la visibilità della paytable o riscrivere il componente se necessario
+
+### Fix Richiesto
+```javascript
+// Esempio di struttura paytable (da verificare/ripristinare)
+const paytable = [
+  { symbol: 'python', count: 3, multiplier: 5 },
+  { symbol: 'python', count: 4, multiplier: 10 },
+  { symbol: 'python', count: 5, multiplier: 20 },
+  // ... altre combinazioni
+];
+
+// Renderizzare nel DOM
+function renderPaytable() {
+  const container = document.getElementById('paytable-container');
+  // ... rendering logic
+}
+```
+
+---
+
+## 2. Test Fallenti - Regressioni Non Rilevate
 
 ### Stato Attuale
 ```bash
@@ -42,7 +87,7 @@
 
 ### Dettaglio Errori
 
-#### 1.1 ❌ WILD Non Funziona Come Wildcard in checkWins()
+#### 2.1 ❌ WILD Non Funziona Come Wildcard in checkWins()
 **File:** `tests/game.test.js:107-116`
 
 ```javascript
@@ -96,7 +141,7 @@ function checkWins(grid) {
 
 ---
 
-#### 1.2 ❌ SCATTER Non Viene Contato Correttamente da countScatters()
+#### 2.2 ❌ SCATTER Non Viene Contato Correttamente da countScatters()
 **File:** `tests/game.test.js:174-179`
 
 ```javascript
@@ -132,7 +177,7 @@ export function countScatters(grid) {
 
 ---
 
-#### 1.3 ❌ Invariant Near-Miss Geometry Violato
+#### 2.3 ❌ Invariant Near-Miss Geometry Violato
 **File:** `tests/game.test.js:237-269`
 
 ```javascript
@@ -224,7 +269,7 @@ export function detectNearMiss(grid, wins) {
 
 ---
 
-#### 1.4 ❌ SVG Non Contiene data-testid="slot-svg"
+#### 2.4 ❌ SVG Non Contiene data-testid="slot-svg"
 **File:** `tests/spin.test.js`
 
 ```javascript
@@ -256,7 +301,7 @@ export function buildAccessibleSVG({ grid, uid, state, winningLang, fact, repoMa
 
 ---
 
-## 2. CI/CD Pipeline Completamente Assente
+## 3. CI/CD Pipeline Completamente Assente
 
 ### Stato Attuale
 - ❌ Nessuna directory `.github/workflows/`
@@ -270,13 +315,13 @@ export function buildAccessibleSVG({ grid, uid, state, winningLang, fact, repoMa
 **Rischi:**
 1. Errori possono essere deployati in produzione senza rilevazione
 2. Nessun preview deployment per PR
-3. Dependenze non aggiornate automaticamente (no Dependabot)
+3. Dipendenze non aggiornate automaticamente (no Dependabot)
 4. Nessuna verifica di build prima del deploy
 5. Difficile debugging di regressioni
 
 ### Soluzione Proposta
 
-#### 2.1 GitHub Actions CI/CD Pipeline
+#### 3.1 GitHub Actions CI/CD Pipeline
 
 Crea `.github/workflows/ci.yml`:
 
@@ -447,7 +492,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-#### 2.2 Package.json Scripts
+#### 3.2 Package.json Scripts
 
 Aggiorna `package.json`:
 
@@ -469,7 +514,7 @@ Aggiorna `package.json`:
 }
 ```
 
-#### 2.3 Eslint Config
+#### 3.3 Eslint Config
 
 Crea `.eslintrc.json`:
 
@@ -500,7 +545,9 @@ Crea `.eslintrc.json`:
 }
 ```
 
-#### 2.4 Prettier Config
+---
+
+#### 3.4 Prettier Config
 
 Crea `.prettierrc`:
 
@@ -517,7 +564,7 @@ Crea `.prettierrc`:
 
 ---
 
-## 3. Accessibility Issues - Utenti con Esclusi
+## 4. Accessibility Issues - Utenti con Esclusi
 
 ### Stato Attuale
 - ❌ SVG senza ARIA labels
@@ -535,7 +582,7 @@ Crea `.prettierrc`:
 
 ### Problemi Identificati
 
-#### 3.1 SVG Senza ARIA Labels
+#### 4.1 SVG Senza ARIA Labels
 
 **File:** `api/_lib/svg-builder-accessible.js` (probabilmente)
 
@@ -587,7 +634,7 @@ export function buildAccessibleSVG({ grid, uid, state, winningLang, fact, repoMa
 
 ---
 
-#### 3.2 Animazioni Senza Riduzione Movimento
+#### 4.2 Animazioni Senza Riduzione Movimento
 
 **File:** `api/_lib/svg-builder.js`
 
@@ -635,7 +682,7 @@ const css = `
 
 ---
 
-#### 3.3 Nessun Supporto Screen Reader per Aggiornamenti Dinamici
+#### 4.3 Nessun Supporto Screen Reader per Aggiornamenti Dinamici
 
 **Problema:** Quando l'SVG viene aggiornato dopo uno spin, gli screen reader non sanno che c'è stato un cambiamento.
 
@@ -669,7 +716,7 @@ function announceResult(result) {
 
 ---
 
-## 4. Rate Limit GitHub Non Esposto
+## 5. Rate Limit GitHub Non Esposto
 
 ### Stato Attuale
 - Il `RateLimitTracker` esiste in `api/_lib/ratelimit-tracker.js`
@@ -688,7 +735,7 @@ User spins → 5000 calls → 403 Forbidden → Slot completely down
 
 ### Soluzione Proposta
 
-#### 4.1 Endpoint API per Metrics
+#### 5.1 Endpoint API per Metrics
 
 Crea `api/metrics.js`:
 
@@ -723,7 +770,7 @@ export default async function handler(req, res) {
 }
 ```
 
-#### 4.2 Dashboard Semplificata
+#### 5.2 Dashboard Semplificata
 
 Crea `public/metrics.html`:
 
@@ -846,7 +893,7 @@ Crea `public/metrics.html`:
 
 ---
 
-## 5. Accessibility - Manca Focus Management
+## 6. Accessibility - Manca Focus Management
 
 ### Problema
 Non c'è gestione dello stato del focus quando la slot viene ricaricata o aggiornata.
@@ -868,7 +915,7 @@ function handleSpinComplete() {
 
 ---
 
-## 6. State Migration Solo v1→v2 (No Multi-Version Support)
+## 7. State Migration Solo v1→v2 (No Multi-Version Support)
 
 ### Problema Attuale
 ```javascript
@@ -928,7 +975,7 @@ export function migrateState(state, fromVersion) {
 
 ---
 
-## 7. Language Config Estensibilità Limitata
+## 8. Language Config Estensibilità Limitata
 
 ### Problema
 I linguaggi sono hardcoded in `api/_lib/languages.js` (~24.370 char di SVG, colori, etc.).
@@ -992,7 +1039,7 @@ export async function getRepoForLanguage(langId) {
 
 ---
 
-## 8. SVG Builder Monolitico
+## 9. SVG Builder Monolitico
 
 ### Problema
 `api/_lib/svg-builder.js` è un singolo file che fa tutto: grid, animations, icons, layout.
@@ -1075,7 +1122,7 @@ export function buildSVG({ grid, ... }) {
 
 ---
 
-## 9. Memory Leak Potential in Async Background Tasks
+## 10. Memory Leak Potential in Async Background Tasks
 
 ### Problema
 ```javascript
@@ -1120,7 +1167,7 @@ const updateReadmeBackground = async () => {
 
 ---
 
-## 10. Circuit Breaker Timeout Troppo Lungo
+## 11. Circuit Breaker Timeout Troppo Lungo
 
 ### Problema
 ```javascript
@@ -1164,42 +1211,47 @@ export class GitHubCircuitBreaker {
 ## 📊 Riepilogo Priorità
 
 ### 🔴 Priorità ALTA (in corso con Kanban)
-1. T1: Fissare test fallenti (game.test.js, svg.test.js, spin.test.js)
-2. T2: Implementare CI/CD pipeline (GitHub Actions)
-3. T3: Aggiungere ARIA labels e prefers-reduced-motion
-4. T4: Esporre endpoint `/api/metrics` per rate limit tracking
+1. T1: Paytable non visibile
+2. T2: Fissare test fallenti (game.test.js, svg.test.js, spin.test.js)
+3. T3: Implementare CI/CD pipeline (GitHub Actions)
+4. T4: Aggiungere ARIA labels e prefers-reduced-motion
+5. T5: Esporre endpoint `/api/metrics` per rate limit tracking
 
 ### 🟡 Priorità MEDIA (in attesa)
-5. T5: Migliorare test coverage (repos.test.js, svg-builder.test.js)
-6. T6: Aggiungere state migration multi-version
-7. T7: Supportare language config esterno
-8. T8: Refactor SVG builder in moduli separati
+6. T6: Migliorare test coverage (repos.test.js, svg-builder.test.js)
+7. T7: Aggiungere focus management per accessibility
+8. T8: Implementare multi-version state migration
+9. T9: Supportare language config esterno
+10. T10: Refactor SVG builder in moduli separati
 
 ### 🟢 Priorità BASSA (nice-to-have)
-9. T9: Implementare theme system UI
-10. T10: Espandere i18n completo (più di IT/EN)
-11. T12: Aggiungere diagramma architetturale nel README
+11. T11: Implementare theme system UI
+12. T12: Espandere i18n completo (più di IT/EN)
+13. T14: Aggiungere diagramma architetturale nel README
 
 ---
 
 ## ✅ Checklist di Completamento
 
-### Fase 1: Critical Fixes (Kanban Tasks T1-T4)
-- [ ] T1: Fissare WILD wildcard logic in game.test.js
-- [ ] T2: Fissare SCATTER counting in game.test.js
-- [ ] T3: Fissare near-miss geometry invariant
-- [ ] T4: Aggiungere `data-testid="slot-svg"` in svg-builder.js
+### Fase 1: Critical Fixes (Kanban Tasks T1-T5)
+- [ ] T1: Ripristinare visibilità paytable
+- [ ] T2: Fissare WILD wildcard logic in game.test.js
+- [ ] T3: Fissare SCATTER counting in game.test.js
+- [ ] T4: Fissare near-miss geometry invariant
+- [ ] T5: Aggiungere `data-testid="slot-svg"` in svg-builder.js
 
-### Fase 2: Improvements (Kanban Tasks T5-T8)
-- [ ] T5: Aggiungere focus management per accessibility
-- [ ] T6: Implementare multi-version state migration
-- [ ] T7: Supportare language config esterno
-- [ ] T8: Refactor SVG builder in moduli separati
+### Fase 2: Improvements (Kanban Tasks T6-T10)
+- [ ] T6: Implementare CI/CD pipeline
+- [ ] T7: Aggiungere focus management per accessibility
+- [ ] T8: Aggiungere ARIA labels e prefers-reduced-motion
+- [ ] T9: Implementare multi-version state migration
+- [ ] T10: Supportare language config esterno
+- [ ] T11: Refactor SVG builder in moduli separati
 
-### Fase 3: Nice-to-Have (Kanban Tasks T9-T12)
-- [ ] T9: Implementare theme system UI
-- [ ] T10: Espandere i18n a più lingue
-- [ ] T12: Aggiungere diagramma architetturale nel README
+### Fase 3: Nice-to-Have (Kanban Tasks T11-T14)
+- [ ] T12: Implementare theme system UI
+- [ ] T13: Espandere i18n a più lingue
+- [ ] T15: Aggiungere diagramma architetturale nel README
 
 ### Fase 3: Nice-to-Have (da definire Kanban)
 - [ ] Documentare API `/api/metrics`
@@ -1212,18 +1264,19 @@ export class GitHubCircuitBreaker {
 
 Dopo completare le fix critiche, il progetto dovrebbe raggiungere:
 
-|| Metrica | Attuale | Obiettivo |
-||---------|---------|-----------|
-|| Test Pass Rate | 92.5% (62/67) → T1-T4 in Kanban | 100% |
-|| Test Coverage | ~65% → T5 in Kanban | ≥80% |
-|| CI/CD | 0% automatico → T2 in Kanban | 100% automatico |
-|| Accessibility | 0% ARIA labels → T3-T5 in Kanban | WCAG 2.1 AA |
-|| Error Tracking | Sentry (log) | Sentry (alert) |
-|| Rate Limit Visibility | 0% esposto → T4 in Kanban | Dashboard pubblica |
-|| Response Time (p95) | ~150ms → T10 in Kanban | <100ms |
+| Metrica | Attuale | Obiettivo |
+|---------|---------|-----------|
+| Test Pass Rate | 92.5% (62/67) → T2-T5 in Kanban | 100% |
+| Test Coverage | ~65% → T6 in Kanban | ≥80% |
+| CI/CD | 0% automatico → T3 in Kanban | 100% automatico |
+| Accessibility | 0% ARIA labels → T4, T7 in Kanban | WCAG 2.1 AA |
+| Error Tracking | Sentry (log) | Sentry (alert) |
+| Rate Limit Visibility | 0% esposto → T5 in Kanban | Dashboard pubblica |
+| Paytable Visibilità | 0% (nascosto) → T1 in Kanban | 100% visibile |
+| Response Time (p95) | ~150ms → T10 in Kanban | <100ms |
 
 ---
 
 **Fine Documento**  
-*Ultima modifica: 2026-07-14*  
+*Ultima modifica: 2026-07-16*  
 *Autore: AI Code Review*

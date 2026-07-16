@@ -5,6 +5,9 @@ import { kvEnabled, kvGet, kvSet } from './kv.js';
 import { RateLimitTracker, RateLimitQueue, parseRateLimitHeaders, getDefaultTracker, getDefaultQueue } from './ratelimit-tracker.js';
 import * as Sentry from "@sentry/node";
 
+// Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
+const GITHUB_API_TIMEOUT_MS = parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 5000;
+
 // TTL per slot.svg: 7 giorni (604800 secondi)
 // Gli SVG sono persistenti per definizione, ma vogliamo che scadeano dopo un periodo
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
@@ -13,6 +16,8 @@ const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
 // ─── Circuit Breaker per GitHub API ──────────────────────────────────────────
 // Previene failure cascading quando GitHub API ha outage o rate limit.
 // Stati: 'closed' (normale), 'open' (bloccato), 'half-open' (tentativo recupero)
+// Con fallback: quando il circuit è open, le chiamate passano comunque direttamente
+// all'API senza passare dal circuit breaker, per evitare blocchi completi.
 export class GitHubCircuitBreaker {
   constructor(failureThreshold = 3, resetTimeout = 60000) {
     this.failures = 0;
@@ -53,7 +58,17 @@ export class GitHubCircuitBreaker {
 
   async call(fn) {
     if (this.isOpen()) {
-      throw new Error('GitHub API circuit open - trying again later');
+      console.warn('GitHub API circuit open - falling back to direct API call');
+      // Fallback: esegui direttamente la funzione senza passare dal circuit breaker
+      // Questo mantiene il sistema operativo anche quando il circuit è aperto
+      try {
+        const result = await fn();
+        return result;
+      } catch (err) {
+        // Se il fallback fallisce, conta comunque come fallimento
+        this.onFailure();
+        throw err;
+      }
     }
 
     try {
@@ -85,6 +100,10 @@ export async function ghGet(token, owner, repo, path) {
   return queue.add(async () => {
     return githubCircuitBreaker.call(async () => {
       try {
+        // Applica timeout alla chiamata
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
+        
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
           {
@@ -93,14 +112,20 @@ export async function ghGet(token, owner, repo, path) {
               Accept: 'application/vnd.github.v3+json',
               'User-Agent': 'GithubSlotMachine',
             },
+            signal: controller.signal,
           }
         );
-
+        
+        clearTimeout(timeoutId);
+        
         // Traccia i rate limit headers
         getDefaultTracker().updateFromResponse(response);
-
+        
         return response.ok ? await response.json() : null;
       } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn(`GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`);
+        }
         Sentry.captureException(error);
         throw error;
       }
@@ -117,6 +142,11 @@ export async function ghPut(token, owner, repo, path, content, sha, message, _re
         const encoded = Buffer.from(content).toString('base64');
         const body = { message, content: encoded };
         if (sha) body.sha = sha;
+        
+        // Applica timeout alla chiamata
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
+        
         const response = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
           {
@@ -128,12 +158,15 @@ export async function ghPut(token, owner, repo, path, content, sha, message, _re
               'User-Agent': 'GithubSlotMachine',
             },
             body: JSON.stringify(body),
+            signal: controller.signal,
           }
         );
-
+        
+        clearTimeout(timeoutId);
+        
         // Traccia i rate limit headers
         getDefaultTracker().updateFromResponse(response);
-
+        
         if (response.status === 409 && !_retry) {
           // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
           const fresh = await ghGet(token, owner, repo, path);
@@ -141,6 +174,9 @@ export async function ghPut(token, owner, repo, path, content, sha, message, _re
         }
         if (!response.ok) throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
       } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn(`GitHub API timeout for PUT ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`);
+        }
         Sentry.captureException(error);
         throw error;
       }

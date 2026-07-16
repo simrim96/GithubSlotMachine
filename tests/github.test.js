@@ -164,9 +164,12 @@ describe('GitHubCircuitBreaker', () => {
     await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
     expect(cb.state).toBe('open');
 
-    await expect(cb.call(async () => 'dovrebbe fallire')).rejects.toThrow(
-      'GitHub API circuit open - trying again later'
-    );
+    // Con il fallback, il circuit breaker NON lancia più errore quando è open
+    // Invece esegue direttamente la funzione (fallback)
+    const result = await cb.call(async () => 'fallback eseguito');
+    expect(result).toBe('fallback eseguito');
+    // Il fallback non conta come successo o fallimento, mantiene lo stato open
+    expect(cb.state).toBe('open');
   });
 
   it('passa a half-open dopo resetTimeout', async () => {
@@ -212,6 +215,33 @@ describe('GitHubCircuitBreaker', () => {
     expect(githubCircuitBreaker.threshold).toBe(3);
     expect(githubCircuitBreaker.resetTimeout).toBe(60000);
     expect(githubCircuitBreaker.state).toBe('closed');
+  });
+
+  it('fallback: esegue la funzione quando il circuit è open', async () => {
+    const cb = new GitHubCircuitBreaker(1, 60000);
+    await expect(cb.call(async () => { throw new Error('fail'); })).rejects.toThrow();
+    expect(cb.state).toBe('open');
+
+    // Il fallback esegue la funzione anche se il circuit è open
+    const result = await cb.call(async () => {
+      console.log('Fallback in esecuzione');
+      return 'fallback riuscito';
+    });
+    expect(result).toBe('fallback riuscito');
+    // Lo stato rimane open perché il fallback non è considerato un successo
+    expect(cb.state).toBe('open');
+  });
+
+  it('fallback: se la funzione fallisce, conta come failure', async () => {
+    const cb = new GitHubCircuitBreaker(1, 60000);
+    await expect(cb.call(async () => { throw new Error('fail 1'); })).rejects.toThrow();
+    expect(cb.failures).toBe(1);
+    expect(cb.state).toBe('open');
+
+    // Fallback che fallisce
+    await expect(cb.call(async () => { throw new Error('fail 2'); })).rejects.toThrow();
+    // Il fallimento del fallback viene contato
+    expect(cb.failures).toBe(2);
   });
 });
 
