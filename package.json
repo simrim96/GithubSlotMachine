@@ -17,8 +17,11 @@
     "test:e2e": "playwright test tests/e2e",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check .",
+    "format:fix": "prettier --write .",
     "prettier": "prettier --check .",
-    "prettier:fix": "prettier --write ."
+    "prettier:fix": "prettier --write .",
+    "security": "npm audit --audit-level=moderate"
   },
   "dependencies": {
     "@sentry/node": "^10.65.0",

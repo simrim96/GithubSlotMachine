@@ -85,6 +85,7 @@ export {
   buildSVG, buildAccessibleSVG,
   errorSVG,
   isValidRedirectUrl,
+  WILD_ID, SCATTER_ID,
 };
 
 // ─── Analytics Tracking ──────────────────────────────────────────────────────

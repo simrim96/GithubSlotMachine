@@ -55,7 +55,9 @@ const repoMatch = { name: 'myproj', url: 'https://github.com/simrim96/myproj', p
 describe('buildSVG — forma', () => {
   it('restituisce un <svg> ben formato', () => {
     const svg = buildSVG({ grid: emptyGrid(), uid: 1, state, winningLang: null, fact, repoMatch: null });
-    expect(svg.startsWith('<svg')).toBe(true);
+    // L'SVG ha un preamble XML prima del tag <svg>
+    expect(svg.match(/<\?xml[^\?]*\?>/)).toBeTruthy();
+    expect(svg).toContain('<svg');
     expect(svg.trim().endsWith('</svg>')).toBe(true);
   });
 

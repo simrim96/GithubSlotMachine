@@ -1,23 +1,11 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { loadExternalLanguages, validateLanguageSchema, mergeLanguages } from '../api/_lib/config-loader.js';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { validateLanguageSchema, mergeLanguages } from '../api/_lib/config-loader.js';
 
-// Mock file system
+// Mock del filesystem con named exports
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
 }));
-
-vi.mock('node:path', () => {
-  const actualPath = vi.importActual('node:path');
-  return {
-    ...actualPath,
-    join: vi.fn((...args) => actualPath.join(...args)),
-    dirname: vi.fn((path) => actualPath.dirname(path)),
-    fileURLToPath: vi.fn((url) => actualPath.fileURLToPath(url)),
-  };
-});
 
 describe('config-loader', () => {
   beforeEach(() => {
@@ -111,14 +99,20 @@ describe('config-loader', () => {
 
   describe('loadExternalLanguages integration', () => {
     test('returns empty array when no config file exists', async () => {
-      vi.mocked(existsSync).mockReturnValue(false);
+      // Importiamo dopo il mock
+      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const fs = await import('node:fs');
+      fs.existsSync.mockReturnValue(false);
       
       const result = await loadExternalLanguages();
       expect(result).toEqual([]);
-      expect(existsSync).toHaveBeenCalled();
+      expect(fs.existsSync).toHaveBeenCalled();
     });
 
     test('parses JSON config correctly', async () => {
+      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const fs = await import('node:fs');
+      
       const mockConfig = {
         languages: [
           {
@@ -134,10 +128,15 @@ describe('config-loader', () => {
         ],
       };
 
-      const mockPath = '/home/simonerimenti/Progetti/GithubSlotMachine/languages-external.json';
-      vi.mocked(existsSync).mockImplementation((path) => path === mockPath);
-      vi.mocked(readFileSync).mockImplementation((path) => {
-        if (path === mockPath) return JSON.stringify(mockConfig);
+      const mockPath = 'languages-external.json';
+      fs.existsSync.mockImplementation((path) => {
+        // Match both joined paths and relative paths
+        return typeof path === 'string' && path.endsWith(mockPath);
+      });
+      fs.readFileSync.mockImplementation((path) => {
+        if (typeof path === 'string' && path.endsWith(mockPath)) {
+          return JSON.stringify(mockConfig);
+        }
         return '';
       });
 
@@ -149,16 +148,20 @@ describe('config-loader', () => {
     });
 
     test('handles invalid JSON gracefully', async () => {
-      vi.mocked(existsSync).mockReturnValue(true);
-      vi.mocked(readFileSync).mockReturnValue('{ invalid json }');
+      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const fs = await import('node:fs');
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue('{ invalid json }');
 
       const result = await loadExternalLanguages();
       expect(result).toEqual([]);
     });
 
     test('handles missing languages field gracefully', async () => {
-      vi.mocked(existsSync).mockReturnValue(true);
-      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ otherField: 'value' }));
+      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const fs = await import('node:fs');
+      fs.existsSync.mockReturnValue(true);
+      fs.readFileSync.mockReturnValue(JSON.stringify({ otherField: 'value' }));
 
       const result = await loadExternalLanguages();
       expect(result).toEqual([]);

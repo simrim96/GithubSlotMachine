@@ -41,10 +41,11 @@ export function buildAccessibleSVG(params) {
   // Estrai e modifica l'SVG per aggiungere accessibilità
   let accessibleSVG = originalSVG;
   
-  // Aggiungi role="img" e aria-label all'elemento <svg> root
+  // Aggiungi role="img", aria-label e aria-hidden all'elemento <svg> root, preservando data-testid
+  // Sostituisce l'apertura <svg ...> con <svg ... role="img" aria-label="..." aria-hidden="false">
   accessibleSVG = accessibleSVG.replace(
-    /<svg([^>]*)>/,
-    `<svg$1 role="img" aria-label="${escapeXml(ariaLabel)}" aria-hidden="false">`
+    /(<svg[^>]*>)/,
+    (match) => match.replace(/>$/, ` role="img" aria-label="${escapeXml(ariaLabel)}" aria-hidden="false">`)
   );
   
   // Aggiungi <title> e <desc> per screen reader (dopo <defs> o all'inizio)

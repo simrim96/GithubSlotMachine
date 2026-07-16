@@ -118,19 +118,38 @@ export function checkWins(grid) {
   const wins = [];
   for (let p = 0; p < PAYLINES.length; p++) {
     const pl = PAYLINES[p];
+    // SCATTER sul primo simbolo: nessuna win possibile su questa payline
+    if (grid[0][pl[0]] === SCATTER_ID) continue;
+    
+    // Trova l'anchor: primo simbolo non-WILD e non-SCATTER
     let anchor = null;
     for (let c = 0; c < COLS; c++) {
       const s = grid[c][pl[c]];
       if (s !== WILD_ID && s !== SCATTER_ID) { anchor = s; break; }
     }
+    // Se non c'è anchor e il primo è WILD, usiamo WILD come anchor
     if (!anchor) {
       if (grid[0][pl[0]] === WILD_ID) anchor = WILD_ID; else continue;
     }
+    // Conta simboli che sono anchor O WILD (se anchor è SCATTER, WILD non conta)
     let count = 0;
     for (let c = 0; c < COLS; c++) {
       const s = grid[c][pl[c]];
-      if (s === anchor || (s === WILD_ID && anchor !== SCATTER_ID)) count++;
-      else break;
+      // Se l'anchor è WILD, conta solo WILD (non simboli reali)
+      if (anchor === WILD_ID && s === WILD_ID) {
+        count++;
+      }
+      // Se l'anchor è un simbolo reale, conta anchor O WILD
+      else if (anchor !== WILD_ID && anchor !== SCATTER_ID && anchor !== null) {
+        if (s === anchor || s === WILD_ID) {
+          count++;
+        }
+        else break;
+      }
+      // Se l'anchor è SCATTER o null, non contare nulla
+      else {
+        break;
+      }
     }
     if (count >= 3) {
       wins.push({

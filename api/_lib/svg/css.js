@@ -48,5 +48,14 @@ export function generateCSS(uid, result) {
     css += `@keyframes shm${uid}{0%{transform:translateY(-100%)}100%{transform:translateY(${ROWS * CH + 20}px)}}`;
   }
   
+  // Accessibility: prefers-reduced-motion support
+  css += `@media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }`;
+  
   return css;
 }

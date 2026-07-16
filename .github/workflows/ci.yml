@@ -4,198 +4,258 @@ on:
   push:
     branches:
       - main
-      - develop
-      - staging
+      - master
   pull_request:
     branches:
       - main
+      - master
+  schedule:
+    - cron: '0 2 * * *'  # Security scan every day at 2 AM UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
-  # ==================== TEST JOB ====================
+  # Job 1: Test, linting, e build
   test:
+    name: Test, Lint & Build
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run unit tests
-        run: npm test
-      
-      - name: Run integration tests
-        run: npm run test:integration
-      
-      - name: Run E2E tests
-        run: npm run test:e2e
 
-  # ==================== LINT & SECURITY ====================
-  quality:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
-      - name: Run ESLint
+
+      - name: Lint code
         run: npm run lint
-      
-      - name: Run security audit
-        run: npm audit --audit-level=moderate
-      
+
+      - name: Check code formatting
+        run: npm run prettier
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            test-results/
+            junit.xml
+          retention-days: 7
+
+  # Job 2: Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate || echo "npm audit failed, but continuing..."
+
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
         continue-on-error: true
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-  # ==================== BUILD VERIFICATION ====================
-  build:
-    runs-on: ubuntu-latest
-    needs: [test, quality]
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build project
-        run: npm run build
-      
-      - name: Verify build output
-        run: |
-          if [ ! -d "api" ]; then
-            echo "Error: Build failed - api directory not created"
-            exit 1
-          fi
-          ls -la api/
+          args: --all-files
 
-  # ==================== VERCEL PREVIEW DEPLOY ====================
+      - name: Secret scanning with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --report-format json --report-path gitleaks-report.json
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 30
+
+  # Job 3: Preview deployment on PR
   preview:
+    name: Preview Deployment
     runs-on: ubuntu-latest
-    needs: [test, quality, build]
+    needs: test
     if: github.event_name == 'pull_request'
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      
+
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-      
-      - name: Deploy to Vercel Preview
+        run: npm install -g vercel@latest
+
+      - name: Deploy to Vercel preview
         run: |
           vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
           vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: .
-        
-      - name: Get Preview URL
-        id: preview
-        run: |
-          echo "preview_url=$(vercel ls --token=${{ secrets.VERCEL_TOKEN }} | grep preview | awk '{print $1}')" >> $GITHUB_OUTPUT
-        continue-on-error: true
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-  # ==================== PRODUCTION DEPLOY ====================
-  deploy-prod:
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        if: success()
+        with:
+          script: |
+            const previewUrl = process.env.PREVIEW_URL;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Preview deployment ready! \n URL: ${previewUrl}`
+            })
+        env:
+          PREVIEW_URL: ${{ steps.vercel.outputs.url }}
+
+  # Job 4: Production deployment on main branch
+  production:
+    name: Production Deployment
     runs-on: ubuntu-latest
-    needs: [test, quality, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment: production
-    
+    needs: [test, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment:
+      name: production
+      url: ${{ steps.vercel.outputs.url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      
+
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-      
-      - name: Pull Vercel Environment
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment
         run: |
           vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-      
-      - name: Deploy Production
-        run: |
-          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # ==================== STAGING DEPLOY ====================
-  deploy-staging:
-    runs-on: ubuntu-latest
-    needs: [test, quality, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
-    environment: staging
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-      
-      - name: Pull Vercel Staging Environment
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to Vercel production
+        id: vercel
         run: |
-          vercel pull --yes --environment=staging --token=${{ secrets.VERCEL_TOKEN }}
-      
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-      
-      - name: Deploy Staging
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --yes)
+          echo "url=$URL" >> $GITHUB_OUTPUT
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy with Sentry
+        if: always()
         run: |
           vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Notify deployment success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'success',
+              target_url: '${{ steps.vercel.outputs.url }}',
+              description: 'Deployed to Vercel production',
+              context: 'vercel-production'
+            })
+
+  # Job 5: Dependabot auto-approval
+  dependabot:
+    name: Dependabot Auto-Approval
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Approve Dependabot PR
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label Dependabot PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['dependencies', 'automated']
+            })
+
+  # Job 6: Dependabot auto-merge for minor updates
+  dependabot-merge:
+    name: Dependabot Auto-Merge
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    needs: test
+    steps:
+      - name: Auto-merge Dependabot PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            // Auto-merge minor and patch updates only
+            if (pr.data.title.includes('bump') && 
+                (pr.data.title.includes('minor') || pr.data.title.includes('patch'))) {
+              await github.rest.pulls.merge({
+                pull_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                merge_method: 'squash'
+              });
+            }

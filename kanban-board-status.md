@@ -156,25 +156,38 @@ return NextResponse.redirect(redirectUrl.toString());
 **File:** `api/_lib/state.js`
 
 **Soluzione Proposta:**
-- `STATE_VERSION = 2`
-- Migration system per versioni precedenti
-- Test per version compatibility
+|- `STATE_VERSION = 2`
+|- Migration system per versioni precedenti
+|- Test per version compatibility
+
+**File di riferimento:** `kanban-t10-state-versioning.md`
+
+---
+
+### ⚪ T11: Tutti i Problemi da ISSUES.md (ID: t_11_issues_list)
+**Stato:** `todo`  
+**Priorità:** ALTA  
+**Dipendenze:** Nessuna
+
+**Problema:** Lista completa di 21 problemi da ISSUES.md
+
+**File di riferimento:** `ISSUES.md`, `kanban-t11-all-issues.md`
 
 ---
 
 ## 📊 Statistiche
 
-| Priorità | Count |
-|----------|-------|
-| CRITICA | 2 |
-| ALTA | 2 |
-| MEDIA | 6 |
+|| Priorità | Count |
+||----------|-------|
+|| CRITICA | 2 |
+|| ALTA | 3 |
+|| MEDIA | 6 |
 
-| Stato | Count |
-|-------|-------|
-| running | 1 |
-| blocked | 1 |
-| todo | 8 |
+|| Stato | Count |
+||-------|-------|
+|| running | 1 |
+|| blocked | 1 |
+|| todo | 9 |
 
 ---
 
