@@ -32,7 +32,7 @@
     "@playwright/test": "^1.61.1",
     "eslint": "^8.57.0",
     "prettier": "^3.3.0",
-    "vercel": "^56.0.0",
+    "vercel": "^56.2.1",
     "vitest": "^3.0.0"
   },
   "keywords": [
