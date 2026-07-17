@@ -79,9 +79,6 @@ ${defs}
 </defs>
 ${cabinetSvg}
 ${headerSvg}
-<g clip-path="url(#paytable)">
-${paytableSvg}
-</g>
 ${screenFrameSvg}
 <g clip-path="url(#screen)">
 ${marqueeBulbs}
@@ -93,6 +90,9 @@ ${winGlowSvg}
 ${nearMissSvg}
 ${coinsSvg}
 ${overlaySvg}
+</g>
+<g clip-path="url(#paytable)">
+${paytableSvg}
 </g>
 ${panelSvg}
 </svg>`;
