@@ -172,6 +172,79 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+    
+    /* Rate Limit Badge */
+    .ratelimit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-top: 16px;
+      transition: all 0.3s ease;
+    }
+    
+    .ratelimit-badge.ok {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+    
+    .ratelimit-badge.warning {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+    
+    .ratelimit-badge.critical {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+    }
+    
+    .ratelimit-badge.unknown {
+      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+      color: white;
+    }
+    
+    .ratelimit-icon {
+      font-size: 1rem;
+    }
+    
+    .ratelimit-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.2;
+    }
+    
+    .ratelimit-main {
+      font-size: 0.875rem;
+      font-weight: 700;
+    }
+    
+    .ratelimit-sub {
+      font-size: 0.75rem;
+      opacity: 0.9;
+    }
+    
+    /* Animazione per lo stato warning/critical */
+    @keyframes pulse-warning {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    
+    @keyframes pulse-critical {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+    
+    .ratelimit-badge.warning {
+      animation: pulse-warning 2s infinite;
+    }
+    
+    .ratelimit-badge.critical {
+      animation: pulse-critical 1.5s infinite;
+    }
   </style>
 </head>
 <body>
@@ -232,6 +305,15 @@
       <p style="margin-top: 8px;">
         <span id="spin-counter" class="spin-counter">Totale: 0 girate</span>
       </p>
+    </div>
+    
+    <!-- Rate Limit Status Badge -->
+    <div id="ratelimit-badge-container" class="ratelimit-badge unknown" role="status" aria-live="polite" aria-label="Stato rate limit GitHub API">
+      <span class="ratelimit-icon" id="ratelimit-icon">⏳</span>
+      <div class="ratelimit-text">
+        <span class="ratelimit-main" id="ratelimit-main">Caricamento...</span>
+        <span class="ratelimit-sub" id="ratelimit-sub">Verifica stato API GitHub</span>
+      </div>
     </div>
   </main>
   
@@ -403,6 +485,85 @@
       });
       
       observer.observe(slotSvg, { attributes: true });
+      
+      // ─── Rate Limit Badge Update ───────────────────────────────────────────────
+      // Aggiorna il badge con lo stato corrente del rate limit GitHub API
+      
+      const ratelimitBadge = document.getElementById('ratelimit-badge-container');
+      const ratelimitIcon = document.getElementById('ratelimit-icon');
+      const ratelimitMain = document.getElementById('ratelimit-main');
+      const ratelimitSub = document.getElementById('ratelimit-sub');
+      
+      async function fetchRateLimitStatus() {
+        try {
+          const response = await fetch('api/ratelimit-status');
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          updateRateLimitBadge(data);
+          
+        } catch (error) {
+          console.error('Failed to fetch rate limit status:', error);
+          updateRateLimitBadge(null);
+        }
+      }
+      
+      function updateRateLimitBadge(data) {
+        if (!data) {
+          // Errore o stato sconosciuto
+          ratelimitBadge.className = 'ratelimit-badge unknown';
+          ratelimitIcon.textContent = '❌';
+          ratelimitMain.textContent = 'Stato sconosciuto';
+          ratelimitSub.textContent = 'Impossibile verificare il rate limit';
+          return;
+        }
+        
+        // Determina lo stato e aggiorna l'UI
+        let icon, statusText, subText;
+        
+        switch (data.status) {
+          case 'ok':
+            ratelimitBadge.className = 'ratelimit-badge ok';
+            icon = '✅';
+            statusText = `${data.remaining} / ${data.limit}`;
+            subText = 'API GitHub OK';
+            break;
+            
+          case 'warning':
+            ratelimitBadge.className = 'ratelimit-badge warning';
+            icon = '⚠️';
+            statusText = `${data.remaining} rimanenti`;
+            subText = `Reset in ${data.secondsUntilReset}s`;
+            break;
+            
+          case 'critical':
+            ratelimitBadge.className = 'ratelimit-badge critical';
+            icon = '🚨';
+            statusText = `CRITICO: ${data.remaining}`;
+            subText = `Reset in ${data.secondsUntilReset}s`;
+            break;
+            
+          default:
+            ratelimitBadge.className = 'ratelimit-badge unknown';
+            icon = '⏳';
+            statusText = 'Verifica...';
+            subText = 'Attendente dati...';
+        }
+        
+        ratelimitIcon.textContent = icon;
+        ratelimitMain.textContent = statusText;
+        ratelimitSub.textContent = subText;
+      }
+      
+      // Fetch iniziale
+      fetchRateLimitStatus();
+      
+      // Aggiorna ogni 30 secondi
+      setInterval(fetchRateLimitStatus, 30000);
+      
     })();
   </script>
 </body>
