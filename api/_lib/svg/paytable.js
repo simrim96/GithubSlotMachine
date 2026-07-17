@@ -14,12 +14,19 @@ export function generatePaytable(uid, winningLang) {
   
   let paytable = '';
   if (winningLang) {
-    paytable += `<g transform="translate(0,${PT_Y + 58})">
-<text x="60" y="0" font-family="'Segoe UI',sans-serif" font-size="9" fill="#8b8baf">PYTHON</text>
-<text x="60" y="16" font-family="'Segoe UI',sans-serif" font-size="10" fill="#${winningLang.accent}" font-weight="700">${winningLang.name}</text>
-<text x="60" y="30" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">5 ● ● ● ● ● ● ●</text>
-<text x="60" y="42" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">4 ● ● ● ● ● ●</text>
-<text x="60" y="54" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">3 ● ● ● ●</text>
+    // Spostato a x=120 per allinearsi col rettangolo del paytable
+    paytable += `<g transform="translate(120,${PT_Y + 58})">
+<text x="0" y="0" font-family="'Segoe UI',sans-serif" font-size="9" fill="#8b8baf">LEVEL KNOWLEDGE</text>
+<text x="0" y="16" font-family="'Segoe UI',sans-serif" font-size="10" fill="#${winningLang.accent}" font-weight="700">${winningLang.name}</text>
+<text x="0" y="30" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">5 ● ● ● ● ● ● ● = 20x</text>
+<text x="0" y="42" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">4 ● ● ● ● ● ● = 10x</text>
+<text x="0" y="54" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#b8b8d0">3 ● ● ● ● = 5x</text>
+</g>`;
+  } else {
+    // Placeholder quando non c'è vincita
+    paytable += `<g transform="translate(120,${PT_Y + 58})">
+<text x="0" y="0" font-family="'Segoe UI',sans-serif" font-size="9" fill="#8b8baf">LEVEL KNOWLEDGE</text>
+<text x="0" y="16" font-family="'Segoe UI',sans-serif" font-size="8" fill="#61DAFB">Spin to see symbols...</text>
 </g>`;
   }
   
