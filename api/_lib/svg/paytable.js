@@ -1,11 +1,7 @@
 // ─── Paytable Generator ──────────────────────────────────────────────────────────
 // Genera la paytable in basso a sinistra - Mostra i simboli dei rulli con indicatori visivi
 
-import { COLS, ROWS } from '../game.js';
-import { CW, CH, FRAME_PAD, PT_H, PT_Y } from './constants.js';
-import { GAP } from './constants.js';
-import { getMX, getGY } from './coordinates.js';
-import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
+import { CELL_SIZE, CELL_SPACING } from './constants.js';
 
 // Definizione completa dei simboli e della loro competenza
 const ALL_SYMBOLS = [
@@ -109,6 +105,8 @@ export function generatePaytable(uid, winningLang, gridSymbols) {
     });
   } else {
     // Nessun simbolo: mostra placeholder
+    const startX = 24;
+    const startY = symbolsSectionY + 12;
     paytable += `<text x="${startX}" y="${startY + 10}" font-family="'Segoe UI',sans-serif" font-size="7" fill="#61DAFB" opacity="0.6">Spin to see symbols...</text>`;
   }
   

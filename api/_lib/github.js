@@ -2,7 +2,7 @@
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
-import { RateLimitTracker, RateLimitQueue, parseRateLimitHeaders, getDefaultTracker, getDefaultQueue } from './ratelimit-tracker.js';
+import { getDefaultTracker, getDefaultQueue } from './ratelimit-tracker.js';
 import * as Sentry from "@sentry/node";
 
 // Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)

@@ -3,7 +3,7 @@
 // i casi win / near-miss / jackpot / no-win.
 import { describe, it, expect } from 'vitest';
 import { buildSVG } from '../api/_lib/svg-builder.js';
-import { checkWins, detectNearMiss, COLS, ROWS, SYMBOL_IDS, WILD_ID, SCATTER_ID } from '../api/_lib/game.js';
+import { checkWins, detectNearMiss, COLS, ROWS, SYMBOL_IDS, SCATTER_ID } from '../api/_lib/game.js';
 
 // Griglia vuota (tutti scatter) — nessuna win, nessun near-miss.
 function emptyGrid() {

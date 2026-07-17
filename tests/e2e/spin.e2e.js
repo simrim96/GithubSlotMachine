@@ -107,8 +107,8 @@ test.describe('GithubSlotMachine E2E Tests', () => {
     // Enable reduced motion in the browser context
     const context = page.context();
     await context.addInitScript(() => {
-      (window.matchMedia = window.matchMedia || function() {
-        return {
+      (globalThis.matchMedia = globalThis.matchMedia || function() {
+                return {
           matches: true,
           addListener: function() {},
           removeListener: function() {},

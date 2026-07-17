@@ -1,18 +1,9 @@
 // Test per il fallback locale di state (nessun git spam in dev).
 // Verifica che quando token=undefined/null, i dati siano scritti/letti su /tmp
 // invece che nel repo.
-import { describe, it, expect, vi } from 'vitest';
-
-// Mock fs
-const mockFs = {
-  promises: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-  },
-};
+import { describe, it, expect } from 'vitest';
 
 // Patch require per state.js (che usa ES modules, quindi importiamo e patchiamo)
-import fs from 'node:fs';
 import * as stateMod from '../api/_lib/state.js';
 
 describe('state locale — no git spam', () => {

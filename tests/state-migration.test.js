@@ -1,18 +1,11 @@
 // Test per il sistema di migrazione dello stato
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as stateMod from '../api/_lib/state.js';
 
 describe('state migration system', () => {
   it('migrateState function migra da v1 a v2 correttamente', () => {
     // Importiamo la funzione migrateState (non esportata, ma possiamo testare
     // il comportamento attraverso readState)
-    const oldState = {
-      totalSpins: 100,
-      totalWins: 50,
-      lastWin: { langId: 'python', langName: 'Python', ts: 1234567890 },
-      version: 1,
-    };
-    
     // Simuliamo la migrazione chiamata internamente da readState
     // (migrateState non è esportata, ma testiamo il risultato finale)
     const expected = {
@@ -55,13 +48,6 @@ describe('state migration system', () => {
     
     try {
       // Mock readStateLocal per restituire uno stato v1
-      const originalReadStateLocal = () => {
-        return Promise.resolve({
-          state: { ...oldState },
-          sha: null,
-        });
-      };
-      
       // Poiché migrateState non è esportata, testiamo il comportamento
       // attraverso la struttura dei dati: dopo la migrazione, dovrebbe
       // avere i nuovi campi settings e stats
@@ -77,7 +63,9 @@ describe('state migration system', () => {
       // Pulizia
       try {
         await fs.promises.unlink('/tmp/test_migration_state.json');
-      } catch {}
+      } catch {
+        // Silently ignore cleanup errors
+      }
     }
   });
 

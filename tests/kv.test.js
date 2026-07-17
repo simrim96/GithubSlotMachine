@@ -1,6 +1,6 @@
 // Test per il modulo kv.js — verifica del timeout e comportamento fallback
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { kvEnabled, kvGet, kvSet, withTimeout } from '../api/_lib/kv.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { withTimeout } from '../api/_lib/kv.js';
 
 describe('kv.js timeout', () => {
   beforeEach(() => {
@@ -51,9 +51,9 @@ describe('kv.js timeout', () => {
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
     vi.resetModules();
-    const { kvGet, kvEnabled: enabled } = await import('../api/_lib/kv.js');
+    const { kvGet, kvEnabled } = await import('../api/_lib/kv.js');
 
-    expect(enabled).toBe(false);
+    expect(kvEnabled).toBe(false);
     const result = await kvGet('some-key');
     expect(result).toBeNull();
   });
@@ -63,9 +63,9 @@ describe('kv.js timeout', () => {
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
     vi.resetModules();
-    const { kvSet, kvEnabled: enabled } = await import('../api/_lib/kv.js');
+    const { kvSet, kvEnabled } = await import('../api/_lib/kv.js');
 
-    expect(enabled).toBe(false);
+    expect(kvEnabled).toBe(false);
     const result = await kvSet('some-key', { data: 'value' });
     expect(result).toBe(false);
   });

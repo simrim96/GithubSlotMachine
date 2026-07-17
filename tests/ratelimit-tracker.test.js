@@ -1,18 +1,16 @@
 // Test per api/_lib/ratelimit-tracker.js — Rate Limit Tracking & Queue per GitHub API
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   RateLimitTracker,
   RateLimitQueue,
-  getDefaultTracker,
-  getDefaultQueue,
-  createCustomRateLimitSystem,
   parseRateLimitHeaders,
-  GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
-  GITHUB_RATE_LIMIT_BLOCK_THRESHOLD,
 } from '../api/_lib/ratelimit-tracker.js';
 
 // ─── RateLimitTracker Tests ────────────────────────────────────────────────────
 describe('RateLimitTracker', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -46,7 +44,7 @@ describe('RateLimitTracker', () => {
   it('ignora headers null/undefined', () => {
     const tracker = new RateLimitTracker();
     const mockHeaders = {
-      get: (name) => null,
+      get: (_) => null,
     };
     
     tracker.updateFromResponse(mockHeaders);
@@ -58,7 +56,7 @@ describe('RateLimitTracker', () => {
   it('gestisce headers non numerici (li setta a null)', () => {
     const tracker = new RateLimitTracker();
     const mockHeaders = {
-      get: (name) => 'invalid',
+      get: (_) => 'invalid',
     };
     
     tracker.updateFromResponse(mockHeaders);
@@ -222,6 +220,9 @@ describe('RateLimitTracker', () => {
 
 // ─── RateLimitQueue Tests ──────────────────────────────────────────────────────
 describe('RateLimitQueue', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -422,6 +423,9 @@ describe('RateLimitQueue', () => {
 
 // ─── Factory Functions Tests ───────────────────────────────────────────────────
 describe('Factory Functions', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     // Reset singleton
     vi.resetModules();
@@ -469,6 +473,9 @@ describe('Factory Functions', () => {
 
 // ─── Helper Functions Tests ────────────────────────────────────────────────────
 describe('parseRateLimitHeaders', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   it('parse remaining e reset da response headers', () => {
     const headers = new Map([
       ['X-RateLimit-Remaining', '4999'],
@@ -489,7 +496,7 @@ describe('parseRateLimitHeaders', () => {
   it('ritorna null per headers mancanti', () => {
     const mockResponse = {
       headers: {
-        get: (name) => null,
+        get: (_) => null,
       },
     };
     
@@ -502,7 +509,7 @@ describe('parseRateLimitHeaders', () => {
   it('ritorna null per valori non numerici', () => {
     const mockResponse = {
       headers: {
-        get: (name) => 'invalid',
+        get: (_) => 'invalid',
       },
     };
     
@@ -515,6 +522,9 @@ describe('parseRateLimitHeaders', () => {
 
 // ─── Integration Tests ──────────────────────────────────────────────────────────
 describe('Integration: Tracker + Queue', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -596,6 +606,9 @@ describe('Integration: Tracker + Queue', () => {
 
 // ─── Edge Cases & Robustness ───────────────────────────────────────────────────
 describe('Edge Cases & Robustness', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();

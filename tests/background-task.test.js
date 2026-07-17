@@ -18,7 +18,6 @@ describe('Background Task Memory Leak Fixes', () => {
   });
 
   afterEach(() => {
-    console = originalConsole;
     vi.restoreAllMocks();
   });
 
@@ -119,7 +118,6 @@ describe('RateLimitQueue Memory Leak Prevention', () => {
   });
 
   afterEach(() => {
-    console = originalConsole;
     vi.restoreAllMocks();
   });
 
@@ -135,7 +133,7 @@ describe('RateLimitQueue Memory Leak Prevention', () => {
     
     // resolve e reject devono essere conditional
     const processQueueMatch = ratelimitTrackerContent.match(
-      /async processQueue\(\) \{[\s\S]*?\n  \}/
+      /async processQueue\(\) \{[\s\S]*?\n\s{2}\}/
     );
     
     if (processQueueMatch) {

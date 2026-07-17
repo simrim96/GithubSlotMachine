@@ -18,7 +18,7 @@ export function buildAccessibleSVG(params) {
   const originalSVG = buildSVG(params);
   
   // Estrai i dati necessari per i label
-  const { grid, state, winningLang, isWin, isJackpot, nearMissCol, uid } = params;
+  const { state, winningLang, isWin, isJackpot, nearMissCol } = params;
   
   // Costruisci l'aria-label descrittivo
   let ariaLabel = 'Macchina slot per stack di sviluppo.';

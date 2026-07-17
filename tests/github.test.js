@@ -2,7 +2,7 @@
 //   • escapeRegex / escapeMarkdown (anti-injection nei marker README)
 //   • updateReadmeMarkers (il parsing/riscrittura dei marker nel profilo)
 // ghGet/ghPut/saveSlotSvg/loadSlotSvg non sono testati qui (richiedono fetch/GitHub).
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { escapeRegex, escapeMarkdown, updateReadmeMarkers } from '../api/_lib/github.js';
 
 describe('escapeRegex', () => {

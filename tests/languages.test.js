@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { LANGUAGES, LANGUAGES_BASE, getLanguages } from '../api/_lib/languages.js';
 
 describe('languages', () => {

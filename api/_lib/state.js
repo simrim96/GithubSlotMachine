@@ -10,11 +10,9 @@
 // lento/cross-region non blocca mai lo spin.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
-import fs from 'node:fs';
-import path from 'node:path';
+import { promises as fs } from 'fs';
 
 const STATE_KEY = 'gsm:state';
-const STATE_VERSION_KEY = 'gsm:state:version';
 const STATE_PATH = 'state.json';
 const TMP_STATE_PATH = '/tmp/GithubSlotMachine_state.json';
 

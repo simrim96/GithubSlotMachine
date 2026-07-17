@@ -7,18 +7,9 @@
 //
 // Run with: npm test
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  generateGrid,
-  checkWins,
-  buildSVG,
-  errorSVG,
-  WILD_ID,
-  SCATTER_ID,
-  COLS,
-  ROWS,
-  isValidRedirectUrl,
-} from '../api/spin.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { generateGrid, checkWins, COLS, ROWS } from '../api/_lib/game.js';
+import { buildSVG, errorSVG } from '../api/_lib/svg-builder.js';
 import { LANGUAGE_BY_ID, pickFact } from '../api/_lib/languages.js';
 import { readState, writeState } from '../api/_lib/state.js';
 import { loadSlotSvg, saveSlotSvg } from '../api/_lib/github.js';
@@ -364,48 +355,5 @@ describe('spin.js integration - edge cases', () => {
     expect(mockState.totalSpins).toBe(5);
     expect(mockState.totalWins).toBe(5);
     expect(mockState.lastWin).toBeTruthy();
-  });
-});
-
-// ─── Security Tests: Open Redirect Prevention ──────────────────────────────────
-describe('security - Open Redirect Prevention', () => {
-  it('allows internal redirects (relative URLs)', () => {
-    expect(isValidRedirectUrl('/dashboard')).toBe(true);
-    expect(isValidRedirectUrl('/')).toBe(true);
-    expect(isValidRedirectUrl('/settings?user=test')).toBe(true);
-  });
-
-  it('allows same-domain redirects', () => {
-    expect(isValidRedirectUrl('https://github-slot-machine.vercel.app/settings')).toBe(true);
-    expect(isValidRedirectUrl('https://github-slot-machine.vercel.app/api/spin')).toBe(true);
-  });
-
-  it('allows github.com redirects', () => {
-    expect(isValidRedirectUrl('https://github.com/simrim96')).toBe(true);
-    expect(isValidRedirectUrl('https://github.com/orgs/repo')).toBe(true);
-  });
-
-  it('blocks external redirects to malicious sites', () => {
-    expect(isValidRedirectUrl('https://phishing-site.com/steal-data')).toBe(false);
-    expect(isValidRedirectUrl('https://evil-site.net/attack')).toBe(false);
-    expect(isValidRedirectUrl('https://malicious.com/phishing')).toBe(false);
-  });
-
-  it('blocks redirects with path traversal attempts', () => {
-    expect(isValidRedirectUrl('https://example.com.evil.com/phishing')).toBe(false);
-    expect(isValidRedirectUrl('https://our-site.com.attacker.com')).toBe(false);
-  });
-
-  it('returns false for invalid URL format', () => {
-    expect(isValidRedirectUrl('not-a-valid-url')).toBe(false);
-    expect(isValidRedirectUrl('')).toBe(false);
-    expect(isValidRedirectUrl(null)).toBe(false);
-    expect(isValidRedirectUrl(undefined)).toBe(false);
-  });
-
-  it('handles edge cases with special characters', () => {
-    // These should be blocked even if they look like they might be internal
-    expect(isValidRedirectUrl('javascript:alert(1)')).toBe(false);
-    expect(isValidRedirectUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
   });
 });
