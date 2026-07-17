@@ -1,8 +1,6 @@
 // ─── Paytable Generator ──────────────────────────────────────────────────────────
 // Genera la paytable in basso a sinistra - Mostra i simboli dei rulli con indicatori visivi
 
-import { CELL_SIZE, CELL_SPACING } from './constants.js';
-
 // Definizione completa dei simboli e della loro competenza
 const ALL_SYMBOLS = [
   { id: 'cpp', color: '#00599C', accent: '#9FD3F0', text: '#ffffff', short: 'C++', competence: 4 },
