@@ -58,7 +58,11 @@ export function buildSVG({
   const headerSvg = generateHeader(uid, state);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid, result.isWin, result.ED, result.nearMissCol);
-  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null);
+  
+  // Estrai i simboli unici dalla griglia per la paytable
+  const gridSymbols = [...new Set(grid.flat())];
+  
+  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null, gridSymbols);
   
   // Border
   const borderAttr = result.isJackpot
