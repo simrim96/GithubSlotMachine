@@ -51,15 +51,17 @@ function renderDots(x, y, count, max = 7) {
 }
 
 export function generatePaytable(uid, winningLang, gridSymbols) {
-  // Area visibile: x 120..480, y 124..236 (clip-path in defs.js)
+  // Area visibile: x 120..480, y PT_Y..(PT_Y+PT_H) — clip-path in defs.js
+  // PT_Y = subito sotto l'header (y=70), PT_H = 112 -> finisce a 182,
+  // PRIMA dei rulli che iniziano a getGY() = PT_Y+PT_H+18 = 200
   let paytable = '';
 
   // ─── PANNELLO ──────────────────────────────────────────────
-  paytable += `<rect x="120" y="124" width="360" height="112" rx="12" fill="#13122d" stroke="#4ecdc4" stroke-width="1.5"/>`;
+  paytable += `<rect x="120" y="${PT_Y}" width="360" height="${PT_H}" rx="12" fill="#13122d" stroke="#4ecdc4" stroke-width="1.5"/>`;
 
   // ─── TITOLO ────────────────────────────────────────────────
-  paytable += `<text x="300" y="146" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-weight="700" fill="#4ecdc4" letter-spacing="1.5">PAYTABLE</text>`;
-  paytable += `<text x="300" y="159" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf">More dots = more mastery</text>`;
+  paytable += `<text x="300" y="${PT_Y + 22}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-weight="700" fill="#4ecdc4" letter-spacing="1.5">PAYTABLE</text>`;
+  paytable += `<text x="300" y="${PT_Y + 35}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8" fill="#8b8baf">More dots = more mastery</text>`;
 
   // ─── ICONE VINCENTI + PALLINI ─────────────────────────────
   // Scegli fino a 3 simboli da mostrare (il linguaggio vincente in testa)
@@ -76,9 +78,9 @@ export function generatePaytable(uid, winningLang, gridSymbols) {
 
   const cardW = 116;
   const startX = 132;
-  const iconSize = 32;
-  const iconY = 168;
-  const dotsY = 210;
+  const iconSize = 30;
+  const iconY = PT_Y + 42;
+  const dotsY = PT_Y + 80;
   const combos = [
     { match: 3, dots: 3 },
     { match: 4, dots: 5 },

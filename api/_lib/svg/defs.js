@@ -5,7 +5,7 @@ import { REEL, ROWS, COLS } from '../game.js';
 import { LANGUAGES, buildSymbolDefs } from '../languages.js';
 import { CW, CH, GAP, FRAME_PAD } from './constants.js';
 import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
-import { PT_H as PT_H_CONST } from './constants.js';
+import { PT_H as PT_H_CONST, PT_Y } from './constants.js';
 import { getMX, getGY } from './coordinates.js';
 
 export function generateDefs(uid, winningLang) {
@@ -84,7 +84,9 @@ export function generateDefs(uid, winningLang) {
     defs += `<clipPath id="cp${uid}c${c}"><rect x="${MX + c * (CW + GAP)}" y="${GY}" width="${CW}" height="${ROWS * CH}"/></clipPath>`;
   }
 
-  defs += `<clipPath id="paytable"><rect x="120" y="124" width="360" height="112" rx="12"/></clipPath>`;
+  // Clip-path per paytable - DEFINIZIONE OBBLIGATORIA
+  // Coordinate basate su constants.js: PT_Y (sotto l'header) e PT_H
+  defs += `<clipPath id="paytable"><rect x="120" y="${PT_Y}" width="360" height="${PT_H_CONST}" rx="12"/></clipPath>`;
   
   // Gradienti per le icone della paytable (simboli linguaggi)
   const SYMBOL_GRADIENTS = [
