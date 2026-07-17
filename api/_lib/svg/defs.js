@@ -83,6 +83,8 @@ export function generateDefs(uid, winningLang) {
   for (let c = 0; c < COLS; c++) {
     defs += `<clipPath id="cp${uid}c${c}"><rect x="${MX + c * (CW + GAP)}" y="${GY}" width="${CW}" height="${ROWS * CH}"/></clipPath>`;
   }
+
+  defs += `<clipPath id="paytable"><rect x="120" y="124" width="360" height="112" rx="12"/></clipPath>`;
   
   defs += buildSymbolDefs(uid);
   return defs;

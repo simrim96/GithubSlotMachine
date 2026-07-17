@@ -2,6 +2,7 @@
 // Analizza i risultati della slot e determina win/near-miss/jackpot
 
 import { checkWins, detectNearMiss } from '../game.js';
+import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
 
 export function analyzeResult(grid, state, winningLang) {
   const wins = checkWins(grid);
@@ -12,16 +13,13 @@ export function analyzeResult(grid, state, winningLang) {
   const isJackpot = wins.some((w) => w.count === 5);
   const isBigWin = maxWin >= 4 && !isJackpot;
   
+  const COLS = 5;
   const bestWin = isWin ? wins.reduce((a, b) => (b.count > a.count ? b : a)) : null;
   if (bestWin) {
     for (const p of bestWin.positions) {
       winCells.push(`${p.c},${p.r}`);
     }
   }
-  
-  const COLS = 5;
-  const DUR = [1.8, 2.0, 2.2, 2.4, 2.6];
-  const NM_DUR_EXTRA_LAST = 0.5;
   
   const LDUR = DUR[COLS - 1];
   const ED = LDUR + (nearMissCol === COLS - 1 ? NM_DUR_EXTRA_LAST : 0) + 0.4;
