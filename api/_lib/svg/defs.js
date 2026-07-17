@@ -77,15 +77,13 @@ export function generateDefs(uid, winningLang) {
     `<stop offset="100%" stop-color="#ffd700" stop-opacity="0"/>` +
     `</linearGradient>`;
   
-  // Clip paths per columni
+  // Clip paths per column
   const GY = getGY();
   const MX = getMX();
   for (let c = 0; c < COLS; c++) {
     defs += `<clipPath id="cp${uid}c${c}"><rect x="${MX + c * (CW + GAP)}" y="${GY}" width="${CW}" height="${ROWS * CH}"/></clipPath>`;
   }
-  
-  // Clip-path per paytable - DEFINIZIONE OBBLIGATORIA
-  // Coordinate basate su paytable.js: x=120, y=124, width=360, height=112, rx=12
+
   defs += `<clipPath id="paytable"><rect x="120" y="124" width="360" height="112" rx="12"/></clipPath>`;
   
   defs += buildSymbolDefs(uid);
