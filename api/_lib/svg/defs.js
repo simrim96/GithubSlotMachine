@@ -85,8 +85,8 @@ export function generateDefs(uid, winningLang) {
   }
   
   // Clip-path per paytable - DEFINIZIONE OBBLIGATORIA
-  // Coordinate basate su paytable.js: x=160, y=360, width=400, height=150
-  defs += `<clipPath id="paytable"><rect x="160" y="360" width="400" height="150" rx="16" /></clipPath>`;
+  // Coordinate basate su paytable.js: x=120, y=124, width=360, height=112, rx=12
+  defs += `<clipPath id="paytable"><rect x="120" y="124" width="360" height="112" rx="12"/></clipPath>`;
   
   defs += buildSymbolDefs(uid);
   return defs;

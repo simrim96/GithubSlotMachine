@@ -2,6 +2,15 @@
 // buildSVG è una funzione pura: stessi input → stesso output.
 // Architettura modulare con funzioni separate per ogni sezione SVG.
 
+import {
+  LANGUAGES,
+  WILD_ID,
+  SCATTER_ID,
+  LANGUAGE_BY_ID,
+  buildSymbolDefs,
+  symbolUse,
+} from './languages.js';
+import { COLS, ROWS } from './game.js';
 import { escapeXml } from './svg/utils.js';
 import { errorSVG as errorSVGAccessible } from './svg-builder-accessible.js';
 
@@ -49,11 +58,19 @@ export function buildSVG({
   const headerSvg = generateHeader(uid, state);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid, result.isWin, result.ED, result.nearMissCol);
+  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null);
   
-  // Estrai i simboli unici dalla griglia per la paytable
-  const gridSymbols = [...new Set(grid.flat())];
+  // Border
+  const borderAttr = result.isJackpot
+    ? `stroke="#ffd700" stroke-width="3" style="animation:jb${uid} .3s ${result.ED}s infinite"`
+    : result.isWin
+      ? `stroke="#16a34a" stroke-width="2.5"`
+      : `stroke="#3a3666" stroke-width="2"`;
   
-  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null, gridSymbols);
+  // Assemble SVG
+  const GY = ROWS * 84 + 150; // getGY() simplified
+  const GW = COLS * 84 + (COLS - 1) * 8;
+  const GH = ROWS * 84;
   
   return `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530">
 <defs>
