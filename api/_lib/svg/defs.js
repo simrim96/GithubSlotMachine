@@ -86,6 +86,23 @@ export function generateDefs(uid, winningLang) {
 
   defs += `<clipPath id="paytable"><rect x="120" y="124" width="360" height="112" rx="12"/></clipPath>`;
   
+  // Gradienti per le icone della paytable (simboli linguaggi)
+  const SYMBOL_GRADIENTS = [
+    { id: 'cpp', c1: '#0074CC', c2: '#003D66' },
+    { id: 'c', c1: '#3949AB', c2: '#1A237E' },
+    { id: 'glsl', c1: '#6FA3C0', c2: '#3A6079' },
+    { id: 'react', c1: '#61DAFB', c2: '#2B6178' },
+    { id: 'javascript', c1: '#F7DF1E', c2: '#C9B400' },
+    { id: 'python', c1: '#4B8BBE', c2: '#2E5984' },
+    { id: 'typescript', c1: '#3178C6', c2: '#1E4E8C' },
+    { id: 'qt', c1: '#41CD52', c2: '#0F3D26' },
+    { id: 'wild', c1: '#fde047', c2: '#a16207' },
+    { id: 'scatter', c1: '#a855f7', c2: '#7E22CE' },
+  ];
+  for (const g of SYMBOL_GRADIENTS) {
+    defs += `<linearGradient id="grad_${uid}_${g.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${g.c1}"/><stop offset="100%" stop-color="${g.c2}"/></linearGradient>`;
+  }
+
   defs += buildSymbolDefs(uid);
   return defs;
 }

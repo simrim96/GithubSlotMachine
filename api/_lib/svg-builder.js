@@ -58,7 +58,7 @@ export function buildSVG({
   const headerSvg = generateHeader(uid, state);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid, result.isWin, result.ED, result.nearMissCol);
-  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null);
+  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null, [...new Set(grid.flat())]);
   
   // Border
   const borderAttr = result.isJackpot
@@ -80,9 +80,6 @@ ${defs}
 ${cabinetSvg}
 ${headerSvg}
 <g clip-path="url(#paytable)">
-<rect x="120" y="${124}" width="360" height="${112}" rx="12" fill="#13122d" stroke="#4ecdc4" stroke-width="1.5"/>
-<text x="300" y="${152}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-weight="700" fill="#4ecdc4">PAYTABLE</text>
-<text x="300" y="${166}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="8.5" fill="#8b8baf">More dots = more mastery</text>
 ${paytableSvg}
 </g>
 ${screenFrameSvg}
