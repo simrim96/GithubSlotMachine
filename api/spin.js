@@ -25,8 +25,7 @@ import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
 import { kvEnabled } from './_lib/kv.js';
-import * as Sentry from "@sentry/node";
-
+import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
 const ALLOWED_ORIGINS = [
   'github-slot-machine.vercel.app',
@@ -265,7 +264,6 @@ export default async function handler(req, res) {
     // Carica il README solo ora, in parallelo all'update, senza aspettare il
     // redirect. Se il fetch fallisce, skip silenzioso: il profilo non è critico.
     // Con retry e backoff esponenziale per prevenire silent failures.
-    // FIX: Use Promise.withResolvers pattern for proper cleanup tracking
     const backgroundTaskId = `readme-update-${spinStart}`;
     let backgroundTaskCompleted = false;
     
