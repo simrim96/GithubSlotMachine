@@ -374,6 +374,7 @@ export default async function handler(req, res) {
     const backgroundTaskId = `readme-update-${spinStart}`;
 
     const updateReadmeBackground = async () => {
+      console.log(`[readme-update] START spin=${spinStart}`);
       const MAX_RETRIES = 3;
       const RETRY_DELAY_MS = 1000;
 
@@ -383,6 +384,9 @@ export default async function handler(req, res) {
           try {
             // NOTA: owner=PROFILE_REPO, repo='simrim96' (PROFILE_REPO è il
             // nome del repo del profilo, che coincide con l'owner), path='README.md'
+            console.log(
+              `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
+            );
             const rf = await ghGet(
               token,
               PROFILE_REPO,
@@ -390,9 +394,10 @@ export default async function handler(req, res) {
               'README.md'
             );
             if (!rf) {
-              // README del profilo assente o non leggibile: skip silenzioso.
+              console.log('[readme-update] ghGet returned null (README assente/illegibile)');
               return;
             }
+            console.log('[readme-update] ghGet OK, sha present:', Boolean(rf.sha));
 
             const oldReadme = Buffer.from(rf.content, 'base64').toString(
               'utf-8'
@@ -419,6 +424,9 @@ export default async function handler(req, res) {
                 rf.sha,
                 '🎰 Update slot'
               );
+              console.log(`[readme-update] ghPut OK, new ?v=${spinStart}`);
+            } else {
+              console.log('[readme-update] README unchanged, skip PUT');
             }
             return; // Successo
           } catch (e) {
