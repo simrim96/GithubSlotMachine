@@ -23,10 +23,10 @@ describe('state migration system', () => {
         winsByLang: {},
       },
     };
-    
+
     // Verifica che STATE_VERSION sia definito e sia 2
     expect(stateMod.STATE_VERSION).toBe(2);
-    
+
     // Verifica che lo stato migrato abbia la struttura corretta
     expect(expected.version).toBe(2);
     expect(expected.settings).toBeDefined();
@@ -41,18 +41,21 @@ describe('state migration system', () => {
       lastWin: null,
       version: 1,
     };
-    
+
     // Scriviamo uno stato v1 su /tmp
     const fs = await import('node:fs');
-    await fs.promises.writeFile('/tmp/test_migration_state.json', JSON.stringify(oldState));
-    
+    await fs.promises.writeFile(
+      '/tmp/test_migration_state.json',
+      JSON.stringify(oldState)
+    );
+
     try {
       // Mock readStateLocal per restituire uno stato v1
       // Poiché migrateState non è esportata, testiamo il comportamento
       // attraverso la struttura dei dati: dopo la migrazione, dovrebbe
       // avere i nuovi campi settings e stats
       const result = await stateMod.readState(undefined, 'x', 'y');
-      
+
       // Lo stato dovrebbe avere i nuovi campi v2
       expect(result.state.settings).toBeDefined();
       expect(result.state.stats).toBeDefined();
@@ -86,7 +89,7 @@ describe('state migration system', () => {
         winsByLang: { python: 10, rust: 5 },
       },
     };
-    
+
     // Mock temporaneo: scriviamo v2State come stato "esistente"
     // In questo test, verifichiamo che la versione rimanga 2
     expect(v2State.version).toBe(2);
@@ -113,11 +116,11 @@ describe('state migration system', () => {
       },
       version: 1,
     };
-    
+
     // Verifica che dopo la migrazione i dati originali siano preservati
     expect(oldState.totalSpins).toBe(999);
     expect(oldState.totalWins).toBe(888);
-    
+
     // La struttura migrata dovrebbe mantenere questi valori
     const expectedMigrated = {
       ...oldState,
@@ -125,7 +128,7 @@ describe('state migration system', () => {
       settings: { theme: 'auto', sound: true },
       stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
     };
-    
+
     expect(expectedMigrated.totalSpins).toBe(999);
     expect(expectedMigrated.totalWins).toBe(888);
     expect(expectedMigrated.lastWin.langId).toBe('rust');

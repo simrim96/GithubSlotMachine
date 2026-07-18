@@ -7,6 +7,7 @@ Questa directory contiene le configurazioni per la CI/CD pipeline del progetto.
 Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
 
 ### Job 1: `test` - Test, Linting & Build
+
 - **Trigger**: Push su `main`/`master`, PR su `main`/`master`
 - **Funzionalità**:
   - Checkout del repository
@@ -19,6 +20,7 @@ Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
   - Upload dei test results come artifact
 
 ### Job 2: `security` - Security Scan
+
 - **Trigger**: Push su `main`/`master`, Schedule (ogni giorno alle 2 AM UTC)
 - **Funzionalità**:
   - `npm audit` per dipendenze vulnerabili
@@ -27,6 +29,7 @@ Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
   - Upload report Gitleaks come artifact
 
 ### Job 3: `preview` - Preview Deployment
+
 - **Trigger**: Pull Request su `main`/`master`
 - **Dipendenze**: Job `test` deve passare
 - **Funzionalità**:
@@ -35,6 +38,7 @@ Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
   - **Secreti richiesti**: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 ### Job 4: `production` - Production Deployment
+
 - **Trigger**: Push su `main` o `master`
 - **Dipendenze**: Job `test` e `security` devono passare
 - **Funzionalità**:
@@ -44,6 +48,7 @@ Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
   - **Secreti richiesti**: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 ### Job 5: `dependabot` - Auto-Approval & Auto-Merge
+
 - **Trigger**: PR creato da `dependabot[bot]`
 - **Funzionalità**:
   - Auto-approval delle PR di dipendenze
@@ -56,12 +61,12 @@ Il file `.github/workflows/ci.yml` definisce una pipeline completa con 5 job:
 
 Aggiungere questi secreti in **Settings > Secrets and variables > Actions**:
 
-| Secret Name | Description |
-|-------------|-------------|
-| `VERCEL_TOKEN` | Token Vercel per deployment |
-| `VERCEL_ORG_ID` | Vercel Organization ID |
-| `VERCEL_PROJECT_ID` | Vercel Project ID |
-| `SNYK_TOKEN` | Token Snyk per security scan (opzionale) |
+| Secret Name         | Description                              |
+| ------------------- | ---------------------------------------- |
+| `VERCEL_TOKEN`      | Token Vercel per deployment              |
+| `VERCEL_ORG_ID`     | Vercel Organization ID                   |
+| `VERCEL_PROJECT_ID` | Vercel Project ID                        |
+| `SNYK_TOKEN`        | Token Snyk per security scan (opzionale) |
 
 ### Setup Vercel
 
@@ -127,16 +132,19 @@ act push -j test
 ### Troubleshooting Comuni
 
 #### Workflow non viene triggerato
+
 - Controllare che il branch sia `main` o `master`
 - Verificare i pattern `on:` nel YAML
 - Controllare che i secreti siano configurati
 
 #### Deploy fallisce
+
 - Verificare `VERCEL_TOKEN` nei secreti
 - Controllare che `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID` siano corretti
 - Eseguire manualmente `vercel pull` localmente
 
 #### Test falliscono in CI ma passano localmente
+
 - Verificare che le versioni Node siano le stesse (20)
 - Controllare che tutte le dipendenze siano installate (`npm ci` vs `npm install`)
 - Verificare variabili d'ambiente
@@ -156,11 +164,11 @@ act push -j test
 ```yaml
 jobs:
   # ... jobs esistenti ...
-  
+
   my-new-job:
     name: My New Job
     runs-on: ubuntu-latest
-    needs: [test, security]  # Dipendenze
+    needs: [test, security] # Dipendenze
     steps:
       - name: Do something
         run: echo "Hello World"
@@ -174,7 +182,7 @@ on:
     branches:
       - main
       - master
-      - develop  # Aggiungere branch
+      - develop # Aggiungere branch
   pull_request:
     branches:
       - main

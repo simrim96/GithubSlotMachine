@@ -28,7 +28,7 @@ counter** is shown on the slot and (optionally) inside your profile README.
   `state.json` and displayed on every render.
 
 > ⚠️ **Transparency note — it's a showcase, not a fair casino.** To keep the
-> experience engaging for recruiters, the spin is *rigged* on purpose:
+> experience engaging for recruiters, the spin is _rigged_ on purpose:
 > `FORCED_WIN_PROB` (≈ 0.35) guarantees a win when there isn't one, and a
 > `near-miss` teaser is shown ~55% of the time. It's a portfolio piece designed
 > to surface your stack, not a random number generator. Tune or remove those
@@ -75,17 +75,32 @@ already in the repo (`vercel.json` + `package.json` declare the runtime).
 > The first time someone spins, `slot.svg` is generated on the fly. Until then
 > `api/image` returns a friendly "🎰 Pull the lever to spin!" placeholder.
 
+### 🔌 All exposed endpoints
+
+Besides the three endpoints above, the deployment also exposes two diagnostic
+endpoints. They have `export default` handlers, so Vercel serves them as
+serverless functions; they are **intentional**, just not part of the README
+embed flow.
+
+| Endpoint                    | Method | Purpose                                                                                                                                                               |
+| --------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`           | GET    | Diagnostics: measures per-hop latency (Upstash round-trip, GitHub README GET). `?full=1` adds a cold-cache repo scan. Useful to spot cross-region Upstash latency.    |
+| `GET /api/ratelimit-status` | GET    | JSON snapshot of the GitHub API rate-limit tracker (remaining/limit/reset/status). **Consumed by the frontend** (`public/index.html`) to render the rate-limit badge. |
+
+> Neither endpoint writes to your repo or Redis — both are read-only and safe to
+> call. `/api/health` reads the GitHub README only when `GITHUB_PAT` is set.
+
 ### Fork-ready configuration
 
 Hardcoded defaults point at the original owner (`simrim96`), but you can point
 the slot at **your** profile **without editing code** via Vercel env vars:
 
-| Env var        | Default          | Purpose                                  |
-| -------------- | ---------------- | ---------------------------------------- |
-| `SLOT_OWNER`   | `simrim96`       | Owner of the slot repo + whose repos are scanned |
-| `SLOT_REPO`    | `GithubSlotMachine` | The repo that hosts `slot.svg` / `state.json` |
-| `PROFILE_REPO` | `= SLOT_OWNER`   | Your profile README repo (`<user>/<user>`) |
-| `GITHUB_PAT`   | _(required)_     | Token used for both reads and writes     |
+| Env var        | Default             | Purpose                                          |
+| -------------- | ------------------- | ------------------------------------------------ |
+| `SLOT_OWNER`   | `simrim96`          | Owner of the slot repo + whose repos are scanned |
+| `SLOT_REPO`    | `GithubSlotMachine` | The repo that hosts `slot.svg` / `state.json`    |
+| `PROFILE_REPO` | `= SLOT_OWNER`      | Your profile README repo (`<user>/<user>`)       |
+| `GITHUB_PAT`   | _(required)_        | Token used for both reads and writes             |
 
 ### ⚡ Upstash Redis (optional but recommended)
 
@@ -97,10 +112,10 @@ and can hit rate limits).
 To make the slot **instant** (the screen shows the reels in ~10ms instead of
 ~300ms per image load), point it at an **Upstash Redis** database:
 
-| Env var                    | Purpose                              |
-| -------------------------- | ------------------------------------ |
-| `UPSTASH_REDIS_REST_URL`   | REST URL of your Upstash Redis DB    |
-| `UPSTASH_REDIS_REST_TOKEN` | REST token of your Upstash Redis DB  |
+| Env var                    | Purpose                             |
+| -------------------------- | ----------------------------------- |
+| `UPSTASH_REDIS_REST_URL`   | REST URL of your Upstash Redis DB   |
+| `UPSTASH_REDIS_REST_TOKEN` | REST token of your Upstash Redis DB |
 
 When both are set, the following move to Redis (free tier: 10k commands/day is
 plenty for a profile widget):
@@ -122,9 +137,9 @@ plenty for a profile widget):
 > 🚀 **Non-blocking spin.** Once Redis is configured, `api/spin` no longer waits
 > for every write before redirecting. It writes `slot.svg` + the counters to Redis
 > (~10–20ms), then redirects **immediately**; the profile-README update happens in
-> the background. The redirect target is computed *before* any slow write, and the
+> the background. The redirect target is computed _before_ any slow write, and the
 > language→repo cache refreshes in the background on a cold cache, so the time from
-> *click → page reload* is bounded only by the fast KV writes, never by a GitHub
+> _click → page reload_ is bounded only by the fast KV writes, never by a GitHub
 > PUT or a cold `/languages` scan. Every KV call also has a **200ms timeout** with
 > automatic fallback to GitHub, so a slow/down Redis can never make the slot slower
 > than the original.
@@ -164,7 +179,7 @@ the result. The `?v=` query busts GitHub Camo's image cache after each spin.
 
 > **⏱️ Performance note — GitHub Camo proxy.** When the slot is embedded in a
 > README, the `<img>` is served through **GitHub's Camo proxy** (not directly from
-> Vercel). Camo adds its own latency and caches aggressively, so the *fastest*
+> Vercel). Camo adds its own latency and caches aggressively, so the _fastest_
 > experience is on your **Vercel app URL** (`https://YOUR-VERCEL-APP.vercel.app/api/image`)
 > — open that link to see the slot update instantly. With Upstash Redis the image
 > read itself drops from ~300ms to ~10ms; Camo is the only hop left in front when
@@ -187,10 +202,12 @@ If your profile README contains these markers:
 
 ```markdown
 <!-- SLOT_LAST_WIN_START -->
+
 > 🎰 **Total community spins:** `1,234` · **Wins:** `89`
 >
 > 🏆 **Last win:** `Python` → [my-cool-ml-project](https://github.com/you/my-cool-ml-project)
 > _Python prende il nome dai Monty Python's Flying Circus, non dal serpente..._
+
 <!-- SLOT_LAST_WIN_END -->
 ```
 

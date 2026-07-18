@@ -1,5 +1,8 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { validateLanguageSchema, mergeLanguages } from '../api/_lib/config-loader.js';
+import {
+  validateLanguageSchema,
+  mergeLanguages,
+} from '../api/_lib/config-loader.js';
 
 // Mock del filesystem con named exports
 vi.mock('node:fs', () => ({
@@ -60,12 +63,44 @@ describe('config-loader', () => {
   describe('mergeLanguages', () => {
     test('merges base and external languages without duplicates', () => {
       const base = [
-        { id: 'cpp', name: 'C++', short: 'C++', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'C++' },
-        { id: 'python', name: 'Python', short: 'Py', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Python' },
+        {
+          id: 'cpp',
+          name: 'C++',
+          short: 'C++',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'C++',
+        },
+        {
+          id: 'python',
+          name: 'Python',
+          short: 'Py',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Python',
+        },
       ];
       const external = [
-        { id: 'rust', name: 'Rust', short: 'Rust', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Rust' },
-        { id: 'go', name: 'Go', short: 'Go', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Go' },
+        {
+          id: 'rust',
+          name: 'Rust',
+          short: 'Rust',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Rust',
+        },
+        {
+          id: 'go',
+          name: 'Go',
+          short: 'Go',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Go',
+        },
       ];
       const merged = mergeLanguages(base, external);
       expect(merged).toHaveLength(4);
@@ -74,12 +109,44 @@ describe('config-loader', () => {
 
     test('filters out duplicate IDs', () => {
       const base = [
-        { id: 'rust', name: 'Rust', short: 'Rust', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Rust' },
-        { id: 'python', name: 'Python', short: 'Py', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Python' },
+        {
+          id: 'rust',
+          name: 'Rust',
+          short: 'Rust',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Rust',
+        },
+        {
+          id: 'python',
+          name: 'Python',
+          short: 'Py',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Python',
+        },
       ];
       const external = [
-        { id: 'rust', name: 'Rust Override', short: 'RO', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Rust' }, // Duplicate!
-        { id: 'go', name: 'Go', short: 'Go', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Go' },
+        {
+          id: 'rust',
+          name: 'Rust Override',
+          short: 'RO',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Rust',
+        }, // Duplicate!
+        {
+          id: 'go',
+          name: 'Go',
+          short: 'Go',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Go',
+        },
       ];
       const merged = mergeLanguages(base, external);
       expect(merged).toHaveLength(3);
@@ -87,9 +154,27 @@ describe('config-loader', () => {
     });
 
     test('filters out invalid schemas', () => {
-      const base = [{ id: 'cpp', name: 'C++', short: 'C++', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'C++' }];
+      const base = [
+        {
+          id: 'cpp',
+          name: 'C++',
+          short: 'C++',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'C++',
+        },
+      ];
       const external = [
-        { id: 'rust', name: 'Rust', short: 'Rust', color: '#fff', accent: '#fff', text: '#fff', githubLang: 'Rust' }, // valid
+        {
+          id: 'rust',
+          name: 'Rust',
+          short: 'Rust',
+          color: '#fff',
+          accent: '#fff',
+          text: '#fff',
+          githubLang: 'Rust',
+        }, // valid
         { id: 'invalid' }, // invalid - missing required fields
       ];
       const merged = mergeLanguages(base, external);
@@ -100,19 +185,21 @@ describe('config-loader', () => {
   describe('loadExternalLanguages integration', () => {
     test('returns empty array when no config file exists', async () => {
       // Importiamo dopo il mock
-      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const { loadExternalLanguages } =
+        await import('../api/_lib/config-loader.js');
       const fs = await import('node:fs');
       fs.existsSync.mockReturnValue(false);
-      
+
       const result = await loadExternalLanguages();
       expect(result).toEqual([]);
       expect(fs.existsSync).toHaveBeenCalled();
     });
 
     test('parses JSON config correctly', async () => {
-      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const { loadExternalLanguages } =
+        await import('../api/_lib/config-loader.js');
       const fs = await import('node:fs');
-      
+
       const mockConfig = {
         languages: [
           {
@@ -148,7 +235,8 @@ describe('config-loader', () => {
     });
 
     test('handles invalid JSON gracefully', async () => {
-      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const { loadExternalLanguages } =
+        await import('../api/_lib/config-loader.js');
       const fs = await import('node:fs');
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue('{ invalid json }');
@@ -158,7 +246,8 @@ describe('config-loader', () => {
     });
 
     test('handles missing languages field gracefully', async () => {
-      const { loadExternalLanguages } = await import('../api/_lib/config-loader.js');
+      const { loadExternalLanguages } =
+        await import('../api/_lib/config-loader.js');
       const fs = await import('node:fs');
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue(JSON.stringify({ otherField: 'value' }));

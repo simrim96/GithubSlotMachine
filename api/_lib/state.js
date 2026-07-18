@@ -57,7 +57,7 @@ const MIGRATIONS = {
     console.log(`[state] Migrated state from v1 to v2`);
     return migrated;
   },
-  
+
   // Placeholder per future migrazioni (v2 → v3)
   // Implementare quando necessaria nuova versione dello schema
   2: (state) => {
@@ -83,20 +83,20 @@ const MIGRATIONS = {
 export function migrateState(state, fromVersion) {
   const currentVersion = state.version || fromVersion || 1;
   let result = { ...state };
-  
+
   // Loop attraverso tutte le versioni intermedie fino alla corrente
   while (currentVersion < STATE_VERSION) {
     const migration = MIGRATIONS[currentVersion];
     if (!migration) {
       throw new Error(
         `No migration defined for version ${currentVersion} → ${currentVersion + 1}. ` +
-        `Please implement MIGRATIONS[${currentVersion}] in state.js`
+          `Please implement MIGRATIONS[${currentVersion}] in state.js`
       );
     }
-    
+
     result = migration(result);
   }
-  
+
   return result;
 }
 
@@ -146,8 +146,17 @@ async function readStateGitHub(token, owner, repo) {
   return { state: { ...DEFAULTS, ...parsed }, sha: data.sha };
 }
 
-async function writeStateGitHub(token, owner, repo, state, sha, _retry = false) {
-  const encoded = Buffer.from(JSON.stringify(state, null, 2)).toString('base64');
+async function writeStateGitHub(
+  token,
+  owner,
+  repo,
+  state,
+  sha,
+  _retry = false
+) {
+  const encoded = Buffer.from(JSON.stringify(state, null, 2)).toString(
+    'base64'
+  );
   const body = {
     message: '🎰 Update slot stats',
     content: encoded,
@@ -238,8 +247,9 @@ export async function writeState(token, owner, repo, state, _sha) {
     await kvSet(STATE_KEY, stateToSave);
     // Sync asincrono su GitHub per backup (non blocca lo spin)
     // Se fallisce, viene logged ma non interrompe l'esecuzione
-    writeStateGitHub(token, owner, repo, stateToSave, _sha)
-      .catch(e => console.warn('Redis state sync to GitHub failed:', e.message));
+    writeStateGitHub(token, owner, repo, stateToSave, _sha).catch((e) =>
+      console.warn('Redis state sync to GitHub failed:', e.message)
+    );
     return;
   }
   // Se non c'è token, scrivi su /tmp (locale) invece che nel repo.

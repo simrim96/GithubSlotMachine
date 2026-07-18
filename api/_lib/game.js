@@ -8,7 +8,10 @@ export { WILD_ID, SCATTER_ID };
 export const SYMBOL_IDS = LANGUAGES.map((l) => l.id);
 export const REEL = [
   ...LANGUAGES.flatMap((l) => Array(5).fill(l.id)),
-  WILD_ID, WILD_ID, WILD_ID, WILD_ID,
+  WILD_ID,
+  WILD_ID,
+  WILD_ID,
+  WILD_ID,
 ];
 export const FORCED_WIN_PROB = 0.35;
 export const COLS = 5;
@@ -20,7 +23,13 @@ export const PAYLINES = [
   [0, 1, 2, 1, 0], // V
   [2, 1, 0, 1, 2], // Λ
 ];
-export const PL_COLORS = ['#ffd700', '#ff6b6b', '#4ecdc4', '#a855f7', '#fb923c'];
+export const PL_COLORS = [
+  '#ffd700',
+  '#ff6b6b',
+  '#4ecdc4',
+  '#a855f7',
+  '#fb923c',
+];
 
 // ─── Grid generation ─────────────────────────────────────────────────────────
 export function generateGrid() {
@@ -93,7 +102,8 @@ export function engineerNearMiss(grid) {
     if (others.length === 0) continue;
     // Rullo "di rottura" — quello che evidenziamo come near-miss.
     const breakCol = matchLen;
-    grid[breakCol][pl[breakCol]] = others[Math.floor(Math.random() * others.length)];
+    grid[breakCol][pl[breakCol]] =
+      others[Math.floor(Math.random() * others.length)];
     // Anchor adiacente nello stesso rullo → near-miss visivo.
     const adjR = pl[breakCol] > 0 ? pl[breakCol] - 1 : pl[breakCol] + 1;
     if (adjR >= 0 && adjR < ROWS) grid[breakCol][adjR] = anchor;
@@ -118,14 +128,14 @@ export function checkWins(grid) {
   const wins = [];
   for (let p = 0; p < PAYLINES.length; p++) {
     const pl = PAYLINES[p];
-    
+
     // SCATTER in qualsiasi posizione sulla payline: nessuna win possibile
     for (let c = 0; c < COLS; c++) {
       if (grid[c][pl[c]] === SCATTER_ID) {
         continue;
       }
     }
-    
+
     // Trova l'anchor: primo simbolo non-WILD e non-SCATTER
     let anchor = null;
     for (let c = 0; c < COLS; c++) {
@@ -135,18 +145,18 @@ export function checkWins(grid) {
         break;
       }
     }
-    
+
     // Se non c'è anchor e il primo è WILD, usiamo WILD come anchor
     if (!anchor) {
       if (grid[0][pl[0]] === WILD_ID) anchor = WILD_ID;
-      else continue;  // Tutti WILD/SCATTER o vuoto → nessuna win
+      else continue; // Tutti WILD/SCATTER o vuoto → nessuna win
     }
-    
+
     // Conta simboli che sono anchor O WILD (se anchor è SCATTER, WILD non conta)
     let count = 0;
     for (let c = 0; c < COLS; c++) {
       const s = grid[c][pl[c]];
-      
+
       // Se l'anchor è WILD, conta solo WILD (non simboli reali)
       if (anchor === WILD_ID && s === WILD_ID) {
         count++;
@@ -165,7 +175,7 @@ export function checkWins(grid) {
         break;
       }
     }
-    
+
     if (count >= 3) {
       wins.push({
         payline: p,
@@ -197,19 +207,24 @@ export function detectNearMiss(grid, wins) {
     let anchor = null;
     for (let c = 0; c < COLS; c++) {
       const s = grid[c][pl[c]];
-      if (s !== WILD_ID && s !== SCATTER_ID) { anchor = s; break; }
+      if (s !== WILD_ID && s !== SCATTER_ID) {
+        anchor = s;
+        break;
+      }
     }
     if (!anchor) continue;
     let count = 0;
     for (let c = 0; c < COLS; c++) {
       const s = grid[c][pl[c]];
-      if (s === anchor || s === WILD_ID) count++; else break;
+      if (s === anchor || s === WILD_ID) count++;
+      else break;
     }
     if (count < 2 || count >= COLS) continue;
     const missCol = count;
     const missRow = pl[missCol];
     for (const adj of [missRow - 1, missRow + 1]) {
-      if (adj >= 0 && adj < ROWS && grid[missCol][adj] === anchor) return missCol;
+      if (adj >= 0 && adj < ROWS && grid[missCol][adj] === anchor)
+        return missCol;
     }
   }
   return -1;

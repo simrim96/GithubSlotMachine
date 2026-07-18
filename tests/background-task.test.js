@@ -5,16 +5,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 describe('Background Task Memory Leak Fixes', () => {
-  let originalConsole;
-  let consoleSpy;
-
   beforeEach(() => {
-    originalConsole = { ...console };
-    consoleSpy = {
-      log: vi.spyOn(console, 'log').mockImplementation(() => {}),
-      warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
-      error: vi.spyOn(console, 'error').mockImplementation(() => {}),
-    };
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -29,11 +23,13 @@ describe('Background Task Memory Leak Fixes', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            events: [{
-              event: 'spin',
-              timestamp: Date.now(),
-              ...metrics,
-            }],
+            events: [
+              {
+                event: 'spin',
+                timestamp: Date.now(),
+                ...metrics,
+              },
+            ],
           }),
         }).catch(() => {});
       }
@@ -41,12 +37,12 @@ describe('Background Task Memory Leak Fixes', () => {
     };
 
     // trackSpin deve essere non-bloccante
-    const spinStart = Date.now();
+    Date.now();
     const redirectPromise = Promise.resolve('redirect');
     const analyticsPromise = trackSpin({ win: 'win', win_type: 'jackpot' });
 
     // Il redirect non deve aspettare l'analytics
-    const [redirectResult, _] = await Promise.allSettled([
+    const [redirectResult] = await Promise.allSettled([
       redirectPromise,
       analyticsPromise,
     ]);
@@ -69,7 +65,7 @@ describe('Background Task Memory Leak Fixes', () => {
     // Non deve esserci più il vecchio pattern IIFE senza handler
     const iifePattern = /async\s*\(\)\s*=>\s*\{[\s\S]*?\}\s*\)\s*\(\s*\)/;
     const iifeMatches = spinJsContent.match(iifePattern);
-    
+
     // Se ci sono match, devono essere all'interno di una assegnazione a variabile
     if (iifeMatches) {
       const index = spinJsContent.indexOf(iifeMatches[0]);
@@ -85,11 +81,13 @@ describe('Background Task Memory Leak Fixes', () => {
     );
 
     // Deve avere task ID univoco basato su spinStart
-    expect(spinJsContent).toMatch(/backgroundTaskId\s*=\s*`readme-update-\$\{spinStart\}`/);
-    
-    // Deve avere flag di completamento
-    expect(spinJsContent).toMatch(/backgroundTaskCompleted\s*=\s*false/);
-    expect(spinJsContent).toMatch(/backgroundTaskCompleted\s*=\s*true/);
+    expect(spinJsContent).toMatch(
+      /backgroundTaskId\s*=\s*`readme-update-\$\{spinStart\}`/
+    );
+
+    // Deve gestire completamento e rejection tramite .then()/.catch()
+    expect(spinJsContent).toMatch(/\.then\(\s*\(\s*\)\s*=>/);
+    expect(spinJsContent).toMatch(/\.catch\(\s*\(err\)\s*=>/);
   });
 
   it('Background task registra breadcrumbs su Sentry', async () => {
@@ -105,16 +103,10 @@ describe('Background Task Memory Leak Fixes', () => {
 });
 
 describe('RateLimitQueue Memory Leak Prevention', () => {
-  let originalConsole;
-  let consoleSpy;
-
   beforeEach(() => {
-    originalConsole = { ...console };
-    consoleSpy = {
-      log: vi.spyOn(console, 'log').mockImplementation(() => {}),
-      warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
-      error: vi.spyOn(console, 'error').mockImplementation(() => {}),
-    };
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -130,21 +122,21 @@ describe('RateLimitQueue Memory Leak Prevention', () => {
     // processQueue deve usare wasFromAdd flag
     expect(ratelimitTrackerContent).toMatch(/wasFromAdd\s*=\s*false/);
     expect(ratelimitTrackerContent).toMatch(/if\s*\(\s*wasFromAdd\s*\)/);
-    
+
     // resolve e reject devono essere conditional
     const processQueueMatch = ratelimitTrackerContent.match(
       /async processQueue\(\) \{[\s\S]*?\n\s{2}\}/
     );
-    
+
     if (processQueueMatch) {
       const processQueueBody = processQueueMatch[0];
-      
+
       // resolve deve essere conditionale
       const resolveMatch = processQueueBody.match(
         /if\s*\(\s*wasFromAdd\s*\)\s*\{[\s\S]*?resolve\(result\)/
       );
       expect(resolveMatch).not.toBeNull();
-      
+
       // reject deve essere conditionale
       const rejectMatch = processQueueBody.match(
         /if\s*\(\s*wasFromAdd\s*\)\s*\{[\s\S]*?reject\(err\)/
@@ -160,7 +152,9 @@ describe('RateLimitQueue Memory Leak Prevention', () => {
     );
 
     // Il codice deve avere commenti che spiegano il fix
-    expect(ratelimitTrackerContent).toMatch(/FIX: Properly resolve\/reject the outer promise/);
+    expect(ratelimitTrackerContent).toMatch(
+      /FIX: Properly resolve\/reject the outer promise/
+    );
     expect(ratelimitTrackerContent).toMatch(/don't resolve the OUTER promise/);
   });
 });

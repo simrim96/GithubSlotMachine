@@ -10,10 +10,10 @@
   "scripts": {
     "start": "vercel dev",
     "dev": "vercel dev",
+    "preview": "node scripts/preview-server.mjs",
     "build": "echo 'No build step required for serverless functions'",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "playwright test tests/integration",
     "test:e2e": "playwright test tests/e2e",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -31,7 +31,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "eslint": "^8.57.0",
-    "prettier": "^3.3.0",
+    "prettier": "3.9.5",
     "vercel": "^56.0.0",
     "vitest": "^3.0.0"
   },

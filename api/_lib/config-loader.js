@@ -28,7 +28,10 @@ function loadJSON(filePath) {
     const content = readFileSync(filePath, 'utf-8');
     return JSON.parse(content);
   } catch (err) {
-    console.warn(`[ConfigLoader] Errore nel parsing di ${filePath}:`, err.message);
+    console.warn(
+      `[ConfigLoader] Errore nel parsing di ${filePath}:`,
+      err.message
+    );
     return null;
   }
 }
@@ -70,7 +73,7 @@ function findFile(dirs, extensions) {
 /**
  * Carica configurazioni esterne per i linguaggi.
  * Ritorna un array di oggetti linguaggio da appendere a LANGUAGES hardcoded.
- * 
+ *
  * Schema JSON atteso:
  * ```json
  * {
@@ -93,7 +96,7 @@ function findFile(dirs, extensions) {
  *   ]
  * }
  * ```
- * 
+ *
  * @returns {Promise<Array>} Array di linguaggi esterni
  */
 export async function loadExternalLanguages() {
@@ -121,7 +124,9 @@ export async function loadExternalLanguages() {
     }
   }
 
-  console.warn(`[ConfigLoader] File ${filePath} trovato ma non contiene campo 'languages'`);
+  console.warn(
+    `[ConfigLoader] File ${filePath} trovato ma non contiene campo 'languages'`
+  );
   return [];
 }
 
@@ -131,7 +136,15 @@ export async function loadExternalLanguages() {
  * @returns {boolean} true se valido
  */
 export function validateLanguageSchema(lang) {
-  const requiredFields = ['id', 'name', 'short', 'color', 'accent', 'text', 'githubLang'];
+  const requiredFields = [
+    'id',
+    'name',
+    'short',
+    'color',
+    'accent',
+    'text',
+    'githubLang',
+  ];
   for (const field of requiredFields) {
     if (!lang[field]) {
       console.warn(`[ConfigLoader] Campo richiesto mancante: ${field}`);

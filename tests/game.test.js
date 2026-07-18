@@ -136,18 +136,25 @@ describe('checkWins', () => {
     let g = filledGrid('c');
     for (let c = 0; c < COLS; c++) g[c][1] = 'js' === 'js' ? 'javascript' : 'c';
     for (let c = 0; c < COLS; c++) g[c][1] = 'javascript';
-    expect(checkWins(g).some((w) => w.payline === 0 && w.count >= 3)).toBe(true);
+    expect(checkWins(g).some((w) => w.payline === 0 && w.count >= 3)).toBe(
+      true
+    );
 
     // top
     g = filledGrid('c');
     for (let c = 0; c < COLS; c++) g[c][0] = 'python';
-    expect(checkWins(g).some((w) => w.payline === 1 && w.count >= 3)).toBe(true);
+    expect(checkWins(g).some((w) => w.payline === 1 && w.count >= 3)).toBe(
+      true
+    );
 
     // bottom
     g = filledGrid('c');
-    for (let c = 0; c < COLS; c++) g[c][2] = 'rust' === 'rust' ? 'typescript' : 'c';
+    for (let c = 0; c < COLS; c++)
+      g[c][2] = 'rust' === 'rust' ? 'typescript' : 'c';
     for (let c = 0; c < COLS; c++) g[c][2] = 'typescript';
-    expect(checkWins(g).some((w) => w.payline === 2 && w.count >= 3)).toBe(true);
+    expect(checkWins(g).some((w) => w.payline === 2 && w.count >= 3)).toBe(
+      true
+    );
 
     // V (rows 0,1,2,1,0)
     g = filledGrid('c');
@@ -156,7 +163,9 @@ describe('checkWins', () => {
     g[2][2] = 'cpp';
     g[3][1] = 'cpp';
     g[4][0] = 'cpp';
-    expect(checkWins(g).some((w) => w.payline === 3 && w.count >= 3)).toBe(true);
+    expect(checkWins(g).some((w) => w.payline === 3 && w.count >= 3)).toBe(
+      true
+    );
 
     // Λ (rows 2,1,0,1,2)
     g = filledGrid('c');
@@ -165,7 +174,9 @@ describe('checkWins', () => {
     g[2][0] = 'react';
     g[3][1] = 'react';
     g[4][2] = 'react';
-    expect(checkWins(g).some((w) => w.payline === 4 && w.count >= 3)).toBe(true);
+    expect(checkWins(g).some((w) => w.payline === 4 && w.count >= 3)).toBe(
+      true
+    );
   });
 });
 
@@ -208,14 +219,12 @@ describe('engineerWin', () => {
 describe('engineerNearMiss / detectNearMiss', () => {
   it('engineerNearMiss never leaves a dead board (win OR detectable near-miss)', () => {
     let recognised = 0;
-    let wins = 0;
     let dead = 0;
     for (let i = 0; i < 400; i++) {
       const g = randomNoWinGrid(mulberry32(i + 1000));
       engineerNearMiss(g);
       const w = checkWins(g);
       if (w.length > 0) {
-        wins++;
         continue;
       }
       const col = detectNearMiss(g, w);

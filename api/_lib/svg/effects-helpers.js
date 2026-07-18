@@ -1,11 +1,10 @@
 // ─── Win Effects Helpers ────────────────────────────────────────────────────────
 // Helper functions per effetti visivi (win glow, near miss, coins)
 
-import { COLS, ROWS, REEL } from '../game.js';
+import { COLS, ROWS } from '../game.js';
 import { CW, CH } from './constants.js';
 import { GAP } from './constants.js';
 import { colL, cellY, getMX, getGY } from './coordinates.js';
-import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
 
 export function generateWinGlowSVG(uid, winCells, ED) {
   let svg = '';
@@ -28,7 +27,6 @@ export function generateNearMissSVG(uid, nearMissCol, ED) {
 
 export function generateCoinsSVG(uid, isBigWin, isJackpot, ED) {
   if (!isBigWin && !isJackpot) return '';
-  const GH = ROWS * CH;
   const GW = COLS * CW + (COLS - 1) * GAP;
   const MX = getMX();
   const GY = getGY();

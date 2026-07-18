@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  LANGUAGES CONFIG
 //  Configurazione estensibile: supporta linguaggi hardcoded + esterni (JSON/YAML).
-//  
+//
 //  PER AGGIUNGERE LINGUAGGI:
 //  1. **Linguaggi hardcoded** (default): modifca questo file, aggiungi un oggetto
 //     all'array LANGUAGES_BASE.
@@ -28,7 +28,7 @@
 //       ]
 //     }
 //     ```
-//  
+//
 //  OGNI VOCE SUPPORTA:
 //    id          chiave interna unica (obbligatorio)
 //    name        nome mostrato all'utente (obbligatorio)
@@ -163,7 +163,7 @@ export const LANGUAGES_BASE = [
     facts: [
       {
         it: 'React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo',
-        en: 'React was created in 2013 by Jordan Walke (Facebook), inspired by PHP\'s XHP. Today it\'s the most-used UI framework in the world.',
+        en: "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world.",
       },
       {
         it: 'React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità',
@@ -225,12 +225,12 @@ export const LANGUAGES_BASE = [
       </g>`,
     facts: [
       {
-        it: 'Python prende il nome dai Monty Python\'s Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show',
-        en: 'Python is named after Monty Python\'s Flying Circus, not the snake: Guido van Rossum was a huge fan of the show.',
+        it: "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show",
+        en: "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show.",
       },
       {
         it: 'Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio',
-        en: 'Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language\'s philosophy.',
+        en: "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy.",
       },
       {
         it: "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
@@ -264,7 +264,7 @@ export const LANGUAGES_BASE = [
       },
       {
         it: 'Il sistema di tipi di TypeScript è Turing-completo: è possibile risolvere puzzle non banali (perfino interpreti minimali) interamente nei tipi',
-        en: 'TypeScript\'s type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level.',
+        en: "TypeScript's type system is Turing-complete: you can solve non-trivial puzzles (even tiny interpreters) entirely at the type level.",
       },
     ],
   },
@@ -290,12 +290,12 @@ export const LANGUAGES_BASE = [
         en: 'Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter "Q", which looked nice in Haavard\'s Emacs font.',
       },
       {
-        it: 'Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l\'infotainment di moltissime auto sono basati su Qt',
+        it: "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt",
         en: 'Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt.',
       },
       {
         it: 'Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre',
-        en: 'Qt\'s signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide.',
+        en: "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide.",
       },
     ],
   },
@@ -341,28 +341,36 @@ let mergedLanguages = null;
 
 async function loadExternalLanguages() {
   if (externalLanguagesPromise) return externalLanguagesPromise;
-  
+
   externalLanguagesPromise = (async () => {
     try {
-      const { loadExternalLanguages: loader, mergeLanguages } = await import('./config-loader.js');
+      const { loadExternalLanguages: loader, mergeLanguages } =
+        await import('./config-loader.js');
       const external = await loader();
       mergedLanguages = mergeLanguages(LANGUAGES_BASE, external);
-      
+
       if (external.length > 0) {
-        console.log(`[Languages] Caricati ${external.length} linguaggi esterni. Totale: ${mergedLanguages.length}`);
+        console.log(
+          `[Languages] Caricati ${external.length} linguaggi esterni. Totale: ${mergedLanguages.length}`
+        );
       } else {
         mergedLanguages = LANGUAGES_BASE;
-        console.log('[Languages] Nessun linguaggio esterno trovato, usando hardcoded base');
+        console.log(
+          '[Languages] Nessun linguaggio esterno trovato, usando hardcoded base'
+        );
       }
-      
+
       return mergedLanguages;
     } catch (err) {
-      console.warn('[Languages] Error loading external languages, using base only:', err.message);
+      console.warn(
+        '[Languages] Error loading external languages, using base only:',
+        err.message
+      );
       mergedLanguages = LANGUAGES_BASE;
       return LANGUAGES_BASE;
     }
   })();
-  
+
   return externalLanguagesPromise;
 }
 
@@ -371,7 +379,7 @@ export function buildLookups(languages) {
   const ALL_SYMBOLS = [...languages, WILD, SCATTER];
   const SYMBOL_BY_ID = Object.fromEntries(ALL_SYMBOLS.map((s) => [s.id, s]));
   const LANGUAGE_BY_ID = Object.fromEntries(languages.map((l) => [l.id, l]));
-  
+
   return { ALL_SYMBOLS, SYMBOL_BY_ID, LANGUAGE_BY_ID };
 }
 
@@ -404,10 +412,14 @@ export async function getFullLookups() {
 
 // Compatibilità: ALL_SYMBOLS, SYMBOL_BY_ID, LANGUAGE_BY_ID sync per now usano BASE
 // Per dati completi, chiama getFullLookups()
-export const ALL_SYMBOLS = LANGUAGES_BASE.map(l => l);
+export const ALL_SYMBOLS = LANGUAGES_BASE.map((l) => l);
 ALL_SYMBOLS.push(WILD, SCATTER);
-export const SYMBOL_BY_ID = Object.fromEntries(ALL_SYMBOLS.map((s) => [s.id, s]));
-export const LANGUAGE_BY_ID = Object.fromEntries(LANGUAGES.map((l) => [l.id, l]));
+export const SYMBOL_BY_ID = Object.fromEntries(
+  ALL_SYMBOLS.map((s) => [s.id, s])
+);
+export const LANGUAGE_BY_ID = Object.fromEntries(
+  LANGUAGES.map((l) => [l.id, l])
+);
 
 export const WILD_ID = WILD.id;
 export const SCATTER_ID = SCATTER.id;
@@ -444,14 +456,24 @@ function shade(hex, pct) {
   const g = parseInt(n.slice(2, 4), 16);
   const b = parseInt(n.slice(4, 6), 16);
   const m = (v) => {
-    const x = Math.round(v + (pct >= 0 ? (255 - v) : v) * pct);
+    const x = Math.round(v + (pct >= 0 ? 255 - v : v) * pct);
     return Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0');
   };
   return `#${m(r)}${m(g)}${m(b)}`;
 }
 
 function escapeXml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&apos;',
+      })[c]
+  );
 }
 
 export { escapeXml };

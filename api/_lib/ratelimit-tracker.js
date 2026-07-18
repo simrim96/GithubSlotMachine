@@ -28,18 +28,16 @@ export const GITHUB_RATE_LIMIT_BLOCK_THRESHOLD = 2; // Blocca quando remaining <
 export class RateLimitTracker {
   constructor() {
     // Valori correnti (aggiornati ad ogni risposta GitHub)
-    this.remaining = null;  // X-RateLimit-Remaining
-    this.reset = null;      // X-RateLimit-Reset (timestamp epoch secondi)
-    
+    this.remaining = null; // X-RateLimit-Remaining
+    this.reset = null; // X-RateLimit-Reset (timestamp epoch secondi)
+
     // Statistiche per monitoraggio
     this.totalRequests = 0;
     this.requestsBlocked = 0;
     this.callsQueued = 0;
   }
 
-  // Aggiorna lo stato dagli headers della risposta GitHub
-  // expectedHeaders: true se la risposta era attesa (200/404), false se errore
-  updateFromResponse(headers, expectedHeaders = true) {
+  updateFromResponse(headers) {
     const remainingHeader = headers.get(GITHUB_RATE_LIMIT_HEADER_REMAINING);
     const resetHeader = headers.get(GITHUB_RATE_LIMIT_HEADER_RESET);
 
@@ -56,13 +54,19 @@ export class RateLimitTracker {
     this.totalRequests++;
 
     // Log warning se ci si avvicina al limite
-    if (this.remaining !== null && this.remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD) {
+    if (
+      this.remaining !== null &&
+      this.remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD
+    ) {
       console.warn(
         `[GitHub Rate Limit] Remaining: ${this.remaining}, Reset at: ${this.formatResetTime()}`
       );
     }
 
-    if (this.remaining !== null && this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD) {
+    if (
+      this.remaining !== null &&
+      this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD
+    ) {
       console.error(
         `[GitHub Rate Limit] CRITICAL: Only ${this.remaining} requests left!`
       );
@@ -71,12 +75,18 @@ export class RateLimitTracker {
 
   // Ritorna true se siamo sotto il threshold di warning
   isBelowWarningThreshold() {
-    return this.remaining !== null && this.remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD;
+    return (
+      this.remaining !== null &&
+      this.remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD
+    );
   }
 
   // Ritorna true se siamo sotto il threshold di blocco
   isBelowBlockThreshold() {
-    return this.remaining !== null && this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD;
+    return (
+      this.remaining !== null &&
+      this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD
+    );
   }
 
   // Calcola il tempo di reset (seconds until reset)
@@ -147,12 +157,12 @@ export class RateLimitQueue {
         try {
           const result = await fn();
           resolve(result);
-          
+
           // Dopo il successo, processa la coda
           await this.processQueue();
         } catch (err) {
           reject(err);
-          
+
           // Anche in caso di errore, processa la coda (ma logga l'errore)
           console.error('[RateLimitQueue] Error in queued call:', err.message);
           await this.processQueue();
@@ -171,21 +181,23 @@ export class RateLimitQueue {
       const elapsed = Date.now() - startTime;
       if (elapsed > maxWaitTime) {
         throw new Error(
-          `Rate limit timeout after ${maxWaitTime/1000}s. ` +
-          `Remaining: ${this.tracker.remaining}, Reset: ${this.tracker.formatResetTime()}`
+          `Rate limit timeout after ${maxWaitTime / 1000}s. ` +
+            `Remaining: ${this.tracker.remaining}, Reset: ${this.tracker.formatResetTime()}`
         );
       }
-      await new Promise(r => setTimeout(r, checkInterval));
+      await new Promise((r) => setTimeout(r, checkInterval));
     }
 
-    console.log(`[RateLimitQueue] Rate limit restored. Remaining: ${this.tracker.remaining}`);
+    console.log(
+      `[RateLimitQueue] Rate limit restored. Remaining: ${this.tracker.remaining}`
+    );
   }
 
   // Processa la prossima chiamata in coda
   // FIX: Properly resolve/reject the outer promise from add() when processing queue items
   async processQueue() {
     if (this.isProcessing || this.queue.length === 0) return;
-    
+
     this.isProcessing = true;
 
     // Process all queued items, but don't resolve the OUTER promise
@@ -255,10 +267,14 @@ export function createCustomRateLimitSystem() {
 export function parseRateLimitHeaders(response) {
   const remaining = response.headers.get(GITHUB_RATE_LIMIT_HEADER_REMAINING);
   const reset = response.headers.get(GITHUB_RATE_LIMIT_HEADER_RESET);
-  
-  const remainingNum = remaining !== null && remaining !== undefined ? parseInt(remaining, 10) : null;
-  const resetNum = reset !== null && reset !== undefined ? parseInt(reset, 10) : null;
-  
+
+  const remainingNum =
+    remaining !== null && remaining !== undefined
+      ? parseInt(remaining, 10)
+      : null;
+  const resetNum =
+    reset !== null && reset !== undefined ? parseInt(reset, 10) : null;
+
   return {
     remaining: Number.isNaN(remainingNum) ? null : remainingNum,
     reset: Number.isNaN(resetNum) ? null : resetNum,

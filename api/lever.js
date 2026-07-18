@@ -20,7 +20,7 @@ const H = 150;
 // viene affiancato al cabinet la leva si "incastra" nel fianco della slot.
 const BUMPER_CX = 0;
 const BUMPER_CY = 100;
-const BUMPER_R  = 10;
+const BUMPER_R = 10;
 
 // Tip dell'asta (= centro del pomello). Quasi verticale: dx=10, dy=78.
 const TIP_X = 10;
@@ -37,7 +37,8 @@ const MID_Y = (BUMPER_CY + TIP_Y) / 2;
 const _dx = TIP_X - BUMPER_CX;
 const _dy = TIP_Y - BUMPER_CY;
 const _len = Math.hypot(_dx, _dy);
-const _ux = _dx / _len, _uy = _dy / _len;
+const _ux = _dx / _len,
+  _uy = _dy / _len;
 // angolo dell'asta in gradi (rotazione dell'ellisse-anello)
 const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
@@ -118,8 +119,8 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
     <!-- Highlight cilindrico sull'asta (linea chiara, parallela alla principale) -->
     <line x1="${(BUMPER_CX + _uy * 1.2).toFixed(2)}"
           y1="${(BUMPER_CY - _ux * 1.2).toFixed(2)}"
-          x2="${(TIP_X     + _uy * 1.2).toFixed(2)}"
-          y2="${(TIP_Y     - _ux * 1.2).toFixed(2)}"
+          x2="${(TIP_X + _uy * 1.2).toFixed(2)}"
+          y2="${(TIP_Y - _ux * 1.2).toFixed(2)}"
           stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.55"/>
 
     <!-- Anello cromato a metà asta -->
@@ -148,7 +149,10 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
 
 export default function handler(req, res) {
   res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0');
+  res.setHeader(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0'
+  );
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.send(LEVER_SVG);

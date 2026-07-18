@@ -7,7 +7,7 @@ import {
   RL_WINDOW_SEC,
 } from '../api/_lib/ratelimit.js';
 
-describe('isValidUser (?user= validation, chiude l\'open-redirect)', () => {
+describe("isValidUser (?user= validation, chiude l'open-redirect)", () => {
   it('accetta login GitHub validi', () => {
     expect(isValidUser('torvalds')).toBe(true);
     expect(isValidUser('simrim96')).toBe(true);
@@ -52,7 +52,9 @@ describe('clientIp', () => {
   });
 
   it('fallback a remoteAddress o local', () => {
-    expect(clientIp({ socket: { remoteAddress: '127.0.0.1' } })).toBe('127.0.0.1');
+    expect(clientIp({ socket: { remoteAddress: '127.0.0.1' } })).toBe(
+      '127.0.0.1'
+    );
     expect(clientIp({})).toBe('local');
   });
 });

@@ -1,38 +1,38 @@
 version: 2
 updates:
   # NPM dependencies
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
-      time: "02:00"
-      timezone: "UTC"
+      interval: 'daily'
+      time: '02:00'
+      timezone: 'UTC'
     open-pull-requests-limit: 10
     reviewers:
-      - "simrim96"
+      - 'simrim96'
     labels:
-      - "dependencies"
-      - "automated"
+      - 'dependencies'
+      - 'automated'
     commit-message:
-      prefix: "chore"
-      prefix-development: "chore(dev)"
+      prefix: 'chore'
+      prefix-development: 'chore(dev)'
     # Auto-merge per aggiornamenti minor/patch
     # Nota: configurato nel workflow ci.yml
 
   # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "02:00"
-      timezone: "UTC"
+      interval: 'weekly'
+      day: 'monday'
+      time: '02:00'
+      timezone: 'UTC'
     open-pull-requests-limit: 5
     reviewers:
-      - "simrim96"
+      - 'simrim96'
     labels:
-      - "dependencies"
-      - "automated"
-      - "github-actions"
+      - 'dependencies'
+      - 'automated'
+      - 'github-actions'
     commit-message:
-      prefix: "chore(ci)"
+      prefix: 'chore(ci)'

@@ -21,7 +21,7 @@ describe('errorSVG — degrado graceful', () => {
     expect(out).not.toContain('undefined');
   });
 
-  it('inietta l\'owner parametrico', () => {
+  it("inietta l'owner parametrico", () => {
     const out = errorSVG({ owner: 'octocat' });
     const svg = Buffer.from(out.split(',')[1], 'base64').toString('utf-8');
     expect(svg).toContain('github.com/octocat');
@@ -34,7 +34,7 @@ describe('errorSVG — degrado graceful', () => {
     expect(svg).not.toContain('<script>');
   });
 
-  it('tronca messaggi troppo lunghi senza rompere l\'SVG', () => {
+  it("tronca messaggi troppo lunghi senza rompere l'SVG", () => {
     const longMsg = 'x'.repeat(500);
     const out = errorSVG({ message: longMsg });
     const svg = Buffer.from(out.split(',')[1], 'base64').toString('utf-8');
@@ -47,6 +47,8 @@ describe('errorSVG — degrado graceful', () => {
   it('non lancia mai con input assenti/undefined', () => {
     expect(() => errorSVG(undefined)).not.toThrow();
     expect(() => errorSVG({})).not.toThrow();
-    expect(() => errorSVG({ owner: undefined, message: undefined })).not.toThrow();
+    expect(() =>
+      errorSVG({ owner: undefined, message: undefined })
+    ).not.toThrow();
   });
 });

@@ -4,10 +4,9 @@
 import { COLS, ROWS } from '../game.js';
 import { CW, CH, FRAME_PAD } from './constants.js';
 import { GAP } from './constants.js';
-import { getMX, getGY, colL } from './coordinates.js';
-import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
+import { getMX, getGY } from './coordinates.js';
 
-export function generateScreenFrame(uid, isWin, ED, nearMissCol) {
+export function generateScreenFrame(uid) {
   const MX = getMX();
   const GY = getGY();
   const GW = COLS * CW + (COLS - 1) * GAP;
@@ -16,7 +15,7 @@ export function generateScreenFrame(uid, isWin, ED, nearMissCol) {
   const SCR_Y = GY - FRAME_PAD;
   const SCR_W = GW + 2 * FRAME_PAD;
   const SCR_H = GH + 2 * FRAME_PAD;
-  
+
   // Striscia LED sopra
   const screenFrameSvg =
     `<rect x="${SCR_X + 8}" y="${SCR_Y - 9}" width="${SCR_W - 16}" height="2" rx="1"
@@ -36,6 +35,6 @@ export function generateScreenFrame(uid, isWin, ED, nearMissCol) {
     // Striscia LED sotto
     `<rect x="${SCR_X + 8}" y="${SCR_Y + SCR_H + 7}" width="${SCR_W - 16}" height="2" rx="1"
          fill="#ffd84a" opacity="0.7"/>`;
-  
+
   return screenFrameSvg;
 }

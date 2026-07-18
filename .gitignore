@@ -17,3 +17,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 *~
+
+# Runtime-generated artifacts (written by the slot via GitHub Contents API / Redis).
+# Never commit — they diverge from the live value on every spin.
+state.json
+slot.svg

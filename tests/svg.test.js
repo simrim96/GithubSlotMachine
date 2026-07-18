@@ -3,7 +3,14 @@
 // i casi win / near-miss / jackpot / no-win.
 import { describe, it, expect } from 'vitest';
 import { buildSVG } from '../api/_lib/svg-builder.js';
-import { checkWins, detectNearMiss, COLS, ROWS, SYMBOL_IDS, SCATTER_ID } from '../api/_lib/game.js';
+import {
+  checkWins,
+  detectNearMiss,
+  COLS,
+  ROWS,
+  SYMBOL_IDS,
+  SCATTER_ID,
+} from '../api/_lib/game.js';
 
 // Griglia vuota (tutti scatter) — nessuna win, nessun near-miss.
 function emptyGrid() {
@@ -42,19 +49,36 @@ function nearMissGrid(langId) {
   g[0][pl[0]] = langId;
   g[1][pl[1]] = langId;
   const other = SYMBOL_IDS.find((i) => i !== langId) || langId;
-  g[2][pl[2]] = other;       // break col
+  g[2][pl[2]] = other; // break col
   g[2][pl[2] > 0 ? pl[2] - 1 : pl[2] + 1] = langId; // anchor adiacente
   return g;
 }
 
 const state = { totalSpins: 42, totalWins: 7, lastWin: null };
-const winningLang = { id: SYMBOL_IDS[0], name: 'Python', accent: '#3776ab', githubLang: 'Python' };
+const winningLang = {
+  id: SYMBOL_IDS[0],
+  name: 'Python',
+  accent: '#3776ab',
+  githubLang: 'Python',
+};
 const fact = { en: 'Fact about Python', it: 'Fatto su Python' };
-const repoMatch = { name: 'myproj', url: 'https://github.com/simrim96/myproj', pct: 0.6, description: 'd' };
+const repoMatch = {
+  name: 'myproj',
+  url: 'https://github.com/simrim96/myproj',
+  pct: 0.6,
+  description: 'd',
+};
 
 describe('buildSVG — forma', () => {
   it('restituisce un <svg> ben formato', () => {
-    const svg = buildSVG({ grid: emptyGrid(), uid: 1, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 1,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     // L'SVG ha un preamble XML prima del tag <svg>
     expect(svg.match(/<\?xml[^\?]*\?>/)).toBeTruthy();
     expect(svg).toContain('<svg');
@@ -62,18 +86,39 @@ describe('buildSVG — forma', () => {
   });
 
   it('dichiara le dimensioni 600x624', () => {
-    const svg = buildSVG({ grid: emptyGrid(), uid: 1, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 1,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     expect(svg).toContain('width="600"');
     expect(svg).toContain('height="624"');
   });
 
   it('contiene i 5 rulli (clip-path cp1c0..4)', () => {
-    const svg = buildSVG({ grid: emptyGrid(), uid: 1, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 1,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     for (let c = 0; c < COLS; c++) expect(svg).toContain(`cp1c${c}`);
   });
 
   it('non lascia undefined nel markup', () => {
-    const svg = buildSVG({ grid: emptyGrid(), uid: 1, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 1,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     expect(svg).not.toContain('undefined');
   });
 });
@@ -100,21 +145,43 @@ describe('buildSVG — casi di gioco', () => {
     const wins = checkWins(grid);
     const nm = detectNearMiss(grid, wins);
     expect(nm).toBeGreaterThanOrEqual(0);
-    const svg = buildSVG({ grid, uid: 4, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid,
+      uid: 4,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     expect(svg).toContain('So close'); // messaggio near-miss invece di Try again
-    expect(svg).toContain('nm4');      // animazione near-miss
+    expect(svg).toContain('nm4'); // animazione near-miss
   });
 
   it('no-win / no-near-miss: messaggio generico', () => {
     const grid = emptyGrid();
-    const svg = buildSVG({ grid, uid: 5, state, winningLang: null, fact, repoMatch: null });
+    const svg = buildSVG({
+      grid,
+      uid: 5,
+      state,
+      winningLang: null,
+      fact,
+      repoMatch: null,
+    });
     expect(svg).toContain('Try again, better luck next time!');
     expect(svg).not.toContain('JACKPOT');
   });
 
   it('owner parametrico finisce nel CTA del repo match', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
-    const svg = buildSVG({ grid, uid: 6, state, winningLang, fact, repoMatch, owner: 'octocat' });
+    const svg = buildSVG({
+      grid,
+      uid: 6,
+      state,
+      winningLang,
+      fact,
+      repoMatch,
+      owner: 'octocat',
+    });
     expect(svg).toContain('github.com/octocat/myproj');
   });
 });
@@ -123,8 +190,12 @@ describe('buildSVG — escape', () => {
   it('escapa i caratteri pericolosi nei fatti', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     const svg = buildSVG({
-      grid, uid: 7, state, winningLang,
-      fact: { en: '<script>&"\'', it: 'x' }, repoMatch,
+      grid,
+      uid: 7,
+      state,
+      winningLang,
+      fact: { en: '<script>&"\'', it: 'x' },
+      repoMatch,
     });
     expect(svg).toContain('&lt;script&gt;');
     expect(svg).not.toContain('<script>');

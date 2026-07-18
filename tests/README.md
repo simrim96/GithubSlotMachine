@@ -7,6 +7,7 @@ GitHub, niente Redis): `generateGrid`, `checkWins`, `engineerWin`,
 I test vivono in `tests/game.test.js` e usano [Vitest](https://vitest.dev).
 
 ## Perché esiste
+
 Il generatore della slot era un monolite senza test. La logica di gioco è la
 parte più facile da rompere e la più difficile da verificare a occhio (near-miss,
 wild/scatter, payline a V/Λ). Questa suite è un "contratto" che permette di
@@ -48,13 +49,24 @@ Output atteso:
 - **`wrap`** per il text-wrap dell'SVG.
 
 ## Aggiungere un test
+
 Apri `tests/game.test.js`, aggiungi un `it('descrizione', () => { ... })` dentro
 il `describe` pertinente. Le funzioni sono importate in cima al file:
 
 ```js
 import {
-  generateGrid, checkWins, engineerWin, engineerNearMiss,
-  detectNearMiss, countScatters, winningLangId, wrap,
-  WILD_ID, SCATTER_ID, COLS, ROWS, PAYLINES,
+  generateGrid,
+  checkWins,
+  engineerWin,
+  engineerNearMiss,
+  detectNearMiss,
+  countScatters,
+  winningLangId,
+  wrap,
+  WILD_ID,
+  SCATTER_ID,
+  COLS,
+  ROWS,
+  PAYLINES,
 } from '../api/spin.js';
 ```

@@ -2,31 +2,31 @@
 // Genera la paytable in alto, subito sotto il titolo.
 // Mostra le icone dei simboli vincenti con pallini verdi: più pallini = vincita maggiore.
 
-import { COLS, ROWS } from '../game.js';
-import { CW, CH, FRAME_PAD, PT_H, PT_Y } from './constants.js';
-import { GAP } from './constants.js';
-import { getMX, getGY } from './coordinates.js';
-import { DUR, NM_DUR_EXTRA_LAST } from './constants.js';
+import { PT_H, PT_Y } from './constants.js';
 
 // Metadati dei simboli: colore bordo/accento e numero di "competenza" (pallini massimi)
 const SYMBOLS = {
-  cpp:        { accent: '#9FD3F0', text: '#ffffff', short: 'C++' },
-  c:           { accent: '#A8B9CC', text: '#ffffff', short: 'C' },
-  glsl:        { accent: '#F5B642', text: '#ffffff', short: 'GLSL' },
-  react:       { accent: '#61DAFB', text: '#61DAFB', short: 'React' },
-  javascript:  { accent: '#61DAFB', text: '#1a1a1a', short: 'JS' },
-  python:      { accent: '#FFD43B', text: '#ffffff', short: 'Py' },
-  typescript:  { accent: '#235A97', text: '#ffffff', short: 'TS' },
-  qt:          { accent: '#41CD52', text: '#ffffff', short: 'Qt' },
-  wild:        { accent: '#a16207', text: '#1a1a2e', short: 'WILD' },
-  scatter:     { accent: '#f0abfc', text: '#ffffff', short: 'BONUS' },
+  cpp: { accent: '#9FD3F0', text: '#ffffff', short: 'C++' },
+  c: { accent: '#A8B9CC', text: '#ffffff', short: 'C' },
+  glsl: { accent: '#F5B642', text: '#ffffff', short: 'GLSL' },
+  react: { accent: '#61DAFB', text: '#61DAFB', short: 'React' },
+  javascript: { accent: '#61DAFB', text: '#1a1a1a', short: 'JS' },
+  python: { accent: '#FFD43B', text: '#ffffff', short: 'Py' },
+  typescript: { accent: '#235A97', text: '#ffffff', short: 'TS' },
+  qt: { accent: '#41CD52', text: '#ffffff', short: 'Qt' },
+  wild: { accent: '#a16207', text: '#1a1a2e', short: 'WILD' },
+  scatter: { accent: '#f0abfc', text: '#ffffff', short: 'BONUS' },
 };
 
 const DOT = '#41CD52';
 
 // Disegna un'icona compatta del simbolo (riquadro gradiente + glifo)
 function renderIcon(uid, symbolId, x, y, size) {
-  const info = SYMBOLS[symbolId] || { accent: '#61DAFB', text: '#61DAFB', short: symbolId.slice(0, 3) };
+  const info = SYMBOLS[symbolId] || {
+    accent: '#61DAFB',
+    text: '#61DAFB',
+    short: symbolId.slice(0, 3),
+  };
   const p = 2;
   const inner = size - p * 2;
   let s = '';
@@ -44,7 +44,7 @@ function renderDots(x, y, count, max = 7) {
   const sp = 5.4;
   for (let i = 0; i < max; i++) {
     const on = i < count;
-    const op = on ? (0.5 + (count - i) * 0.07) : 0.08;
+    const op = on ? 0.5 + (count - i) * 0.07 : 0.08;
     s += `<circle cx="${x + i * sp}" cy="${y}" r="${r}" fill="${DOT}" opacity="${op.toFixed(2)}"/>`;
   }
   return s;
@@ -69,7 +69,8 @@ export function generatePaytable(uid, winningLang, gridSymbols) {
   if (winningLang && winningLang.id) list.push(winningLang.id);
   if (gridSymbols && gridSymbols.length) {
     for (const sym of gridSymbols) {
-      if (sym !== 'wild' && sym !== 'scatter' && !list.includes(sym)) list.push(sym);
+      if (sym !== 'wild' && sym !== 'scatter' && !list.includes(sym))
+        list.push(sym);
       if (list.length >= 3) break;
     }
   }

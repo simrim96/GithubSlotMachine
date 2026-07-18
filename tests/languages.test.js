@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'vitest';
-import { LANGUAGES, LANGUAGES_BASE, getLanguages } from '../api/_lib/languages.js';
+import {
+  LANGUAGES,
+  LANGUAGES_BASE,
+  getLanguages,
+} from '../api/_lib/languages.js';
 
 describe('languages', () => {
   describe('LANGUAGES_BASE', () => {
@@ -16,7 +20,15 @@ describe('languages', () => {
     });
 
     test('each language has required fields', () => {
-      const requiredFields = ['id', 'name', 'short', 'color', 'accent', 'text', 'githubLang'];
+      const requiredFields = [
+        'id',
+        'name',
+        'short',
+        'color',
+        'accent',
+        'text',
+        'githubLang',
+      ];
       for (const lang of LANGUAGES_BASE) {
         for (const field of requiredFields) {
           expect(lang).toHaveProperty(field);

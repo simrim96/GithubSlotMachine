@@ -8,7 +8,7 @@
 import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { LANGUAGES } from './_lib/languages.js';
-import * as Sentry from "@sentry/node";
+import * as Sentry from '@sentry/node';
 
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
 
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   const full = req.query?.full === '1' || req.query?.full === 'true';
   const steps = {};
-  let t = now();
+  const t = now();
 
   // ── 1. Upstash Redis round-trip (solo se abilitato) ─────────────────────
   if (kvEnabled) {
@@ -65,9 +65,16 @@ export default async function handler(req, res) {
   if (token) {
     const t0 = now();
     try {
-      const r = await fetch('https://api.github.com/repos/' + OWNER + '/' + OWNER + '/readme', {
-        headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'gsm-health', Accept: 'application/vnd.github+json' },
-      });
+      const r = await fetch(
+        'https://api.github.com/repos/' + OWNER + '/' + OWNER + '/readme',
+        {
+          headers: {
+            Authorization: 'Bearer ' + token,
+            'User-Agent': 'gsm-health',
+            Accept: 'application/vnd.github+json',
+          },
+        }
+      );
       steps.github_readme_get_ms = now() - t0;
       steps.github_status = r.status;
     } catch (e) {
@@ -85,7 +92,8 @@ export default async function handler(req, res) {
     try {
       await getRepoForLanguage(token, OWNER, LANGUAGES[0], LANGUAGES);
       steps.repo_scan_ms = now() - t0;
-      steps.repo_scan_note = 'Include lo stall delle GitHub API se la cache KV è fredda.';
+      steps.repo_scan_note =
+        'Include lo stall delle GitHub API se la cache KV è fredda.';
     } catch (e) {
       steps.repo_scan_ms = now() - t0;
       steps.repo_scan_error = e.message;

@@ -79,7 +79,7 @@ async function refreshCache(token, owner, languages) {
       const ghName = lang.githubLang || lang.name;
       const bytes = langs[ghName] || 0;
       const pct = bytes / total;
-      if (pct < 0.30) continue;
+      if (pct < 0.3) continue;
       if (lang.topic && !topics.includes(lang.topic.toLowerCase())) continue;
 
       const candidate = {
@@ -92,7 +92,11 @@ async function refreshCache(token, owner, languages) {
       const cur = byLangId[lang.id];
       // Privilegia repo non-profile e con percentuale più alta, poi più stelle.
       const isProfile = rep.name.toLowerCase() === owner.toLowerCase();
-      if (!cur || (!isProfile && (pct > cur.pct || (pct === cur.pct && candidate.stars > cur.stars)))) {
+      if (
+        !cur ||
+        (!isProfile &&
+          (pct > cur.pct || (pct === cur.pct && candidate.stars > cur.stars)))
+      ) {
         byLangId[lang.id] = candidate;
       }
     }

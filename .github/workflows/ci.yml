@@ -10,7 +10,7 @@ on:
       - main
       - master
   schedule:
-    - cron: '0 2 * * *'  # Security scan every day at 2 AM UTC
+    - cron: '0 2 * * *' # Security scan every day at 2 AM UTC
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,6 +47,12 @@ jobs:
 
       - name: Run test suite
         run: npm test
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npm run test:e2e
 
       - name: Build project
         run: npm run build

@@ -25,7 +25,10 @@ import { getDefaultTracker } from './_lib/ratelimit-tracker.js';
 export default async function handler(req) {
   // Supporta solo GET
   if (req.method !== 'GET') {
-    return new Response(null, { status: 405, statusText: 'Method Not Allowed' });
+    return new Response(null, {
+      status: 405,
+      statusText: 'Method Not Allowed',
+    });
   }
 
   const tracker = getDefaultTracker();
@@ -34,11 +37,12 @@ export default async function handler(req) {
   // Calcola il limite totale (GitHub free tier: 5000 richieste/ora)
   // Se non abbiamo mai ricevuto l'header X-RateLimit-Limit, usiamo il default
   const totalLimit = 5000;
-  
+
   // Calcola la percentuale utilizzata
-  const percentageUsed = state.remaining !== null 
-    ? ((totalLimit - state.remaining) / totalLimit * 100).toFixed(2)
-    : null;
+  const percentageUsed =
+    state.remaining !== null
+      ? (((totalLimit - state.remaining) / totalLimit) * 100).toFixed(2)
+      : null;
 
   // Determina lo stato del rate limit
   let status = 'unknown';
@@ -72,8 +76,8 @@ export default async function handler(req) {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
+      Pragma: 'no-cache',
+      Expires: '0',
     },
   });
 }

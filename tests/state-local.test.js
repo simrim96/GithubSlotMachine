@@ -33,8 +33,9 @@ describe('state locale — no git spam', () => {
   });
 
   it('writeState con token=undefined non lancia', async () => {
-    await expect(stateMod.writeState(undefined, 'x', 'y', { test: 1 }, null))
-      .resolves.toBeUndefined();
+    await expect(
+      stateMod.writeState(undefined, 'x', 'y', { test: 1 }, null)
+    ).resolves.toBeUndefined();
   });
 
   it('writeState con token=undefined scrive su /tmp (simulazione)', async () => {
@@ -64,10 +65,12 @@ describe('state locale — no git spam', () => {
     // Poiché non possiamo chiamare GitHub reali, ci limitiamo a:
     // se token != null, la funzione deve tentare di chiamare GitHub (che in test
     // fallisce, ma non deve lanciare un'eccezione non gestita).
-    await stateMod.writeState('fake-token', 'x', 'y', { test: 2 }, null).catch(() => {
-      // GitHub fallisce in test (no auth), ma l'handler spin.js gestisce l'errore.
-      // Qui accettiamo che fallisca.
-    });
+    await stateMod
+      .writeState('fake-token', 'x', 'y', { test: 2 }, null)
+      .catch(() => {
+        // GitHub fallisce in test (no auth), ma l'handler spin.js gestisce l'errore.
+        // Qui accettiamo che fallisca.
+      });
     // Se non ha lanciato un'eccezione non gestita, è OK
     expect(true).toBe(true);
   });

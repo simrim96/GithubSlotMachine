@@ -33,9 +33,9 @@ describe('RateLimitTracker', () => {
     const mockHeaders = {
       get: (name) => headers.get(name),
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     expect(tracker.remaining).toBe(4999);
     expect(tracker.reset).toBe(1784100000);
     expect(tracker.totalRequests).toBe(1);
@@ -44,11 +44,11 @@ describe('RateLimitTracker', () => {
   it('ignora headers null/undefined', () => {
     const tracker = new RateLimitTracker();
     const mockHeaders = {
-      get: (_) => null,
+      get: () => null,
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     expect(tracker.remaining).toBe(null);
     expect(tracker.reset).toBe(null);
   });
@@ -56,11 +56,11 @@ describe('RateLimitTracker', () => {
   it('gestisce headers non numerici (li setta a null)', () => {
     const tracker = new RateLimitTracker();
     const mockHeaders = {
-      get: (_) => 'invalid',
+      get: () => 'invalid',
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     expect(tracker.remaining).toBe(null);
     expect(tracker.reset).toBe(null);
   });
@@ -75,9 +75,9 @@ describe('RateLimitTracker', () => {
         return null;
       },
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('[GitHub Rate Limit] Remaining: 10')
     );
@@ -95,14 +95,16 @@ describe('RateLimitTracker', () => {
         return null;
       },
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('[GitHub Rate Limit] Remaining: 2')
     );
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[GitHub Rate Limit] CRITICAL: Only 2 requests left!')
+      expect.stringContaining(
+        '[GitHub Rate Limit] CRITICAL: Only 2 requests left!'
+      )
     );
     consoleSpy.mockRestore();
     errorSpy.mockRestore();
@@ -110,44 +112,44 @@ describe('RateLimitTracker', () => {
 
   it('isBelowWarningThreshold ritorna true quando remaining <= 10', () => {
     const tracker = new RateLimitTracker();
-    
+
     // Stato init
     expect(tracker.isBelowWarningThreshold()).toBe(false);
-    
+
     tracker.remaining = 10;
     expect(tracker.isBelowWarningThreshold()).toBe(true);
-    
+
     tracker.remaining = 11;
     expect(tracker.isBelowWarningThreshold()).toBe(false);
-    
+
     tracker.remaining = 5;
     expect(tracker.isBelowWarningThreshold()).toBe(true);
   });
 
   it('isBelowBlockThreshold ritorna true quando remaining <= 2', () => {
     const tracker = new RateLimitTracker();
-    
+
     // Stato init
     expect(tracker.isBelowBlockThreshold()).toBe(false);
-    
+
     tracker.remaining = 2;
     expect(tracker.isBelowBlockThreshold()).toBe(true);
-    
+
     tracker.remaining = 3;
     expect(tracker.isBelowBlockThreshold()).toBe(false);
-    
+
     tracker.remaining = 1;
     expect(tracker.isBelowBlockThreshold()).toBe(true);
   });
 
   it('getSecondsUntilReset calcola correttamente i secondi', () => {
     const tracker = new RateLimitTracker();
-    
+
     // Nessuna reset time
     expect(tracker.getSecondsUntilReset()).toBe(null);
-    
+
     tracker.reset = Math.floor(Date.now() / 1000) + 120; // 120 secondi nel futuro
-    
+
     const seconds = tracker.getSecondsUntilReset();
     expect(seconds).toBeGreaterThan(115);
     expect(seconds).toBeLessThanOrEqual(120);
@@ -155,12 +157,12 @@ describe('RateLimitTracker', () => {
 
   it('formatResetTime formatta correttamente la data', () => {
     const tracker = new RateLimitTracker();
-    
+
     expect(tracker.formatResetTime()).toBe('unknown');
-    
+
     tracker.reset = 1784100000;
     const formatted = tracker.formatResetTime();
-    
+
     expect(formatted).not.toBe('unknown');
     expect(typeof formatted).toBe('string');
   });
@@ -171,9 +173,9 @@ describe('RateLimitTracker', () => {
     tracker.reset = 1784100000;
     tracker.totalRequests = 100;
     tracker.requestsBlocked = 5;
-    
+
     const state = tracker.getState();
-    
+
     expect(state.remaining).toBe(5);
     expect(state.reset).toBe(1784100000);
     expect(state.totalRequests).toBe(100);
@@ -188,9 +190,9 @@ describe('RateLimitTracker', () => {
     tracker.reset = 1784100000;
     tracker.totalRequests = 100;
     tracker.requestsBlocked = 5;
-    
+
     tracker.clearState();
-    
+
     expect(tracker.remaining).toBe(null);
     expect(tracker.reset).toBe(null);
     expect(tracker.totalRequests).toBe(0);
@@ -206,13 +208,13 @@ describe('RateLimitTracker', () => {
         return null;
       },
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
     expect(tracker.totalRequests).toBe(1);
-    
+
     tracker.updateFromResponse(mockHeaders);
     expect(tracker.totalRequests).toBe(2);
-    
+
     tracker.updateFromResponse(mockHeaders);
     expect(tracker.totalRequests).toBe(3);
   });
@@ -235,7 +237,7 @@ describe('RateLimitQueue', () => {
   it('inizializza con tracker e queue vuota', () => {
     const tracker = new RateLimitTracker();
     const queue = new RateLimitQueue(tracker);
-    
+
     expect(queue.queueLength).toBe(0);
     expect(queue.isProcessing).toBe(false);
   });
@@ -244,11 +246,11 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 100;
     const queue = new RateLimitQueue(tracker);
-    
+
     const fn = vi.fn(async () => 'result');
-    
+
     const result = await queue.add(fn);
-    
+
     expect(result).toBe('result');
     expect(fn).toHaveBeenCalled();
     expect(queue.queueLength).toBe(0);
@@ -258,27 +260,27 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 1;
     const queue = new RateLimitQueue(tracker);
-    
+
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    
+
     let executionResolved = false;
     const fn = vi.fn(async () => {
       executionResolved = true;
       return 'result';
     });
-    
+
     // Avvia la chiamata in coda
     const promise = queue.add(fn);
-    
+
     // Non dovrebbe essere eseguita subito
     expect(executionResolved).toBe(false);
-    
+
     // Simuliamo il passare del tempo fino al reset
     tracker.remaining = 100; // Simuliamo che il rate limit si resetti
     vi.advanceTimersByTime(2000);
-    
+
     const result = await promise;
-    
+
     expect(result).toBe('result');
     expect(fn).toHaveBeenCalled();
     expect(executionResolved).toBe(true);
@@ -289,7 +291,7 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 100;
     const queue = new RateLimitQueue(tracker);
-    
+
     const results = [];
     const fn1 = vi.fn(async () => {
       results.push(1);
@@ -303,19 +305,19 @@ describe('RateLimitQueue', () => {
       results.push(3);
       return 'result3';
     });
-    
+
     // Aggiungi 3 funzioni alla coda
     const promise1 = queue.add(fn1);
     const promise2 = queue.add(fn2);
     const promise3 = queue.add(fn3);
-    
+
     // Prima funzione eseguita subito, le altre in coda
     await promise1;
-    
+
     // fn2 e fn3 dovrebbero essere state eseguite dopo
     await promise2;
     await promise3;
-    
+
     expect(results).toEqual([1, 2, 3]);
     expect(fn1).toHaveBeenCalledTimes(1);
     expect(fn2).toHaveBeenCalledTimes(1);
@@ -326,21 +328,21 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 100;
     const queue = new RateLimitQueue(tracker);
-    
+
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     const fn1 = vi.fn(async () => {
       throw new Error('Errore simulato');
     });
     const fn2 = vi.fn(async () => 'result2');
-    
+
     // fn1 fallisce, fn2 dovrebbe essere comunque eseguita
     const promise1 = queue.add(fn1);
     const promise2 = queue.add(fn2);
-    
+
     await expect(promise1).rejects.toThrow('Errore simulato');
     await promise2;
-    
+
     expect(fn2).toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith(
       '[RateLimitQueue] Error in queued call:',
@@ -353,15 +355,15 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 1; // Sotto la soglia di blocco
     const queue = new RateLimitQueue(tracker);
-    
+
     const fn = vi.fn(async () => 'result');
-    
+
     // Avvia la richiesta
     const promise = queue.add(fn);
-    
+
     // Avanza il tempo oltre il maxWaitTime (60 secondi)
     await vi.advanceTimersByTime(61000);
-    
+
     await expect(promise).rejects.toThrow('Rate limit timeout after 60s');
     expect(fn).not.toHaveBeenCalled();
   });
@@ -370,9 +372,9 @@ describe('RateLimitQueue', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 100;
     const queue = new RateLimitQueue(tracker);
-    
+
     const executionOrder = [];
-    
+
     const fn1 = vi.fn(async () => {
       executionOrder.push(1);
       return 'result1';
@@ -385,14 +387,14 @@ describe('RateLimitQueue', () => {
       executionOrder.push(3);
       return 'result3';
     });
-    
+
     // Aggiungi tutte le funzioni
     const p1 = queue.add(fn1);
     const p2 = queue.add(fn2);
     const p3 = queue.add(fn3);
-    
+
     await Promise.all([p1, p2, p3]);
-    
+
     // Dovrebbero essere eseguite in ordine FIFO
     expect(executionOrder).toEqual([1, 2, 3]);
   });
@@ -400,9 +402,9 @@ describe('RateLimitQueue', () => {
   it('peek() ritorna il primo elemento della coda', () => {
     const tracker = new RateLimitTracker();
     const queue = new RateLimitQueue(tracker);
-    
+
     expect(queue.peek()).toBe(null);
-    
+
     queue.queue.push({ promise: null, resolve: () => {}, reject: () => {} });
     expect(queue.peek()).not.toBe(null);
   });
@@ -410,12 +412,12 @@ describe('RateLimitQueue', () => {
   it('reset() resetta queue e isProcessing', () => {
     const tracker = new RateLimitTracker();
     const queue = new RateLimitQueue(tracker);
-    
+
     queue.queue.push({ promise: null, resolve: () => {}, reject: () => {} });
     queue.isProcessing = true;
-    
+
     queue.reset();
-    
+
     expect(queue.queue.length).toBe(0);
     expect(queue.isProcessing).toBe(false);
   });
@@ -435,7 +437,7 @@ describe('Factory Functions', () => {
     const { getDefaultTracker } = require('../api/_lib/ratelimit-tracker.js');
     const tracker1 = getDefaultTracker();
     const tracker2 = getDefaultTracker();
-    
+
     expect(tracker1).toBe(tracker2);
   });
 
@@ -443,29 +445,36 @@ describe('Factory Functions', () => {
     const { getDefaultQueue } = require('../api/_lib/ratelimit-tracker.js');
     const queue1 = getDefaultQueue();
     const queue2 = getDefaultQueue();
-    
+
     expect(queue1).toBe(queue2);
     expect(queue1.tracker).toBe(queue2.tracker);
   });
 
   it('createCustomRateLimitSystem crea tracker e queue isolati', () => {
-    const { createCustomRateLimitSystem, RateLimitTracker, RateLimitQueue } = require('../api/_lib/ratelimit-tracker.js');
-    
+    const {
+      createCustomRateLimitSystem,
+      RateLimitTracker,
+      RateLimitQueue,
+    } = require('../api/_lib/ratelimit-tracker.js');
+
     const { tracker, queue } = createCustomRateLimitSystem();
-    
+
     expect(tracker).toBeInstanceOf(RateLimitTracker);
     expect(queue).toBeInstanceOf(RateLimitQueue);
     expect(queue.tracker).toBe(tracker);
   });
 
   it('createCustomRateLimitSystem è isolato dai singleton', () => {
-    const { createCustomRateLimitSystem, getDefaultTracker } = require('../api/_lib/ratelimit-tracker.js');
-    
+    const {
+      createCustomRateLimitSystem,
+      getDefaultTracker,
+    } = require('../api/_lib/ratelimit-tracker.js');
+
     const custom = createCustomRateLimitSystem();
     const defaultTracker = getDefaultTracker();
-    
+
     expect(custom.tracker).not.toBe(defaultTracker);
-    
+
     custom.tracker.remaining = 100;
     expect(defaultTracker.remaining).toBe(null);
   });
@@ -486,9 +495,9 @@ describe('parseRateLimitHeaders', () => {
         get: (name) => headers.get(name),
       },
     };
-    
+
     const result = parseRateLimitHeaders(mockResponse);
-    
+
     expect(result.remaining).toBe(4999);
     expect(result.reset).toBe(1784100000);
   });
@@ -496,12 +505,12 @@ describe('parseRateLimitHeaders', () => {
   it('ritorna null per headers mancanti', () => {
     const mockResponse = {
       headers: {
-        get: (_) => null,
+        get: () => null,
       },
     };
-    
+
     const result = parseRateLimitHeaders(mockResponse);
-    
+
     expect(result.remaining).toBe(null);
     expect(result.reset).toBe(null);
   });
@@ -509,12 +518,12 @@ describe('parseRateLimitHeaders', () => {
   it('ritorna null per valori non numerici', () => {
     const mockResponse = {
       headers: {
-        get: (_) => 'invalid',
+        get: () => 'invalid',
       },
     };
-    
+
     const result = parseRateLimitHeaders(mockResponse);
-    
+
     expect(result.remaining).toBe(null);
     expect(result.reset).toBe(null);
   });
@@ -535,25 +544,27 @@ describe('Integration: Tracker + Queue', () => {
   });
 
   it('simula un flow completo di rate limiting', async () => {
-    const { createCustomRateLimitSystem } = require('../api/_lib/ratelimit-tracker.js');
+    const {
+      createCustomRateLimitSystem,
+    } = require('../api/_lib/ratelimit-tracker.js');
     const { tracker, queue } = createCustomRateLimitSystem();
-    
+
     const executionLog = [];
-    
+
     // Simula 5 richieste consecutive
     for (let i = 1; i <= 5; i++) {
       tracker.remaining = 5000 - i;
       tracker.totalRequests = 0; // Reset per test
-      
+
       const fn = vi.fn(async () => {
         executionLog.push({ remaining: tracker.remaining, order: i });
         return `result-${i}`;
       });
-      
+
       const result = await queue.add(fn);
       expect(result).toBe(`result-${i}`);
     }
-    
+
     // Tutte le richieste dovrebbero essere eseguite
     expect(executionLog.length).toBe(5);
     expect(executionLog[0].remaining).toBe(4999);
@@ -561,45 +572,49 @@ describe('Integration: Tracker + Queue', () => {
   });
 
   it('blocca le richieste quando remaining == 0', async () => {
-    const { createCustomRateLimitSystem } = require('../api/_lib/ratelimit-tracker.js');
+    const {
+      createCustomRateLimitSystem,
+    } = require('../api/_lib/ratelimit-tracker.js');
     const { tracker, queue } = createCustomRateLimitSystem();
-    
+
     tracker.remaining = 0; // Rate limit exhausted
-    
+
     const fn = vi.fn(async () => 'result');
-    
+
     // Avvia la richiesta
     const promise = queue.add(fn);
-    
+
     // Non dovrebbe essere eseguita
     expect(fn).not.toHaveBeenCalled();
-    
+
     // Simula il reset del rate limit
     tracker.remaining = 100;
     vi.advanceTimersByTime(2000);
-    
+
     await promise;
-    
+
     expect(fn).toHaveBeenCalled();
   });
 
   it('tracker registra le chiamate bloccate', async () => {
-    const { createCustomRateLimitSystem } = require('../api/_lib/ratelimit-tracker.js');
+    const {
+      createCustomRateLimitSystem,
+    } = require('../api/_lib/ratelimit-tracker.js');
     const { tracker, queue } = createCustomRateLimitSystem();
-    
+
     tracker.remaining = 1;
-    
+
     const fn = vi.fn(async () => 'result');
-    
+
     const promise = queue.add(fn);
-    
+
     // Il tracker dovrebbe aver incrementato requestsBlocked
     expect(tracker.requestsBlocked).toBe(1);
-    
+
     // Simula il reset
     tracker.remaining = 100;
     vi.advanceTimersByTime(2000);
-    
+
     await promise;
   });
 });
@@ -627,9 +642,9 @@ describe('Edge Cases & Robustness', () => {
         return null;
       },
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     // remaining negativo è valido (parse come numero negativo)
     expect(tracker.remaining).toBe(-1);
     expect(tracker.isBelowBlockThreshold()).toBe(true);
@@ -644,9 +659,9 @@ describe('Edge Cases & Robustness', () => {
         return null;
       },
     };
-    
+
     tracker.updateFromResponse(mockHeaders);
-    
+
     // secondsUntilReset dovrebbe essere 0 o negativo (ma max(0, ...) lo corregge)
     const seconds = tracker.getSecondsUntilReset();
     expect(seconds).toBe(0);
@@ -656,15 +671,15 @@ describe('Edge Cases & Robustness', () => {
     const tracker = new RateLimitTracker();
     tracker.remaining = 100;
     const queue = new RateLimitQueue(tracker);
-    
+
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     const fn = vi.fn(async () => {
       throw new Error('Network error');
     });
-    
+
     await expect(queue.add(fn)).rejects.toThrow('Network error');
-    
+
     expect(consoleSpy).toHaveBeenCalledWith(
       '[RateLimitQueue] Error in queued call:',
       'Network error'
@@ -675,10 +690,10 @@ describe('Edge Cases & Robustness', () => {
   it('processQueue non blocca se queue è vuota', async () => {
     const tracker = new RateLimitTracker();
     const queue = new RateLimitQueue(tracker);
-    
+
     // Chiamare processQueue su queue vuota non dovrebbe fallire
     await queue.processQueue();
-    
+
     expect(queue.queueLength).toBe(0);
   });
 });

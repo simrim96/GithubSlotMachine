@@ -24,9 +24,7 @@ import { Redis } from '@upstash/redis';
 //       KV_REST_API_URL + KV_REST_API_TOKEN (+ KV_REST_API_READ_ONLY_TOKEN)
 // Supportiamo entrambi, così kvEnabled è true qualunque modo tu lo abbia collegato.
 const url =
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  '';
+  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
 const token =
   process.env.UPSTASH_REDIS_REST_TOKEN ||
   process.env.KV_REST_API_TOKEN ||

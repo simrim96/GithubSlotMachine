@@ -5,25 +5,37 @@
 //   • api/_lib/github.js    → API GitHub + marker README
 // Qui resta solo l'handler Vercel: legge stato, calcola la griglia, genera
 // l'SVG, aggiorna slot.svg/state/README e fa il redirect.
+import { LANGUAGE_BY_ID, pickFact, LANGUAGES } from './_lib/languages.js';
 import {
-  LANGUAGE_BY_ID,
-  pickFact,
-  LANGUAGES,
-} from './_lib/languages.js';
-import {
-  SYMBOL_IDS, REEL, FORCED_WIN_PROB, COLS, ROWS, PAYLINES, PL_COLORS,
-  generateGrid, engineerWin, engineerNearMiss,
-  checkWins, countScatters, detectNearMiss, winningLangId, wrap,
+  SYMBOL_IDS,
+  REEL,
+  FORCED_WIN_PROB,
+  COLS,
+  ROWS,
+  PAYLINES,
+  PL_COLORS,
+  generateGrid,
+  engineerWin,
+  engineerNearMiss,
+  checkWins,
+  countScatters,
+  detectNearMiss,
+  winningLangId,
+  wrap,
 } from './_lib/game.js';
 import { buildSVG } from './_lib/svg-builder.js';
 import { buildAccessibleSVG, errorSVG } from './_lib/svg-builder-accessible.js';
 import {
-  ghGet, ghPut, saveSlotSvg, loadSlotSvg, updateReadmeMarkers,
+  ghGet,
+  ghPut,
+  saveSlotSvg,
+  loadSlotSvg,
+  updateReadmeMarkers,
 } from './_lib/github.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
-import { isValidUser } from './_lib/ratelimit.js';
+import { isValidUser, rateLimit } from './_lib/ratelimit.js';
 import { kvEnabled } from './_lib/kv.js';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
@@ -32,6 +44,36 @@ const ALLOWED_ORIGINS = [
   'localhost',
   'github.com',
 ];
+
+// ─── Security: CORS policy ──────────────────────────────────────────────────
+// /api/spin è raggiungibile anche in cross-origin (es. embed su github.com o
+// fork su altri domini). Specifichiamo una policy esplicita anziché il
+// wildcard '*' (che sarebbe insicuro su redirect/state con credenziali).
+// Gli origin ammessi sono configurabili via env ALLOWED_CORS_ORIGINS (CSV),
+// con fallback ai domini noti dell'app. Se l'Origin non è fra quelli
+// consentiti, NON viene emesso l'header Access-Control-Allow-Origin (così il
+// browser blocca la lettura cross-origin ma la navigazione diretta funziona).
+const CORS_ALLOWED = (
+  process.env.ALLOWED_CORS_ORIGINS ||
+  'https://github-slot-machine.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173'
+)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function applyCors(req, res) {
+  const origin = req?.headers?.origin;
+  if (origin && CORS_ALLOWED.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  // Header di sicurezza generici: riducono la superficie di attacco anche su
+  // richieste same-origin (es. click della leva da github.com).
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+}
 
 // ─── Security: Validate Redirect URL to Prevent Open Redirect ─────────────────
 function isValidRedirectUrl(urlString) {
@@ -55,7 +97,7 @@ function isValidRedirectUrl(urlString) {
   // For full URLs, validate the origin
   try {
     const url = new URL(trimmed);
-    
+
     // Block dangerous protocols
     const dangerousProtocols = ['javascript:', 'data:', 'vbscript:'];
     if (dangerousProtocols.includes(url.protocol)) {
@@ -78,13 +120,27 @@ const PROFILE_REPO = process.env.PROFILE_REPO || OWNER;
 
 // ─── Re-export della logica pura per i test (tests/ importa da qui) ──────────
 export {
-  SYMBOL_IDS, REEL, FORCED_WIN_PROB, COLS, ROWS, PAYLINES, PL_COLORS,
-  generateGrid, engineerWin, engineerNearMiss,
-  checkWins, countScatters, detectNearMiss, winningLangId, wrap,
-  buildSVG, buildAccessibleSVG,
+  SYMBOL_IDS,
+  REEL,
+  FORCED_WIN_PROB,
+  COLS,
+  ROWS,
+  PAYLINES,
+  PL_COLORS,
+  generateGrid,
+  engineerWin,
+  engineerNearMiss,
+  checkWins,
+  countScatters,
+  detectNearMiss,
+  winningLangId,
+  wrap,
+  buildSVG,
+  buildAccessibleSVG,
   errorSVG,
   isValidRedirectUrl,
-  WILD_ID, SCATTER_ID,
+  WILD_ID,
+  SCATTER_ID,
 };
 
 // ─── Analytics Tracking ──────────────────────────────────────────────────────
@@ -96,11 +152,13 @@ async function trackSpin(metrics) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          events: [{
-            event: 'spin',
-            timestamp: Date.now(),
-            ...metrics,
-          }],
+          events: [
+            {
+              event: 'spin',
+              timestamp: Date.now(),
+              ...metrics,
+            },
+          ],
         }),
       }).catch(() => {}); // Silently ignore analytics failures
     } catch (e) {
@@ -111,6 +169,28 @@ async function trackSpin(metrics) {
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // ── CORS + preflight ─────────────────────────────────────────────────────
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  // ── Rate-limit per-IP (token-bucket 1 spin / RL_WINDOW_SEC) ──────────────
+  // Protegge l'endpoint che fa WRITE su GitHub/Redis a ogni chiamata da un
+  // abuso che esaurirebbe il rate-limit globale GitHub (5000/h) o i write
+  // Redis. Il limite è per-IP e viene calcolato PRIMA di qualsiasi lavoro
+  // (token, letture, scritture) così lo spin bloccato non tocca GitHub/Redis.
+  const rl = await rateLimit(req);
+  if (!rl.ok) {
+    res
+      .status(429)
+      .setHeader('Retry-After', String(rl.retryAfter))
+      .setHeader('Content-Type', 'text/plain; charset=utf-8')
+      .send(`Troppe richieste. Riprova tra ${rl.retryAfter} secondi.`);
+    return;
+  }
+
   const token = process.env.GITHUB_PAT;
   if (!token) {
     res.status(500).send('GITHUB_PAT non configurato.');
@@ -136,8 +216,7 @@ export default async function handler(req, res) {
       })),
     ]);
 
-    let { state, sha: stateSha } = stateBundle;
-    let readmeFile = null; // caricato in background per l'update README
+    const { state, sha: stateSha } = stateBundle;
     state.totalSpins = (state.totalSpins || 0) + 1;
 
     const wins = checkWins(grid);
@@ -153,7 +232,12 @@ export default async function handler(req, res) {
       // background e ritorna subito (spesso null → redirect al profilo).
       // Il redirect NON aspetta mai lo stall di 1-3s delle GitHub API.
       try {
-        repoMatch = await getRepoForLanguage(token, OWNER, winningLang, LANGUAGES);
+        repoMatch = await getRepoForLanguage(
+          token,
+          OWNER,
+          winningLang,
+          LANGUAGES
+        );
       } catch (e) {
         console.warn('repo lookup failed:', e.message);
       }
@@ -169,7 +253,13 @@ export default async function handler(req, res) {
     }
 
     const svg = buildAccessibleSVG({
-      grid, uid: spinStart, state, winningLang, fact, repoMatch, owner: OWNER,
+      grid,
+      uid: spinStart,
+      state,
+      winningLang,
+      fact,
+      repoMatch,
+      owner: OWNER,
     });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
@@ -181,7 +271,9 @@ export default async function handler(req, res) {
     const isJackpot = wins.some((w) => w.count === 5);
     let dest;
     if (winningLang && isJackpot) {
-      const ghLang = encodeURIComponent(winningLang.githubLang || winningLang.name);
+      const ghLang = encodeURIComponent(
+        winningLang.githubLang || winningLang.name
+      );
       dest = `https://github.com/${targetOwner}?tab=repositories&language=${ghLang}`;
     } else {
       dest = repoMatch?.url || `https://github.com/${OWNER}`;
@@ -205,23 +297,27 @@ export default async function handler(req, res) {
       await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((w) =>
         console.warn('state write:', w.message)
       );
-      
+
       // Redirect in caso di errore slot.svg write con validazione Open Redirect
-      const rawRedirect = req.query?.redirect ? String(req.query.redirect).trim() : '';
+      const rawRedirect = req.query?.redirect
+        ? String(req.query.redirect).trim()
+        : '';
       let redirectUrl = dest; // default al redirect calcolato
-      
+
       if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
         redirectUrl = rawRedirect;
         console.log('Security: Allowed validated redirect to:', redirectUrl);
       } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-        console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
+        console.warn(
+          `[Security] Blocked open redirect attempt to: ${rawRedirect}`
+        );
       }
-      
+
       res.redirect(302, redirectUrl);
       // Track analytics (non bloccante)
       await trackSpin({
         win: isWin ? 'win' : 'loss',
-        win_type: isJackpot ? 'jackpot' : (isWin ? 'near-miss' : 'loss'),
+        win_type: isJackpot ? 'jackpot' : isWin ? 'near-miss' : 'loss',
         lang_id: winningLang?.id || null,
         redis_hit: kvEnabled,
         github_latency_ms: githubLatency,
@@ -237,23 +333,27 @@ export default async function handler(req, res) {
     // scritti (~10-40ms), senza aspettare GitHub (README) né scan repo.
     // ── Redirect con validazione Open Redirect ─────────────────────────────────
     // Validazione security: previeni redirect aperti verso siti malevoli
-    const rawRedirect = req.query?.redirect ? String(req.query.redirect).trim() : '';
+    const rawRedirect = req.query?.redirect
+      ? String(req.query.redirect).trim()
+      : '';
     let redirectUrl = dest; // default al redirect calcolato
-    
+
     if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
       redirectUrl = rawRedirect;
       console.log('Security: Allowed validated redirect to:', redirectUrl);
     } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-      console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
+      console.warn(
+        `[Security] Blocked open redirect attempt to: ${rawRedirect}`
+      );
     }
-    
+
     res.redirect(302, redirectUrl);
     console.log('Security: Redirecting to:', redirectUrl);
-    
+
     // Track analytics (non bloccante)
     await trackSpin({
       win: isWin ? 'win' : 'loss',
-      win_type: isJackpot ? 'jackpot' : (isWin ? 'near-miss' : 'loss'),
+      win_type: isJackpot ? 'jackpot' : isWin ? 'near-miss' : 'loss',
       lang_id: winningLang?.id || null,
       redis_hit: kvEnabled,
       github_latency_ms: githubLatency,
@@ -265,62 +365,85 @@ export default async function handler(req, res) {
     // redirect. Se il fetch fallisce, skip silenzioso: il profilo non è critico.
     // Con retry e backoff esponenziale per prevenire silent failures.
     const backgroundTaskId = `readme-update-${spinStart}`;
-    let backgroundTaskCompleted = false;
-    
+
     const updateReadmeBackground = async () => {
       const MAX_RETRIES = 3;
       const RETRY_DELAY_MS = 1000;
-      
+
       let lastError = null;
       try {
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
           try {
             const rf = await ghGet(token, PROFILE_REPO, 'README.md');
             if (!rf) {
-              backgroundTaskCompleted = true;
               return;
             }
-            
-            const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
+
+            const oldReadme = Buffer.from(rf.content, 'base64').toString(
+              'utf-8'
+            );
             let newReadme = oldReadme.replace(
               /api\/image\?(?:v|cache_buster)=[0-9]*/g,
               `api/image?v=${spinStart}`
             );
-            newReadme = updateReadmeMarkers(newReadme, state, winningLang, repoMatch, fact);
-            
+            newReadme = updateReadmeMarkers(
+              newReadme,
+              state,
+              winningLang,
+              repoMatch,
+              fact
+            );
+
             if (newReadme !== oldReadme) {
-              await ghPut(token, PROFILE_REPO, 'README.md', newReadme, rf.sha, '🎰 Update slot');
+              await ghPut(
+                token,
+                PROFILE_REPO,
+                'README.md',
+                newReadme,
+                rf.sha,
+                '🎰 Update slot'
+              );
             }
-            backgroundTaskCompleted = true;
             return; // Successo
           } catch (e) {
             lastError = e;
-            console.warn(`README update attempt ${attempt + 1} failed:`, e.message);
+            console.warn(
+              `README update attempt ${attempt + 1} failed:`,
+              e.message
+            );
             if (attempt < MAX_RETRIES - 1) {
-              await new Promise(r => setTimeout(r, RETRY_DELAY_MS * Math.pow(2, attempt)));
+              await new Promise((r) =>
+                setTimeout(r, RETRY_DELAY_MS * Math.pow(2, attempt))
+              );
             }
           }
         }
         // Se tutti i retry falliscono, logga l'errore finale
-        console.error('README update failed after', MAX_RETRIES, 'attempts:', lastError?.message);
-        backgroundTaskCompleted = true;
+        console.error(
+          'README update failed after',
+          MAX_RETRIES,
+          'attempts:',
+          lastError?.message
+        );
       } catch (e) {
         // Catch-all for any unexpected errors
         console.error(`README background task error:`, e.message);
-        backgroundTaskCompleted = true;
       }
     };
-    
+
     // Start background task with proper error handling and cleanup
     updateReadmeBackground()
       .then(() => {
-        console.log(`[Background Task ${backgroundTaskId}] Completed successfully`);
+        console.log(
+          `[Background Task ${backgroundTaskId}] Completed successfully`
+        );
       })
       .catch((err) => {
-        console.error(`[Background Task ${backgroundTaskId}] Unhandled rejection:`, err.message);
-        backgroundTaskCompleted = true;
+        console.error(
+          `[Background Task ${backgroundTaskId}] Unhandled rejection:`,
+          err.message
+        );
       });
-    
     // Register with Sentry for monitoring (if available)
     try {
       Sentry.addBreadcrumb({
@@ -334,7 +457,7 @@ export default async function handler(req, res) {
   } catch (err) {
     // Cattura l'errore su Sentry
     Sentry.captureException(err);
-    
+
     // Degrado graceful: invece di un 500 che "rompe" la leva, proviamo a
     // salvare un SVG di errore su slot.svg (best-effort) e poi facciamo
     // comunque il redirect verso il profilo dell'owner. L'utente non vede mai
@@ -342,22 +465,31 @@ export default async function handler(req, res) {
     // tutto normale. Lo stato dei contatori è già stato incrementato in
     // memoria ma non persistito, quindi non si perdono dati critici.
     console.error('spin handler error:', err?.message || err);
-    const fallback = errorSVG({ owner: OWNER, message: 'Ops, riprova un attimo!' });
+    const fallback = errorSVG({
+      owner: OWNER,
+      message: 'Ops, riprova un attimo!',
+    });
     try {
       await saveSlotSvg(token, OWNER, SLOT_REPO, fallback).catch(() => {});
-    } catch { /* ignora: non blocchiamo il redirect per il fallback */ }
-    
+    } catch {
+      /* ignora: non blocchiamo il redirect per il fallback */
+    }
+
     // Redirect in caso di errore con validazione Open Redirect
-    const rawRedirect = req.query?.redirect ? String(req.query.redirect).trim() : '';
+    const rawRedirect = req.query?.redirect
+      ? String(req.query.redirect).trim()
+      : '';
     let redirectUrl = `https://github.com/${OWNER}`; // default
-    
+
     if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
       redirectUrl = rawRedirect;
       console.log('Security: Allowed validated redirect to:', redirectUrl);
     } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-      console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
+      console.warn(
+        `[Security] Blocked open redirect attempt to: ${rawRedirect}`
+      );
     }
-    
+
     try {
       res.redirect(302, redirectUrl);
     } catch {

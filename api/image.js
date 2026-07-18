@@ -9,7 +9,7 @@
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).
 
 import { kv, kvEnabled } from './_lib/kv.js';
-import * as Sentry from "@sentry/node";
+import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
 

@@ -1,570 +1,606 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dev Stack Slot Machine</title>
-  <style>
-    /* Reset e base styles */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #171530;
-      color: #e8e8f4;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    
-    /* Accessibilità: screen reader only */
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-    
-    /* Live regions per annunci */
-    #aria-status, #aria-alert {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-    }
-    
-    /* Container principale */
-    .slot-container {
-      max-width: 650px;
-      width: 100%;
-      text-align: center;
-    }
-    
-    /* Titolo principale */
-    h1 {
-      font-size: 1.5rem;
-      margin-bottom: 20px;
-      color: #f0f0f5;
-    }
-    
-    /* SVG container */
-    .svg-wrapper {
-      width: 100%;
-      margin-bottom: 20px;
-    }
-    
-    #slot-svg {
-      width: 100%;
-      height: auto;
-      border: 2px solid #4a4a6a;
-      border-radius: 8px;
-      background: #1a1835;
-    }
-    
-    /* Pulsante spin con focus management */
-    .spin-btn {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      padding: 16px 48px;
-      font-size: 1.125rem;
-      font-weight: 600;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-      min-width: 200px;
-      margin: 10px;
-    }
-    
-    .spin-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Focus management: focus-visible per accessibilità */
-    .spin-btn:focus {
-      outline: none;
-    }
-    
-    .spin-btn:focus-visible {
-      outline: 3px solid #ffd700;
-      outline-offset: 3px;
-      box-shadow: 0 0 0 6px rgba(255, 215, 0, 0.2);
-    }
-    
-    /* State disabled */
-    .spin-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-    
-    /* Animazioni accessibili */
-    @media (prefers-reduced-motion: reduce) {
-      .spin-btn,
-      .svg-wrapper * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dev Stack Slot Machine</title>
+    <style>
+      /* Reset e base styles */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-      
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+          sans-serif;
+        background: #171530;
+        color: #e8e8f4;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      /* Accessibilità: screen reader only */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* Live regions per annunci */
+      #aria-status,
+      #aria-alert {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+
+      /* Container principale */
+      .slot-container {
+        max-width: 650px;
+        width: 100%;
+        text-align: center;
+      }
+
+      /* Titolo principale */
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+        color: #f0f0f5;
+      }
+
+      /* SVG container */
+      .svg-wrapper {
+        width: 100%;
+        margin-bottom: 20px;
+      }
+
+      #slot-svg {
+        width: 100%;
+        height: auto;
+        border: 2px solid #4a4a6a;
+        border-radius: 8px;
+        background: #1a1835;
+      }
+
+      /* Pulsante spin con focus management */
+      .spin-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 16px 48px;
+        font-size: 1.125rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s,
+          opacity 0.2s;
+        min-width: 200px;
+        margin: 10px;
+      }
+
       .spin-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+      }
+
+      /* Focus management: focus-visible per accessibilità */
+      .spin-btn:focus {
+        outline: none;
+      }
+
+      .spin-btn:focus-visible {
+        outline: 3px solid #ffd700;
+        outline-offset: 3px;
+        box-shadow: 0 0 0 6px rgba(255, 215, 0, 0.2);
+      }
+
+      /* State disabled */
+      .spin-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
         transform: none;
       }
-    }
-    
-    /* Info section */
-    .info-section {
-      margin-top: 24px;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      font-size: 0.875rem;
-      color: #8b8baf;
-    }
-    
-    .info-section h2 {
-      font-size: 1rem;
-      margin-bottom: 8px;
-      color: #e8e8f4;
-    }
-    
-    .spin-counter {
-      font-weight: 600;
-      color: #667eea;
-    }
-    
-    /* Statistiche */
-    .stats {
-      display: flex;
-      gap: 24px;
-      justify-content: center;
-      margin-top: 16px;
-      flex-wrap: wrap;
-    }
-    
-    .stat-item {
-      text-align: center;
-    }
-    
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #667eea;
-    }
-    
-    .stat-label {
-      font-size: 0.75rem;
-      color: #8b8baf;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    /* Rate Limit Badge */
-    .ratelimit-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.875rem;
-      font-weight: 600;
-      margin-top: 16px;
-      transition: all 0.3s ease;
-    }
-    
-    .ratelimit-badge.ok {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: white;
-    }
-    
-    .ratelimit-badge.warning {
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      color: white;
-    }
-    
-    .ratelimit-badge.critical {
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-      color: white;
-    }
-    
-    .ratelimit-badge.unknown {
-      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-      color: white;
-    }
-    
-    .ratelimit-icon {
-      font-size: 1rem;
-    }
-    
-    .ratelimit-text {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      line-height: 1.2;
-    }
-    
-    .ratelimit-main {
-      font-size: 0.875rem;
-      font-weight: 700;
-    }
-    
-    .ratelimit-sub {
-      font-size: 0.75rem;
-      opacity: 0.9;
-    }
-    
-    /* Animazione per lo stato warning/critical */
-    @keyframes pulse-warning {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    
-    @keyframes pulse-critical {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-      50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-    }
-    
-    .ratelimit-badge.warning {
-      animation: pulse-warning 2s infinite;
-    }
-    
-    .ratelimit-badge.critical {
-      animation: pulse-critical 1.5s infinite;
-    }
-  </style>
-</head>
-<body>
-  <!-- LIVE REGIONS PER ACCESSIBILITÀ -->
-  <!-- Region per annunci di status (polite - non interrompe) -->
-  <div id="aria-status" aria-live="polite" aria-atomic="true" class="sr-only">
-    <span id="status-message">Macchina slot per stack di sviluppo. Premi il pulsante per girare.</span>
-  </div>
-  
-  <!-- Region per annunci urgenti (assertive - interrompe) -->
-  <div id="aria-alert" aria-live="assertive" aria-atomic="true" class="sr-only">
-    <span id="alert-message"></span>
-  </div>
-  
-  <main class="slot-container">
-    <h1 id="main-title">🎰 Dev Stack Slot Machine</h1>
-    <p id="slot-description" class="sr-only">
-      Una slot machine interattiva che mostra il tuo stack tecnologico. Ogni giro rivela un linguaggio di programmazione e curiosità interessanti.
-    </p>
-    
-    <div class="svg-wrapper">
-      <img 
-        id="slot-svg" 
-        src="api/image?v=0" 
-        alt="Slot machine che mostra lo stack di sviluppo corrente"
-        role="img"
-        aria-describedby="slot-description status-message"
+
+      /* Animazioni accessibili */
+      @media (prefers-reduced-motion: reduce) {
+        .spin-btn,
+        .svg-wrapper * {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+
+        .spin-btn:hover {
+          transform: none;
+        }
+      }
+
+      /* Info section */
+      .info-section {
+        margin-top: 24px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: #8b8baf;
+      }
+
+      .info-section h2 {
+        font-size: 1rem;
+        margin-bottom: 8px;
+        color: #e8e8f4;
+      }
+
+      .spin-counter {
+        font-weight: 600;
+        color: #667eea;
+      }
+
+      /* Statistiche */
+      .stats {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        margin-top: 16px;
+        flex-wrap: wrap;
+      }
+
+      .stat-item {
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #667eea;
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        color: #8b8baf;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      /* Rate Limit Badge */
+      .ratelimit-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-top: 16px;
+        transition: all 0.3s ease;
+      }
+
+      .ratelimit-badge.ok {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+      }
+
+      .ratelimit-badge.warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+      }
+
+      .ratelimit-badge.critical {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+      }
+
+      .ratelimit-badge.unknown {
+        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        color: white;
+      }
+
+      .ratelimit-icon {
+        font-size: 1rem;
+      }
+
+      .ratelimit-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        line-height: 1.2;
+      }
+
+      .ratelimit-main {
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+
+      .ratelimit-sub {
+        font-size: 0.75rem;
+        opacity: 0.9;
+      }
+
+      /* Animazione per lo stato warning/critical */
+      @keyframes pulse-warning {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes pulse-critical {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+        }
+      }
+
+      .ratelimit-badge.warning {
+        animation: pulse-warning 2s infinite;
+      }
+
+      .ratelimit-badge.critical {
+        animation: pulse-critical 1.5s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- LIVE REGIONS PER ACCESSIBILITÀ -->
+    <!-- Region per annunci di status (polite - non interrompe) -->
+    <div id="aria-status" aria-live="polite" aria-atomic="true" class="sr-only">
+      <span id="status-message"
+        >Macchina slot per stack di sviluppo. Premi il pulsante per
+        girare.</span
       >
     </div>
-    
-    <button 
-      id="spin-btn" 
-      class="spin-btn"
-      aria-label="Gira la slot machine"
-      aria-describedby="status-message spin-counter"
-      aria-live="polite"
+
+    <!-- Region per annunci urgenti (assertive - interrompe) -->
+    <div
+      id="aria-alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      class="sr-only"
     >
-      🎲 GIRA ORA
-    </button>
-    
-    <div class="stats" role="status" aria-live="polite" aria-atomic="true">
-      <div class="stat-item">
-        <div class="stat-value" id="spin-count" aria-label="Numero totale di girate">0</div>
-        <div class="stat-label">Girate</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value" id="win-count" aria-label="Numero totale di vincite">0</div>
-        <div class="stat-label">Vittorie</div>
-      </div>
+      <span id="alert-message"></span>
     </div>
-    
-    <div class="info-section">
-      <h2>ℹ️ Come Funziona</h2>
-      <p>
-        Premi il pulsante per girare! Ogni giro genera un'immagine SVG unica basata sul tuo profilo GitHub.
-        Se indovini un linguaggio, verrai reindirizzato al tuo repository corrispondente.
+
+    <main class="slot-container">
+      <h1 id="main-title">🎰 Dev Stack Slot Machine</h1>
+      <p id="slot-description" class="sr-only">
+        Una slot machine interattiva che mostra il tuo stack tecnologico. Ogni
+        giro rivela un linguaggio di programmazione e curiosità interessanti.
       </p>
-      <p style="margin-top: 8px;">
-        <span id="spin-counter" class="spin-counter">Totale: 0 girate</span>
-      </p>
-    </div>
-    
-    <!-- Rate Limit Status Badge -->
-    <div id="ratelimit-badge-container" class="ratelimit-badge unknown" role="status" aria-live="polite" aria-label="Stato rate limit GitHub API">
-      <span class="ratelimit-icon" id="ratelimit-icon">⏳</span>
-      <div class="ratelimit-text">
-        <span class="ratelimit-main" id="ratelimit-main">Caricamento...</span>
-        <span class="ratelimit-sub" id="ratelimit-sub">Verifica stato API GitHub</span>
+
+      <div class="svg-wrapper">
+        <img
+          id="slot-svg"
+          src="api/image?v=0"
+          alt="Slot machine che mostra lo stack di sviluppo corrente"
+          role="img"
+          aria-describedby="slot-description status-message"
+        />
       </div>
-    </div>
-  </main>
-  
-  <script>
-    // ─── Focus Management & Announcements ────────────────────────────────────────
-    // Gestione accessibilità per screen reader e navigazione da tastiera
-    
-    (function() {
-      // Elementi DOM
-      const spinBtn = document.getElementById('spin-btn');
-      const slotSvg = document.getElementById('slot-svg');
-      const statusMessage = document.getElementById('status-message');
-      const alertMessage = document.getElementById('alert-message');
-      const spinCountEl = document.getElementById('spin-count');
-      const winCountEl = document.getElementById('win-count');
-      const spinCounterEl = document.getElementById('spin-counter');
-      
-      let isSpinning = false;
-      let currentUid = Date.now();
-      
-      // Funzione per annunciare messaggi agli screen reader
-      function announce(message, priority = 'polite') {
-        const region = priority === 'assertive' ? alertMessage : statusMessage;
-        
-        // Clear per screen reader (deve svuotare prima di inserire nuovo testo)
-        region.textContent = '';
-        
-        // Usa setTimeout per assicurare che lo screen reader capisca il cambiamento
-        setTimeout(() => {
-          region.textContent = message;
-        }, 100);
-      }
-      
-      // Funzione per annunciare risultati di vincita/perdita
-      function announceResult(isWin, isJackpot, winningLang, totalSpins) {
-        if (isJackpot) {
-          announce(`🎉 JACKPOT! Hai vinto con ${winningLang || 'linguaggio'}!`, 'assertive');
-        } else if (isWin) {
-          announce(`🎉 Vinci! Hai abbinato ${winningLang || 'un linguaggio'}.`, 'polite');
-        } else {
-          announce(`Nessuna vincita questa volta. Riprova!`, 'polite');
+
+      <button
+        id="spin-btn"
+        class="spin-btn"
+        aria-label="Gira la slot machine"
+        aria-describedby="status-message spin-counter"
+        aria-live="polite"
+      >
+        🎲 GIRA ORA
+      </button>
+
+      <div class="stats" role="status" aria-live="polite" aria-atomic="true">
+        <div class="stat-item">
+          <div
+            class="stat-value"
+            id="spin-count"
+            aria-label="Numero totale di girate"
+          >
+            0
+          </div>
+          <div class="stat-label">Girate</div>
+        </div>
+        <div class="stat-item">
+          <div
+            class="stat-value"
+            id="win-count"
+            aria-label="Numero totale di vincite"
+          >
+            0
+          </div>
+          <div class="stat-label">Vittorie</div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>ℹ️ Come Funziona</h2>
+        <p>
+          Premi il pulsante per girare! Ogni giro genera un'immagine SVG unica
+          basata sul tuo profilo GitHub. Se indovini un linguaggio, verrai
+          reindirizzato al tuo repository corrispondente.
+        </p>
+        <p style="margin-top: 8px">
+          <span id="spin-counter" class="spin-counter">Totale: 0 girate</span>
+        </p>
+      </div>
+
+      <!-- Rate Limit Status Badge -->
+      <div
+        id="ratelimit-badge-container"
+        class="ratelimit-badge unknown"
+        role="status"
+        aria-live="polite"
+        aria-label="Stato rate limit GitHub API"
+      >
+        <span class="ratelimit-icon" id="ratelimit-icon">⏳</span>
+        <div class="ratelimit-text">
+          <span class="ratelimit-main" id="ratelimit-main">Caricamento...</span>
+          <span class="ratelimit-sub" id="ratelimit-sub"
+            >Verifica stato API GitHub</span
+          >
+        </div>
+      </div>
+    </main>
+
+    <script>
+      // ─── Focus Management & Announcements ────────────────────────────────────────
+      // Gestione accessibilità per screen reader e navigazione da tastiera
+
+      (function () {
+        // Elementi DOM
+        const spinBtn = document.getElementById('spin-btn');
+        const slotSvg = document.getElementById('slot-svg');
+        const statusMessage = document.getElementById('status-message');
+        const alertMessage = document.getElementById('alert-message');
+        const spinCountEl = document.getElementById('spin-count');
+        const winCountEl = document.getElementById('win-count');
+        const spinCounterEl = document.getElementById('spin-counter');
+
+        let isSpinning = false;
+        let currentUid = Date.now();
+
+        // Funzione per annunciare messaggi agli screen reader
+        function announce(message, priority = 'polite') {
+          const region =
+            priority === 'assertive' ? alertMessage : statusMessage;
+
+          // Clear per screen reader (deve svuotare prima di inserire nuovo testo)
+          region.textContent = '';
+
+          // Usa setTimeout per assicurare che lo screen reader capisca il cambiamento
+          setTimeout(() => {
+            region.textContent = message;
+          }, 100);
         }
-        
-        // Aggiorna counter
-        const wins = parseInt(winCountEl.textContent || '0', 10);
-        const newTotal = totalSpins || 0;
-        
-        spinCountEl.textContent = newTotal.toLocaleString('en-US');
-        winCountEl.textContent = wins.toLocaleString('en-US');
-        spinCounterEl.textContent = `Totale: ${newTotal.toLocaleString('en-US')} girate`;
-      }
-      
-      // Focus management: sposta il focus al pulsante quando la slot finisce di girare
-      function setFocusToSpinButton() {
-        spinBtn.focus();
-      }
-      
-      // Gestione click del pulsante spin
-      spinBtn.addEventListener('click', async function() {
-        if (isSpinning) return;
-        
-        isSpinning = true;
-        spinBtn.disabled = true;
-        spinBtn.textContent = '⏳ Girando...';
-        
-        // Annuncia l'inizio della girata
-        announce('Giro in corso...', 'polite');
-        
-        currentUid = Date.now();
-        const newSrc = `api/image?v=${currentUid}`;
-        
-        // Preload dell'SVG per transizione fluida
-        const newImg = new Image();
-        newImg.onload = function() {
-          // Aggiorna immagine
-          slotSvg.src = newSrc;
-          
-          // Aggiorna alt text per screen reader
-          slotSvg.alt = 'Slot machine aggiornata. Controlla l\'annuncio per il risultato.';
-          
-          // Rimuove classe di caricamento se presente
-          slotSvg.classList.remove('loading');
-          
-          // Abilita il pulsante
-          isSpinning = false;
-          spinBtn.disabled = false;
-          spinBtn.innerHTML = '🎲 GIRA ORA';
-          
-          // Sposta il focus al pulsante
-          setFocusToSpinButton();
-          
-          // Annuncia che la girata è finita
-          announce('Giro completato. Controlla il risultato.', 'polite');
-          
-          // NOTIFICA: Qui dovremmo aggiornare con il risultato reale
-          // Poiché questo è client-side, dobbiamo aspettare il redirect
-          // Per ora, l'annuncio avverrà dopo il redirect
-        };
-        
-        newImg.onerror = function() {
-          // Gestione errore
-          isSpinning = false;
-          spinBtn.disabled = false;
-          spinBtn.innerHTML = '🎲 RIPROVA';
-          
-          announce('Errore nel caricamento. Riprova.', 'assertive');
-          
-          setFocusToSpinButton();
-        };
-        
-        newImg.src = newSrc;
-      });
-      
-      // Keyboard navigation: Enter e Space già funzionanti per default
-      // Aggiungiamo supporto per T (tira) come scorciatoia
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 't' && document.activeElement !== spinBtn) {
-          e.preventDefault();
-          spinBtn.focus();
-          announce('Pulsante spin selezionato. Premi Enter o Spazio per girare.', 'polite');
-        }
-      });
-      
-      // Annuncio iniziale
-      setTimeout(() => {
-        announce('Premi il pulsante GIRA ORA o tasto T per iniziare.', 'polite');
-      }, 500);
-      
-      // Gestione state da URL params (per risultati post-redirect)
-      function parseUrlParams() {
-        const params = new URLSearchParams(window.location.search);
-        return {
-          win: params.get('win'),
-          lang: params.get('lang'),
-          jackpot: params.get('jackpot'),
-          spins: params.get('spins')
-        };
-      }
-      
-      // Controllo se c'è un risultato da annunciare dopo un redirect
-      function announceResultFromUrl() {
-        const params = parseUrlParams();
-        
-        if (params.win === 'true') {
-          if (params.jackpot === 'true') {
-            announce(`🎉 JACKPOT! Hai vinto con ${params.lang || 'linguaggio'}!`, 'assertive');
+
+        // Funzione per annunciare risultati di vincita/perdita
+        function announceResult(isWin, isJackpot, winningLang, totalSpins) {
+          if (isJackpot) {
+            announce(
+              `🎉 JACKPOT! Hai vinto con ${winningLang || 'linguaggio'}!`,
+              'assertive'
+            );
+          } else if (isWin) {
+            announce(
+              `🎉 Vinci! Hai abbinato ${winningLang || 'un linguaggio'}.`,
+              'polite'
+            );
           } else {
-            announce(`🎉 Vinci! Hai abbinato ${params.lang || 'un linguaggio'}.`, 'polite');
+            announce(`Nessuna vincita questa volta. Riprova!`, 'polite');
           }
-          if (params.spins) {
-            const newTotal = parseInt(params.spins, 10);
-            spinCountEl.textContent = newTotal.toLocaleString('en-US');
-            spinCounterEl.textContent = `Totale: ${newTotal.toLocaleString('en-US')} girate`;
-          }
+
+          // Aggiorna counter
+          const wins = parseInt(winCountEl.textContent || '0', 10);
+          const newTotal = totalSpins || 0;
+
+          spinCountEl.textContent = newTotal.toLocaleString('en-US');
+          winCountEl.textContent = wins.toLocaleString('en-US');
+          spinCounterEl.textContent = `Totale: ${newTotal.toLocaleString('en-US')} girate`;
         }
-      }
-      
-      // Annuncia risultato se presente nell'URL
-      announceResultFromUrl();
-      
-      // Monitora cambiamenti nel DOM per annunciare se il risultato cambia
-      const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
-            // L'SVG è stato aggiornato
-            announce('Immagine slot aggiornata. Il risultato è pronto.', 'polite');
+
+        // Focus management: sposta il focus al pulsante quando la slot finisce di girare
+        function setFocusToSpinButton() {
+          spinBtn.focus();
+        }
+
+        // Gestione click del pulsante spin
+        spinBtn.addEventListener('click', function () {
+          if (isSpinning) return;
+
+          isSpinning = true;
+          spinBtn.disabled = true;
+          spinBtn.textContent = '⏳ Girando...';
+
+          // Annuncia l'inizio della girata
+          announce('Giro in corso...', 'polite');
+
+          // Avvia uno spin reale: /api/spin genera una griglia nuova,
+          // riscrive slot.svg (via saveSlotSvg → GitHub) e poi fa il redirect.
+          // Prima il pulsante ricaricava SOLO l'immagine esistente
+          // (api/image?v=Date.now()) mostrando sempre la stessa schermata
+          // dei rulli — di fatto nessuno spin. Ora si comporta come la leva.
+          window.location.assign('/api/spin');
+        });
+
+        // Keyboard navigation: Enter e Space già funzionanti per default
+        // Aggiungiamo supporto per T (tira) come scorciatoia
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 't' && document.activeElement !== spinBtn) {
+            e.preventDefault();
+            spinBtn.focus();
+            announce(
+              'Pulsante spin selezionato. Premi Enter o Spazio per girare.',
+              'polite'
+            );
           }
         });
-      });
-      
-      observer.observe(slotSvg, { attributes: true });
-      
-      // ─── Rate Limit Badge Update ───────────────────────────────────────────────
-      // Aggiorna il badge con lo stato corrente del rate limit GitHub API
-      
-      const ratelimitBadge = document.getElementById('ratelimit-badge-container');
-      const ratelimitIcon = document.getElementById('ratelimit-icon');
-      const ratelimitMain = document.getElementById('ratelimit-main');
-      const ratelimitSub = document.getElementById('ratelimit-sub');
-      
-      async function fetchRateLimitStatus() {
-        try {
-          const response = await fetch('api/ratelimit-status');
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+
+        // Annuncio iniziale
+        setTimeout(() => {
+          announce(
+            'Premi il pulsante GIRA ORA o tasto T per iniziare.',
+            'polite'
+          );
+        }, 500);
+
+        // Gestione state da URL params (per risultati post-redirect)
+        function parseUrlParams() {
+          const params = new URLSearchParams(window.location.search);
+          return {
+            win: params.get('win'),
+            lang: params.get('lang'),
+            jackpot: params.get('jackpot'),
+            spins: params.get('spins'),
+          };
+        }
+
+        // Controllo se c'è un risultato da annunciare dopo un redirect
+        function announceResultFromUrl() {
+          const params = parseUrlParams();
+
+          if (params.win === 'true') {
+            if (params.jackpot === 'true') {
+              announce(
+                `🎉 JACKPOT! Hai vinto con ${params.lang || 'linguaggio'}!`,
+                'assertive'
+              );
+            } else {
+              announce(
+                `🎉 Vinci! Hai abbinato ${params.lang || 'un linguaggio'}.`,
+                'polite'
+              );
+            }
+            if (params.spins) {
+              const newTotal = parseInt(params.spins, 10);
+              spinCountEl.textContent = newTotal.toLocaleString('en-US');
+              spinCounterEl.textContent = `Totale: ${newTotal.toLocaleString('en-US')} girate`;
+            }
           }
-          
-          const data = await response.json();
-          updateRateLimitBadge(data);
-          
-        } catch (error) {
-          console.error('Failed to fetch rate limit status:', error);
-          updateRateLimitBadge(null);
         }
-      }
-      
-      function updateRateLimitBadge(data) {
-        if (!data) {
-          // Errore o stato sconosciuto
-          ratelimitBadge.className = 'ratelimit-badge unknown';
-          ratelimitIcon.textContent = '❌';
-          ratelimitMain.textContent = 'Stato sconosciuto';
-          ratelimitSub.textContent = 'Impossibile verificare il rate limit';
-          return;
+
+        // Annuncia risultato se presente nell'URL
+        announceResultFromUrl();
+
+        // Monitora cambiamenti nel DOM per annunciare se il risultato cambia
+        const observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (mutation) {
+            if (
+              mutation.type === 'attributes' &&
+              mutation.attributeName === 'src'
+            ) {
+              // L'SVG è stato aggiornato
+              announce(
+                'Immagine slot aggiornata. Il risultato è pronto.',
+                'polite'
+              );
+            }
+          });
+        });
+
+        observer.observe(slotSvg, { attributes: true });
+
+        // ─── Rate Limit Badge Update ───────────────────────────────────────────────
+        // Aggiorna il badge con lo stato corrente del rate limit GitHub API
+
+        const ratelimitBadge = document.getElementById(
+          'ratelimit-badge-container'
+        );
+        const ratelimitIcon = document.getElementById('ratelimit-icon');
+        const ratelimitMain = document.getElementById('ratelimit-main');
+        const ratelimitSub = document.getElementById('ratelimit-sub');
+
+        async function fetchRateLimitStatus() {
+          try {
+            const response = await fetch('api/ratelimit-status');
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            updateRateLimitBadge(data);
+          } catch (error) {
+            console.error('Failed to fetch rate limit status:', error);
+            updateRateLimitBadge(null);
+          }
         }
-        
-        // Determina lo stato e aggiorna l'UI
-        let icon, statusText, subText;
-        
-        switch (data.status) {
-          case 'ok':
-            ratelimitBadge.className = 'ratelimit-badge ok';
-            icon = '✅';
-            statusText = `${data.remaining} / ${data.limit}`;
-            subText = 'API GitHub OK';
-            break;
-            
-          case 'warning':
-            ratelimitBadge.className = 'ratelimit-badge warning';
-            icon = '⚠️';
-            statusText = `${data.remaining} rimanenti`;
-            subText = `Reset in ${data.secondsUntilReset}s`;
-            break;
-            
-          case 'critical':
-            ratelimitBadge.className = 'ratelimit-badge critical';
-            icon = '🚨';
-            statusText = `CRITICO: ${data.remaining}`;
-            subText = `Reset in ${data.secondsUntilReset}s`;
-            break;
-            
-          default:
+
+        function updateRateLimitBadge(data) {
+          if (!data) {
+            // Errore o stato sconosciuto
             ratelimitBadge.className = 'ratelimit-badge unknown';
-            icon = '⏳';
-            statusText = 'Verifica...';
-            subText = 'Attendente dati...';
+            ratelimitIcon.textContent = '❌';
+            ratelimitMain.textContent = 'Stato sconosciuto';
+            ratelimitSub.textContent = 'Impossibile verificare il rate limit';
+            return;
+          }
+
+          // Determina lo stato e aggiorna l'UI
+          let icon, statusText, subText;
+
+          switch (data.status) {
+            case 'ok':
+              ratelimitBadge.className = 'ratelimit-badge ok';
+              icon = '✅';
+              statusText = `${data.remaining} / ${data.limit}`;
+              subText = 'API GitHub OK';
+              break;
+
+            case 'warning':
+              ratelimitBadge.className = 'ratelimit-badge warning';
+              icon = '⚠️';
+              statusText = `${data.remaining} rimanenti`;
+              subText = `Reset in ${data.secondsUntilReset}s`;
+              break;
+
+            case 'critical':
+              ratelimitBadge.className = 'ratelimit-badge critical';
+              icon = '🚨';
+              statusText = `CRITICO: ${data.remaining}`;
+              subText = `Reset in ${data.secondsUntilReset}s`;
+              break;
+
+            default:
+              ratelimitBadge.className = 'ratelimit-badge unknown';
+              icon = '⏳';
+              statusText = 'Verifica...';
+              subText = 'Attendente dati...';
+          }
+
+          ratelimitIcon.textContent = icon;
+          ratelimitMain.textContent = statusText;
+          ratelimitSub.textContent = subText;
         }
-        
-        ratelimitIcon.textContent = icon;
-        ratelimitMain.textContent = statusText;
-        ratelimitSub.textContent = subText;
-      }
-      
-      // Fetch iniziale
-      fetchRateLimitStatus();
-      
-      // Aggiorna ogni 30 secondi
-      setInterval(fetchRateLimitStatus, 30000);
-      
-    })();
-  </script>
-</body>
+
+        // Fetch iniziale
+        fetchRateLimitStatus();
+
+        // Aggiorna ogni 30 secondi
+        setInterval(fetchRateLimitStatus, 30000);
+      })();
+    </script>
+  </body>
 </html>
