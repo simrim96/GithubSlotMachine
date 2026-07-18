@@ -26,8 +26,8 @@ export class RateLimitTracker {
   }
 
   updateFromResponse(headers) {
-    const remainingHeader = headers.get(GITHUB_RATE_LIMIT_HEADER_REMAINING);
-    const resetHeader = headers.get(GITHUB_RATE_LIMIT_HEADER_RESET);
+    const remainingHeader = safeGetHeader(headers, GITHUB_RATE_LIMIT_HEADER_REMAINING);
+    const resetHeader = safeGetHeader(headers, GITHUB_RATE_LIMIT_HEADER_RESET);
 
     if (remainingHeader !== null && remainingHeader !== undefined) {
       this.remaining = parseInt(remainingHeader, 10);
@@ -119,6 +119,28 @@ export class RateLimitTracker {
 // ─── Factory functions per l'inizializzazione ────────────────────────────────
 let _defaultTracker = null;
 
+// Legge un header in modo difensivo: supporta sia l'oggetto Headers standard
+// (con .get), sia un oggetto plain (accesso diretto), sia undefined. Su Vercel
+// l'oggetto response.headers a volte NON è un Headers standard → .get non
+// esiste → TypeError. Questo evita il crash che rompeva la ghGet per la README.
+export function safeGetHeader(headers, name) {
+  if (!headers) return null;
+  // Headers standard (Web API / undici-fetch)
+  if (typeof headers.get === 'function') {
+    return headers.get(name);
+  }
+  // Oggetto plain (es. headers serializzati): prova la chiave esatta e
+  // case-insensitive (GitHub usa X-RateLimit-Remaining)
+  if (typeof headers === 'object') {
+    if (name in headers) return headers[name];
+    const lower = String(name).toLowerCase();
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase() === lower) return headers[key];
+    }
+  }
+  return null;
+}
+
 export function getDefaultTracker() {
   if (!_defaultTracker) {
     _defaultTracker = new RateLimitTracker();
@@ -128,8 +150,8 @@ export function getDefaultTracker() {
 
 // Helper per leggere gli headers da una risposta
 export function parseRateLimitHeaders(response) {
-  const remaining = response.headers.get(GITHUB_RATE_LIMIT_HEADER_REMAINING);
-  const reset = response.headers.get(GITHUB_RATE_LIMIT_HEADER_RESET);
+  const remaining = safeGetHeader(response?.headers, GITHUB_RATE_LIMIT_HEADER_REMAINING);
+  const reset = safeGetHeader(response?.headers, GITHUB_RATE_LIMIT_HEADER_RESET);
 
   const remainingNum =
     remaining !== null && remaining !== undefined
