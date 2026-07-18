@@ -4,8 +4,8 @@ Data analisi: 18 luglio 2026
 Scope: architettura runtime (Vercel serverless + Upstash Redis + GitHub Contents API),
 logica di gioco, persistenza stato, caching repo, sicurezza CORS/open-redirect.
 
-Stato dei check automatici (aggiornato dopo fix ISSUE-1):
-- `npx vitest run` → 150 test passati (15 file), nessun fallimento.
+Stato dei check automatici (aggiornato al commit corrente):
+- `npx vitest run` → 143 test passati (15 file), nessun fallimento.
 - `npx eslint .` → 0 problemi segnalati.
 - `npm audit --audit-level=moderate` → 31 vulnerabilità (2 low, 12 moderate, 17 high),
   quasi tutte transitive dentro la dependency tree di `vercel` (undici, tar, smol-toml).
