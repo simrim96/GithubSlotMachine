@@ -14,31 +14,6 @@ NOTA: i test verdi non coprono i bug critici sotto, perché i casi limite non so
 testati (vedi "Copertura dei test" in fondo).
 
 ================================================================================
-## BLOCCANTI / CRITICI
-================================================================================
-
-### ISSUE-2  [CRITICO] image.js bypassa i wrapper KV con timeout
-File: `api/image.js` — righe 27-39
-
-    if (kvEnabled) {
-      const svg = await kv.get('gsm:slotSvg');   // <- kv.get diretto!
-      ...
-
-`kv.get` è chiamato DIRETTAMENTE sull'oggetto Redis di @upstash/redis, anziché
-usare `kvGet('gsm:slotSvg')` esportato da `kv.js` (che avvolge la chiamata in
-`withTimeout(KV_TIMEOUT_MS)`). Tutto il resto del progetto usa `kvGet`/`kvSet`
-proprio per evitare che Redis lento/cross-region blocchi lo spin. Qui il
-timeout di sicurezza NON esiste: se Upstash è lento, `/api/image` può attendere
-secondi (il default di undici è molto più alto) prima di fallire.
-
-Impatto: il widget della slot (che embedda `/api/image`) può impallarsi quando
-Redis è sotto carico o cross-region, contraddicendo l'intero design KV-timeout.
-
-Fix: importare e usare `kvGet` da `./_lib/kv.js`:
-    const svg = await kvGet('gsm:slotSvg');
-(e togliere l'import di `kv`).
-
-================================================================================
 ## ALTI
 ================================================================================
 
@@ -197,7 +172,7 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 
 - `tests/state-migration.test.js` ora copre `migrateState` con stato v1 (v1→v2), verifica terminazione entro 3s e schema corretto. BUCA COLMATA (ex ISSUE-1).
-- Nessun test su `image.js` che verifichi l'uso di `kvGet` vs `kv.get` (ISSUE-2).
+- BUCA COLMATA (ex ISSUE-2): `image.js` ora usa `kvGet` da `./_lib/kv.js` (con timeout), rimuovendo la chiamata diretta `kv.get`. Test mancante su `image.js` ancora da aggiungere per prevenire regressioni.
 - Nessun test sulle chiamate GitHub in `state.js`/`repos.js` con timeout simulati.
 - `config-loader` è testato ma solo lato unit; il caricamento YAML reale senza
   il package `yaml` non è coperto da nessun check di integrazione (ISSUE-9).
@@ -205,9 +180,8 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-2  (critico) — image.js senza KV timeout → fix immediato
-2. ISSUE-3  (alto)     — repos.js senza timeout/breaker
-3. ISSUE-4  (alto)     — state.js fetch GitHub non protetti
-4. ISSUE-5/6 (medio)   — circuit breaker e rate-limit tracker inefficaci
-5. ISSUE-7  (medio)    — analytics endpoint fasullo
-6. ISSUE-8..12 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-3  (alto)     — repos.js senza timeout/breaker
+2. ISSUE-4  (alto)     — state.js fetch GitHub non protetti
+3. ISSUE-5/6 (medio)   — circuit breaker e rate-limit tracker inefficaci
+4. ISSUE-7  (medio)    — analytics endpoint fasullo
+5. ISSUE-8..12 (basso) — pulizia, segreti nei log, audit dep

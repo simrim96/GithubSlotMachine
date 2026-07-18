@@ -8,7 +8,7 @@
 // Fork-aware: legge SLOT_OWNER / SLOT_REPO dalle env var come fa spin.js
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).
 
-import { kv, kvEnabled } from './_lib/kv.js';
+import { kvGet, kvEnabled } from './_lib/kv.js';
 import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
 
   if (kvEnabled) {
     try {
-      const svg = await kv.get('gsm:slotSvg');
+      const svg = await kvGet('gsm:slotSvg');
       if (svg) {
         res.setHeader('Content-Type', 'image/svg+xml');
         res.setHeader('Cache-Control', 'no-store');
