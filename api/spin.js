@@ -35,7 +35,7 @@ import {
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
-import { isValidUser, rateLimit } from './_lib/ratelimit.js';
+import { isValidUser } from './_lib/ratelimit.js';
 import { kvEnabled } from './_lib/kv.js';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
@@ -176,21 +176,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  // ── Rate-limit per-IP (token-bucket 1 spin / RL_WINDOW_SEC) ──────────────
-  // Protegge l'endpoint che fa WRITE su GitHub/Redis a ogni chiamata da un
-  // abuso che esaurirebbe il rate-limit globale GitHub (5000/h) o i write
-  // Redis. Il limite è per-IP e viene calcolato PRIMA di qualsiasi lavoro
-  // (token, letture, scritture) così lo spin bloccato non tocca GitHub/Redis.
-  const rl = await rateLimit(req);
-  if (!rl.ok) {
-    res
-      .status(429)
-      .setHeader('Retry-After', String(rl.retryAfter))
-      .setHeader('Content-Type', 'text/plain; charset=utf-8')
-      .send(`Troppe richieste. Riprova tra ${rl.retryAfter} secondi.`);
-    return;
-  }
-
+  // Nessun rate-limit per-IP (ISSUE-1): l'utente può effettuare tutti gli
+  // spin che vuole, anche di fila. La protezione contro l'abuso del
+  // rate-limit globale GitHub (5000/h) resta demandata al graceful-fallback
+  // in state.js / github.js (circuit breaker + timeout), non a un blocco 429
+  // sugli spin.
   const token = process.env.GITHUB_PAT;
   if (!token) {
     res.status(500).send('GITHUB_PAT non configurato.');

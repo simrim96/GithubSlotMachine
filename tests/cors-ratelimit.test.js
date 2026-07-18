@@ -1,15 +1,19 @@
-// Behavioral test for issue #16: /api/spin must enforce a per-IP rate limit and
-// emit an explicit CORS policy. The pure rateLimit()/clientIp() functions are
-// already covered by ratelimit.test.js — here we verify they are actually
-// WIRED INTO the handler (they previously were dead code) and that CORS headers
-// are present on the response.
+// Behavioral test for the per-IP rate-limit removal (ISSUE-1) and the CORS
+// policy on /api/spin.
 //
-// We drive the real default handler from api/spin.js with a mock `res`, no
-// network. With no UPSTASH env, rateLimit falls back to its in-memory bucket.
+// The per-IP rate-limit (token-bucket 1 spin / 3s) was REMOVED: the user must
+// be able to spin as many times as they want, even back-to-back, without ever
+// receiving a "429 Troppe richieste". Here we verify that consecutive spins
+// from the SAME IP are NOT throttled (they reach the token check / 500 when
+// GITHUB_PAT is absent), and that the explicit CORS policy is still emitted.
+//
+// The pure rateLimit()/clientIp() functions are no longer exported from
+// ratelimit.js (only isValidUser remains, covered by ratelimit.test.js). We
+// drive the real default handler from api/spin.js with a mock `res`, no
+// network. Even with no UPSTASH env, NO spin is ever blocked.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import handler from '../api/spin.js';
-import { getMemBucket } from '../api/_lib/ratelimit.js';
 
 // ── Mock response ────────────────────────────────────────────────────────────
 function makeRes() {
@@ -57,8 +61,6 @@ const ALLOWED = 'http://localhost:3000';
 const DISALLOWED = 'https://evil.example.com';
 
 beforeEach(() => {
-  // Isola il bucket in-memory del rate-limit fra i test.
-  getMemBucket().clear();
   delete process.env.GITHUB_PAT; // forza il branch "no token" dopo il rate-limit
 });
 
@@ -106,7 +108,7 @@ describe('CORS policy su /api/spin', () => {
   });
 });
 
-describe('Rate-limit per-IP su /api/spin', () => {
+describe('Nessun rate-limit per-IP su /api/spin (ISSUE-1)', () => {
   it('il primo spin dello stesso IP passa (raggiunge il check del token)', async () => {
     const req = {
       method: 'GET',
@@ -116,11 +118,11 @@ describe('Rate-limit per-IP su /api/spin', () => {
     const res = makeRes();
     await handler(req, res);
 
-    // Passa il rate-limit, poi 500 per mancanza di GITHUB_PAT (token check).
+    // Passa qualsiasi rate-limit, poi 500 per mancanza di GITHUB_PAT (token check).
     expect(res.statusCode).toBe(500);
   });
 
-  it('un secondo spin immediato dello STESSO IP viene bloccato con 429', async () => {
+  it('UN SECONDO spin immediato dello STESSO IP NON è bloccato (niente 429)', async () => {
     const ip = '198.51.100.2';
     const req = () => ({
       method: 'GET',
@@ -130,13 +132,13 @@ describe('Rate-limit per-IP su /api/spin', () => {
 
     const first = makeRes();
     await handler(req(), first);
-    expect(first.statusCode).toBe(500); // ha superato il rate-limit
+    expect(first.statusCode).toBe(500); // ha superato il percorso
 
     const second = makeRes();
     await handler(req(), second);
-    expect(second.statusCode).toBe(429);
-    expect(second.headers['Retry-After']).toBeDefined();
-    expect(Number(second.headers['Retry-After'])).toBeGreaterThan(0);
+    // Nessun rate-limit: anche di fila, mai 429. Raggiunge il token check (500).
+    expect(second.statusCode).toBe(500);
+    expect(second.headers['Retry-After']).toBeUndefined();
   });
 
   it('IP DIVERSI non si influenzano (limite per-IP, non globale)', async () => {
@@ -163,19 +165,19 @@ describe('Rate-limit per-IP su /api/spin', () => {
     expect(b.statusCode).toBe(500); // B non è stato throttlato da A
   });
 
-  it('un IP bloccato NON tocca il check del token (429 prima di 500)', async () => {
+  it('spin ripetuti dello stesso IP non producono MAI 429', async () => {
     const ip = '198.51.100.5';
     const req = {
       method: 'GET',
       headers: { 'x-forwarded-for': ip },
       query: {},
     };
-    const first = makeRes();
-    await handler(req, first); // consuma il bucket
-    const blocked = makeRes();
-    await handler(req, blocked); // stesso IP, immediato → bloccato
-
-    // Se il rate-limit fosse morto, questo sarebbe 500 (no token) invece di 429.
-    expect(blocked.statusCode).toBe(429);
+    for (let i = 0; i < 5; i++) {
+      const res = makeRes();
+      await handler(req, res);
+      // Mai 429: ogni spin arriva al check del token (500 per assenza PAT).
+      expect(res.statusCode).toBe(500);
+      expect(res.headers['Retry-After']).toBeUndefined();
+    }
   });
 });

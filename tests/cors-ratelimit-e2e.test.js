@@ -37,7 +37,6 @@ vi.mock('../sentry.config.js', () => ({
 }));
 
 const handler = (await import('../api/spin.js')).default;
-const { getMemBucket } = await import('../api/_lib/ratelimit.js');
 
 function makeRes() {
   const headers = {};
@@ -77,7 +76,6 @@ function makeRes() {
 
 describe('legittimo spin completo con rate-limit + CORS attivi', () => {
   beforeEach(() => {
-    getMemBucket().clear();
     process.env.GITHUB_PAT = 'test-token';
   });
 
