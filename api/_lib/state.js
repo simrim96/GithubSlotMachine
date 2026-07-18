@@ -58,19 +58,6 @@ const MIGRATIONS = {
     return migrated;
   },
 
-  // Placeholder per future migrazioni (v2 → v3)
-  // Implementare quando necessaria nuova versione dello schema
-  2: (state) => {
-    const migrated = {
-      ...state,
-      version: 3,
-      // Esempio: aggiungere nuovi campi per v3
-      // featureFlags: {},
-      // auditLog: [],
-    };
-    console.log(`[state] Migrated state from v2 to v3`);
-    return migrated;
-  },
 };
 
 /**
@@ -81,20 +68,28 @@ const MIGRATIONS = {
  * @throws {Error} If no migration path exists for a version step
  */
 export function migrateState(state, fromVersion) {
-  const currentVersion = state.version || fromVersion || 1;
+  const startVersion = state.version || fromVersion || 1;
   let result = { ...state };
 
-  // Loop attraverso tutte le versioni intermedie fino alla corrente
-  while (currentVersion < STATE_VERSION) {
-    const migration = MIGRATIONS[currentVersion];
+  // Loop attraverso tutte le versioni intermedie fino alla corrente.
+  // IMPORTANTE (ISSUE-1): usiamo un indice esplicito `v` che avanza a ogni
+  // step. La migrazione aggiorna `result.version`, ma avanziamo `v`
+  // esplicitamente per evitare il loop infinito causato dal non-incremento
+  // di `currentVersion` (bug originario). `v = result.version || v + 1`
+  // gestisce sia le migrazioni che settano la versione, sia quelle che
+  // non la settano (fallback +1).
+  let v = startVersion;
+  while (v < STATE_VERSION) {
+    const migration = MIGRATIONS[v];
     if (!migration) {
       throw new Error(
-        `No migration defined for version ${currentVersion} → ${currentVersion + 1}. ` +
-          `Please implement MIGRATIONS[${currentVersion}] in state.js`
+        `No migration defined for version ${v} → ${v + 1}. ` +
+          `Please implement MIGRATIONS[${v}] in state.js`
       );
     }
 
     result = migration(result);
+    v = result.version || v + 1;
   }
 
   return result;

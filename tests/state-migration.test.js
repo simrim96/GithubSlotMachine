@@ -1,136 +1,129 @@
-// Test per il sistema di migrazione dello stato
+// Test per il sistema di migrazione dello stato (ISSUE-1)
+//
+// Questi test chiamano DIRETTAMENTE migrateState() (funzione esportata).
+// Se il bug del loop infinito tornasse, il test non terminerebbe mai e
+// vitest lo farebbe scattare in timeout — esattamente ciò che vogliamo
+// rilevare. Ogni test imposta un timeout esplicito per essere sicuri.
 import { describe, it, expect } from 'vitest';
-import * as stateMod from '../api/_lib/state.js';
+import { migrateState, STATE_VERSION } from '../api/_lib/state.js';
 
-describe('state migration system', () => {
-  it('migrateState function migra da v1 a v2 correttamente', () => {
-    // Importiamo la funzione migrateState (non esportata, ma possiamo testare
-    // il comportamento attraverso readState)
-    // Simuliamo la migrazione chiamata internamente da readState
-    // (migrateState non è esportata, ma testiamo il risultato finale)
-    const expected = {
-      totalSpins: 100,
-      totalWins: 50,
-      lastWin: { langId: 'python', langName: 'Python', ts: 1234567890 },
-      version: 2,
-      settings: {
-        theme: 'auto',
-        sound: true,
-      },
-      stats: {
-        longestStreak: 0,
-        currentStreak: 0,
-        winsByLang: {},
-      },
-    };
+// Timeout corto: se migrateState va in loop, il test fallisce in fretta
+// invece di appendere 30s+.
+const QUICK_TIMEOUT = 3000;
 
-    // Verifica che STATE_VERSION sia definito e sia 2
-    expect(stateMod.STATE_VERSION).toBe(2);
+describe('state migration system — ISSUE-1', () => {
+  it(
+    'migrateState termina e migra v1 → v2 correttamente',
+    () => {
+      const v1State = {
+        totalSpins: 5,
+        totalWins: 2,
+        // stato legacy: nessun campo version, settings, stats
+      };
 
-    // Verifica che lo stato migrato abbia la struttura corretta
-    expect(expected.version).toBe(2);
-    expect(expected.settings).toBeDefined();
-    expect(expected.stats).toBeDefined();
-  });
+      const result = migrateState(v1State);
 
-  it('readState migra stati v1 a v2 quando viene letto', async () => {
-    // Test con Redis disabled e senza token (usa state locale)
-    const oldState = {
-      totalSpins: 50,
-      totalWins: 25,
-      lastWin: null,
-      version: 1,
-    };
+      // Deve terminare e produrre uno stato v2 valido
+      expect(result.version).toBe(STATE_VERSION);
+      expect(result.version).toBe(2);
 
-    // Scriviamo uno stato v1 su /tmp
-    const fs = await import('node:fs');
-    await fs.promises.writeFile(
-      '/tmp/test_migration_state.json',
-      JSON.stringify(oldState)
-    );
+      // I dati esistenti devono essere preservati
+      expect(result.totalSpins).toBe(5);
+      expect(result.totalWins).toBe(2);
 
-    try {
-      // Mock readStateLocal per restituire uno stato v1
-      // Poiché migrateState non è esportata, testiamo il comportamento
-      // attraverso la struttura dei dati: dopo la migrazione, dovrebbe
-      // avere i nuovi campi settings e stats
-      const result = await stateMod.readState(undefined, 'x', 'y');
+      // I nuovi campi v2 devono essere presenti
+      expect(result.settings).toBeDefined();
+      expect(result.settings.theme).toBe('auto');
+      expect(result.settings.sound).toBe(true);
+      expect(result.stats).toBeDefined();
+      expect(result.stats.winsByLang).toBeDefined();
+    },
+    QUICK_TIMEOUT
+  );
 
-      // Lo stato dovrebbe avere i nuovi campi v2
-      expect(result.state.settings).toBeDefined();
-      expect(result.state.stats).toBeDefined();
-      expect(result.state.version).toBe(2);
-      expect(result.state.settings.theme).toBe('auto');
-      expect(result.state.settings.sound).toBe(true);
-    } finally {
-      // Pulizia
-      try {
-        await fs.promises.unlink('/tmp/test_migration_state.json');
-      } catch {
-        // Silently ignore cleanup errors
-      }
-    }
-  });
+  it(
+    'migrateState preserva lastWin e dati complessi durante la migrazione',
+    () => {
+      const v1State = {
+        totalSpins: 100,
+        totalWins: 50,
+        lastWin: { langId: 'python', langName: 'Python', ts: 1234567890 },
+      };
 
-  it('readState non duplica migrazione se lo stato è già v2', async () => {
-    // Test che stati già v2 non vengono migrati nuovamente
-    const v2State = {
-      totalSpins: 100,
-      totalWins: 80,
-      lastWin: null,
-      version: 2,
-      settings: {
-        theme: 'dark',
-        sound: false,
-      },
-      stats: {
-        longestStreak: 5,
-        currentStreak: 3,
-        winsByLang: { python: 10, rust: 5 },
-      },
-    };
+      const result = migrateState(v1State);
 
-    // Mock temporaneo: scriviamo v2State come stato "esistente"
-    // In questo test, verifichiamo che la versione rimanga 2
-    expect(v2State.version).toBe(2);
-    expect(v2State.settings.theme).toBe('dark');
-    expect(v2State.stats.winsByLang.python).toBe(10);
-  });
+      expect(result.version).toBe(2);
+      expect(result.totalSpins).toBe(100);
+      expect(result.totalWins).toBe(50);
+      expect(result.lastWin.langId).toBe('python');
+      expect(result.lastWin.ts).toBe(1234567890);
+    },
+    QUICK_TIMEOUT
+  );
 
-  it('DEFAULTS ha version = STATE_VERSION', () => {
-    // Verifica che i default abbiano la versione corretta
-    const defaultsVersion = stateMod.STATE_VERSION;
-    expect(defaultsVersion).toBe(2);
-  });
+  it(
+    'migrateState NON ricrea uno stato "ahead" (v3) quando lo stato è già v2',
+    () => {
+      // ISSUE-1 / ISSUE-8: MIGRATIONS[2] placeholder portava a version: 3,
+      // creando uno stato avanti rispetto a STATE_VERSION=2. Ora rimosso.
+      const v2State = {
+        totalSpins: 100,
+        totalWins: 80,
+        lastWin: null,
+        version: 2,
+        settings: { theme: 'dark', sound: false },
+        stats: {
+          longestStreak: 5,
+          currentStreak: 3,
+          winsByLang: { python: 10, rust: 5 },
+        },
+      };
 
-  it('migrazione preserva dati esistenti', async () => {
-    // Test che la migrazione non perde i dati esistenti
-    const oldState = {
-      totalSpins: 999,
-      totalWins: 888,
-      lastWin: {
-        langId: 'rust',
-        langName: 'Rust',
-        fact: { en: 'Rust is cool' },
-        ts: 1234567890,
-      },
-      version: 1,
-    };
+      const result = migrateState(v2State);
 
-    // Verifica che dopo la migrazione i dati originali siano preservati
-    expect(oldState.totalSpins).toBe(999);
-    expect(oldState.totalWins).toBe(888);
+      // Deve restare v2, NON saltare a v3
+      expect(result.version).toBe(2);
+      expect(result.version).toBeLessThanOrEqual(STATE_VERSION);
+      // I campi v2 personalizzati non devono essere sovrascritti
+      expect(result.settings.theme).toBe('dark');
+      expect(result.settings.sound).toBe(false);
+      expect(result.stats.winsByLang.python).toBe(10);
+      expect(result.stats.currentStreak).toBe(3);
+    },
+    QUICK_TIMEOUT
+  );
 
-    // La struttura migrata dovrebbe mantenere questi valori
-    const expectedMigrated = {
-      ...oldState,
-      version: 2,
-      settings: { theme: 'auto', sound: true },
-      stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
-    };
+  it(
+    'migrateState gestisce stato senza campo version (assunto v1)',
+    () => {
+      const legacyState = { totalSpins: 1, totalWins: 0 };
+      const result = migrateState(legacyState);
+      expect(result.version).toBe(2);
+      expect(result.settings).toBeDefined();
+      expect(result.stats).toBeDefined();
+    },
+    QUICK_TIMEOUT
+  );
 
-    expect(expectedMigrated.totalSpins).toBe(999);
-    expect(expectedMigrated.totalWins).toBe(888);
-    expect(expectedMigrated.lastWin.langId).toBe('rust');
+  it(
+    'migrateState restituisce invariato uno stato "ahead" (versione >= STATE_VERSION)',
+    () => {
+      // Se lo stato persistito è già avanti rispetto alla versione corrente
+      // (es. v3 mentre STATE_VERSION=2), non deve né loopare né crashare:
+      // lo restituiamo com'è senza tentare migrazioni inesistenti.
+      const aheadState = {
+        totalSpins: 1,
+        totalWins: 0,
+        version: 99,
+      };
+      const result = migrateState(aheadState);
+      expect(result.version).toBe(99);
+      expect(result.totalSpins).toBe(1);
+    },
+    QUICK_TIMEOUT
+  );
+
+  it('STATE_VERSION è 2 (coerente con la migrazione v1→v2)', () => {
+    expect(STATE_VERSION).toBe(2);
   });
 });
