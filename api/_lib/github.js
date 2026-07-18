@@ -129,13 +129,20 @@ export async function ghGet(token, owner, repo, path) {
 
       return response.ok ? await response.json() : null;
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.warn(
-          `GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
-        );
-      }
-      Sentry.captureException(error);
-      throw error;
+    if (error.name === 'AbortError') {
+      console.warn(
+        `GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
+      );
+    } else {
+      console.error(
+        `[ghGet] ERROR ${owner}/${repo}/${path}:`,
+        error?.name,
+        error?.message,
+        error?.stack?.split('\n').slice(0, 3).join(' | ')
+      );
+    }
+    if (typeof Sentry !== 'undefined') Sentry.captureException(error);
+    throw error;
     }
   });
 }
