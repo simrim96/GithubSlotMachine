@@ -133,4 +133,25 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(content).not.toMatch(/class RateLimitQueue/);
     expect(content).not.toMatch(/export function getDefaultQueue/);
   });
+
+  it('spin.js: ghGet/ghPut per la README usano 4 argomenti (owner, repo, path)', () => {
+    const spinContent = require('fs').readFileSync(
+      new URL('../api/spin.js', import.meta.url),
+      'utf-8'
+    );
+
+    // Regressione del bug "README.md/undefined": prima si chiamava
+    // ghGet(token, PROFILE_REPO, 'README.md') con 3 argomenti, saltando
+    // il parametro `repo` e passando 'README.md' come repo e undefined come
+    // path. La firma corretta è (token, owner, repo, path), quindi servono
+    // 4 argomenti. Blocchiamo la forma a 3 argomenti che rompe l'URL.
+    expect(spinContent).not.toMatch(
+      /ghGet\(\s*token,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
+    );
+    expect(spinContent).not.toMatch(
+      /ghPut\(\s*token,\s*PROFILE_REPO,\s*'README\.md'/
+    );
+    // E deve usare waitUntil per sopravvivere al redirect su Vercel.
+    expect(spinContent).toMatch(/waitUntil\(/);
+  });
 });
