@@ -102,7 +102,7 @@ describe('Background Task Memory Leak Fixes', () => {
   });
 });
 
-describe('RateLimitQueue Memory Leak Prevention', () => {
+describe('No RateLimitQueue (direct calls)', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -113,48 +113,24 @@ describe('RateLimitQueue Memory Leak Prevention', () => {
     vi.restoreAllMocks();
   });
 
-  it('processQueue usa flag wasFromAdd', () => {
-    const ratelimitTrackerContent = require('fs').readFileSync(
-      new URL('../api/_lib/ratelimit-tracker.js', import.meta.url),
+  it('github.js non usa più RateLimitQueue', () => {
+    const githubContent = require('fs').readFileSync(
+      new URL('../api/_lib/github.js', import.meta.url),
       'utf-8'
     );
 
-    // processQueue deve usare wasFromAdd flag
-    expect(ratelimitTrackerContent).toMatch(/wasFromAdd\s*=\s*false/);
-    expect(ratelimitTrackerContent).toMatch(/if\s*\(\s*wasFromAdd\s*\)/);
-
-    // resolve e reject devono essere conditional
-    const processQueueMatch = ratelimitTrackerContent.match(
-      /async processQueue\(\) \{[\s\S]*?\n\s{2}\}/
-    );
-
-    if (processQueueMatch) {
-      const processQueueBody = processQueueMatch[0];
-
-      // resolve deve essere conditionale
-      const resolveMatch = processQueueBody.match(
-        /if\s*\(\s*wasFromAdd\s*\)\s*\{[\s\S]*?resolve\(result\)/
-      );
-      expect(resolveMatch).not.toBeNull();
-
-      // reject deve essere conditionale
-      const rejectMatch = processQueueBody.match(
-        /if\s*\(\s*wasFromAdd\s*\)\s*\{[\s\S]*?reject\(err\)/
-      );
-      expect(rejectMatch).not.toBeNull();
-    }
+    // La coda è stata rimossa: nessun import e nessun getDefaultQueue()
+    expect(githubContent).not.toMatch(/getDefaultQueue/);
+    expect(githubContent).not.toMatch(/RateLimitQueue/);
   });
 
-  it('processQueue non risolve outer promise per items in coda', () => {
-    const ratelimitTrackerContent = require('fs').readFileSync(
+  it('ratelimit-tracker.js non esporta più la queue', () => {
+    const content = require('fs').readFileSync(
       new URL('../api/_lib/ratelimit-tracker.js', import.meta.url),
       'utf-8'
     );
 
-    // Il codice deve avere commenti che spiegano il fix
-    expect(ratelimitTrackerContent).toMatch(
-      /FIX: Properly resolve\/reject the outer promise/
-    );
-    expect(ratelimitTrackerContent).toMatch(/don't resolve the OUTER promise/);
+    expect(content).not.toMatch(/class RateLimitQueue/);
+    expect(content).not.toMatch(/export function getDefaultQueue/);
   });
 });

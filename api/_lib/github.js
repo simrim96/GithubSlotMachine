@@ -2,7 +2,7 @@
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
-import { getDefaultTracker, getDefaultQueue } from './ratelimit-tracker.js';
+import { getDefaultTracker } from './ratelimit-tracker.js';
 import * as Sentry from '@sentry/node';
 
 // Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
@@ -97,48 +97,46 @@ export function escapeMarkdown(s) {
 }
 
 // ghGet: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
-// Le chiamate passano attraverso la queue per gestire il rate limit
+// Chiamata diretta via circuit breaker: niente coda di rate limiting. Per una slot
+// personale il limite di 5000 req/h non è mai un vincolo reale, e la coda
+// aggiungeva solo latenza e log fuorvianti sugli AbortError di timeout.
 export async function ghGet(token, owner, repo, path) {
-  const queue = getDefaultQueue();
+  return githubCircuitBreaker.call(async () => {
+    try {
+      // Applica timeout alla chiamata
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        GITHUB_API_TIMEOUT_MS
+      );
 
-  return queue.add(async () => {
-    return githubCircuitBreaker.call(async () => {
-      try {
-        // Applica timeout alla chiamata
-        const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          GITHUB_API_TIMEOUT_MS
-        );
-
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/vnd.github.v3+json',
-              'User-Agent': 'GithubSlotMachine',
-            },
-            signal: controller.signal,
-          }
-        );
-
-        clearTimeout(timeoutId);
-
-        // Traccia i rate limit headers
-        getDefaultTracker().updateFromResponse(response);
-
-        return response.ok ? await response.json() : null;
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          console.warn(
-            `GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
-          );
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'GithubSlotMachine',
+          },
+          signal: controller.signal,
         }
-        Sentry.captureException(error);
-        throw error;
+      );
+
+      clearTimeout(timeoutId);
+
+      // Traccia i rate limit headers (solo logging warning, non blocca)
+      getDefaultTracker().updateFromResponse(response);
+
+      return response.ok ? await response.json() : null;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.warn(
+          `GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
+        );
       }
-    });
+      Sentry.captureException(error);
+      throw error;
+    }
   });
 }
 
@@ -152,10 +150,7 @@ export async function ghPut(
   message,
   _retry = false
 ) {
-  const queue = getDefaultQueue();
-
-  return queue.add(async () => {
-    return githubCircuitBreaker.call(async () => {
+  return githubCircuitBreaker.call(async () => {
       try {
         const encoded = Buffer.from(content).toString('base64');
         const body = { message, content: encoded };
@@ -214,7 +209,6 @@ export async function ghPut(
         throw error;
       }
     });
-  });
 }
 
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
