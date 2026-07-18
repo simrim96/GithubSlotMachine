@@ -37,6 +37,7 @@ import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser, rateLimit } from './_lib/ratelimit.js';
 import { kvEnabled } from './_lib/kv.js';
+import { waitUntil } from '@vercel/functions';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
 const ALLOWED_ORIGINS = [
@@ -361,9 +362,15 @@ export default async function handler(req, res) {
     });
 
     // ── Aggiornamento README in background (non blocca il redirect) ──────────
-    // Carica il README solo ora, in parallelo all'update, senza aspettare il
-    // redirect. Se il fetch fallisce, skip silenzioso: il profilo non è critico.
-    // Con retry e backoff esponenziale per prevenire silent failures.
+    // IMPORTANTE: la firma è ghGet(token, owner, repo, path). La repo del
+    // profilo è PROFILE_REPO (es. "simrim96"), il path è 'README.md'.
+    // Il redirect parte SUBITO (res.redirect qui sopra); il task viene
+    // registrato con waitUntil() di @vercel/functions così Vercel NON ne
+    // uccide il processo dopo la risposta. Senza waitUntil, il .then()
+    // veniva interrotto e la README non veniva mai riscritta → il ?v=
+    // restava fisso e Camo serviva sempre la stessa immagine (bug "stessa
+    // combinazione più volte"). Con waitUntil il redirect resta immediato
+    // (zero latenza percepita) ma il task completa davvero.
     const backgroundTaskId = `readme-update-${spinStart}`;
 
     const updateReadmeBackground = async () => {
@@ -374,8 +381,16 @@ export default async function handler(req, res) {
       try {
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
           try {
-            const rf = await ghGet(token, PROFILE_REPO, 'README.md');
+            // NOTA: owner=PROFILE_REPO, repo='simrim96' (PROFILE_REPO è il
+            // nome del repo del profilo, che coincide con l'owner), path='README.md'
+            const rf = await ghGet(
+              token,
+              PROFILE_REPO,
+              PROFILE_REPO,
+              'README.md'
+            );
             if (!rf) {
+              // README del profilo assente o non leggibile: skip silenzioso.
               return;
             }
 
@@ -397,6 +412,7 @@ export default async function handler(req, res) {
             if (newReadme !== oldReadme) {
               await ghPut(
                 token,
+                PROFILE_REPO,
                 PROFILE_REPO,
                 'README.md',
                 newReadme,
@@ -431,20 +447,31 @@ export default async function handler(req, res) {
       }
     };
 
-    // Start background task with proper error handling and cleanup
-    updateReadmeBackground()
-      .then(() => {
-        console.log(
-          `[Background Task ${backgroundTaskId}] Completed successfully`
-        );
-      })
-      .catch((err) => {
-        console.error(
-          `[Background Task ${backgroundTaskId}] Unhandled rejection:`,
-          err.message
-        );
-      });
-    // Register with Sentry for monitoring (if available)
+    // waitUntil: registra il task asincrono con Vercel così sopravvive al
+    // redirect. Il redirect è già stato inviato (res.redirect sopra), quindi
+    // l'utente non attende nulla.
+    try {
+      waitUntil(
+        updateReadmeBackground()
+          .then(() => {
+            console.log(
+              `[Background Task ${backgroundTaskId}] Completed successfully`
+            );
+          })
+          .catch((err) => {
+            console.error(
+              `[Background Task ${backgroundTaskId}] Unhandled rejection:`,
+              err.message
+            );
+          })
+      );
+    } catch {
+      // Se waitUntil non è disponibile (es. ambiente non-Vercel), esegui lo
+      // stesso in background senza bloccare (best-effort).
+      updateReadmeBackground().catch((err) =>
+        console.error(`[readme-update] fallback error:`, err.message)
+      );
+    }
     try {
       Sentry.addBreadcrumb({
         category: 'background-task',
