@@ -6,7 +6,7 @@ import { getDefaultTracker } from './ratelimit-tracker.js';
 import * as Sentry from '@sentry/node';
 
 // Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
-const GITHUB_API_TIMEOUT_MS =
+export const GITHUB_API_TIMEOUT_MS =
   parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 5000;
 
 // TTL per slot.svg: 7 giorni (604800 secondi)
