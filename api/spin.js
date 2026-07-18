@@ -37,7 +37,6 @@ import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser, rateLimit } from './_lib/ratelimit.js';
 import { kvEnabled } from './_lib/kv.js';
-import { waitUntil } from '@vercel/functions';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
 const ALLOWED_ORIGINS = [
@@ -283,39 +282,106 @@ export default async function handler(req, res) {
     const githubLatency = Date.now() - spinStart;
 
     // ── Scritture ────────────────────────────────────────────────────────────
-    // 1) slot.svg DEVE essere aggiornato PRIMA del reload, altrimenti la slot
-    //    mostrerebbe il risultato precedente. Su KV è ~10-20ms.
-    // 2) Contatori su KV (~10-20ms).
-    // 3) README (GET + PUT GitHub, ~300-600ms) è NON critico per il reload →
-    //    tutto in background, fuori dal percorso click→reload.
-    // La scrittura di slot.svg è protetta: se fallisce, l'utente ha già il
-    // redirect (vedrà il risultato precedente una volta), ma lo slot NON
-    // esplode con un 500.
-    try {
-      await saveSlotSvg(token, OWNER, SLOT_REPO, svg, slotFile?.sha);
-    } catch (e) {
-      console.warn('slot.svg write failed (redirect anyway):', e.message);
-      await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((w) =>
-        console.warn('state write:', w.message)
-      );
+    // Eseguite IN PARALLELO nel flusso principale (rete VIVA), PRIMA del
+    // redirect, così GitHub risponde davvero (waitUntil post-redirect su Vercel
+    // non ha rete in uscita verso api.github.com → timeout 5000ms, bug "stessa
+    // svg più volte"). La latenza totale è il max dei task, non la somma:
+    //   - slot.svg (KV): ~10-20ms
+    //   - state (KV):    ~10-20ms
+    //   - README GET+PUT GitHub: ~270ms (vedi /api/health github_readme_get_ms)
+    // Quindi lo spin aggiunge ~270-350ms, NON i "secondi" della regressione
+    // causata dalla coda serializzante di RateLimitQueue (rimossa).
+    const README_TIMEOUT_MS = 3500;
 
-      // Redirect in caso di errore slot.svg write con validazione Open Redirect
+    const readmePromise = (async () => {
+      console.log(`[readme-update] START spin=${spinStart}`);
+      const MAX_RETRIES = 2;
+      const RETRY_DELAY_MS = 500;
+      let lastError = null;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          console.log(
+            `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
+          );
+          const rf = await ghGet(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
+          if (!rf) {
+            console.log('[readme-update] ghGet returned null (README assente/illegibile)');
+            return;
+          }
+          console.log('[readme-update] ghGet OK, sha present:', Boolean(rf.sha));
+
+          const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
+          let newReadme = oldReadme.replace(
+            /api\/image\?(?:v|cache_buster)=[0-9]*/g,
+            `api/image?v=${spinStart}`
+          );
+          newReadme = updateReadmeMarkers(
+            newReadme,
+            state,
+            winningLang,
+            repoMatch,
+            fact
+          );
+          if (newReadme !== oldReadme) {
+            await ghPut(
+              token,
+              PROFILE_REPO,
+              PROFILE_REPO,
+              'README.md',
+              newReadme,
+              rf.sha,
+              '🎰 Update slot'
+            );
+            console.log(`[readme-update] ghPut OK, new ?v=${spinStart}`);
+          } else {
+            console.log('[readme-update] README unchanged, skip PUT');
+          }
+          return; // Successo
+        } catch (e) {
+          lastError = e;
+          console.warn(`README update attempt ${attempt + 1} failed:`, e.message);
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          }
+        }
+      }
+      console.error('README update failed after', MAX_RETRIES, 'attempts:', lastError?.message);
+    })();
+
+    // slot.svg + state + README girano in parallelo. Se la README supera il
+    // timeout di sicurezza, non blocchiamo il redirect: lo slot funziona lo
+    // stesso (solo la combinazione nel profilo si aggiorna al giro dopo).
+    const readmeWithTimeout = Promise.race([
+      readmePromise,
+      new Promise((res) =>
+        setTimeout(() => {
+          console.warn('[readme-update] timeout di sicurezza, skip per non bloccare redirect');
+          res();
+        }, README_TIMEOUT_MS)
+      ),
+    ]);
+
+    const [slotResult] = await Promise.allSettled([
+      saveSlotSvg(token, OWNER, SLOT_REPO, svg, slotFile?.sha),
+      writeState(token, OWNER, SLOT_REPO, state, stateSha),
+      readmeWithTimeout,
+    ]);
+
+    if (slotResult.status === 'rejected') {
+      console.warn('slot.svg write failed (redirect anyway):', slotResult.reason?.message);
+      // Redirect anche se slot.svg fallisce (l'utente vede il risultato
+      // precedente una volta, ma lo slot non esplode con un 500).
       const rawRedirect = req.query?.redirect
         ? String(req.query.redirect).trim()
         : '';
-      let redirectUrl = dest; // default al redirect calcolato
-
+      let redirectUrl = dest;
       if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
         redirectUrl = rawRedirect;
         console.log('Security: Allowed validated redirect to:', redirectUrl);
       } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-        console.warn(
-          `[Security] Blocked open redirect attempt to: ${rawRedirect}`
-        );
+        console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
       }
-
       res.redirect(302, redirectUrl);
-      // Track analytics (non bloccante)
       await trackSpin({
         win: isWin ? 'win' : 'loss',
         win_type: isJackpot ? 'jackpot' : isWin ? 'near-miss' : 'loss',
@@ -326,14 +392,8 @@ export default async function handler(req, res) {
       });
       return;
     }
-    await writeState(token, OWNER, SLOT_REPO, state, stateSha).catch((e) =>
-      console.warn('state write:', e.message)
-    );
 
-    // Redirect IMMEDIATO: l'utente vede il reload appena slot.svg+state sono
-    // scritti (~10-40ms), senza aspettare GitHub (README) né scan repo.
-    // ── Redirect con validazione Open Redirect ─────────────────────────────────
-    // Validazione security: previeni redirect aperti verso siti malevoli
+    // Redirect con validazione Open Redirect
     const rawRedirect = req.query?.redirect
       ? String(req.query.redirect).trim()
       : '';
@@ -360,135 +420,6 @@ export default async function handler(req, res) {
       github_latency_ms: githubLatency,
       error: null,
     });
-
-    // ── Aggiornamento README in background (non blocca il redirect) ──────────
-    // IMPORTANTE: la firma è ghGet(token, owner, repo, path). La repo del
-    // profilo è PROFILE_REPO (es. "simrim96"), il path è 'README.md'.
-    // Il redirect parte SUBITO (res.redirect qui sopra); il task viene
-    // registrato con waitUntil() di @vercel/functions così Vercel NON ne
-    // uccide il processo dopo la risposta. Senza waitUntil, il .then()
-    // veniva interrotto e la README non veniva mai riscritta → il ?v=
-    // restava fisso e Camo serviva sempre la stessa immagine (bug "stessa
-    // combinazione più volte"). Con waitUntil il redirect resta immediato
-    // (zero latenza percepita) ma il task completa davvero.
-    const backgroundTaskId = `readme-update-${spinStart}`;
-
-    const updateReadmeBackground = async () => {
-      console.log(`[readme-update] START spin=${spinStart}`);
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY_MS = 1000;
-
-      let lastError = null;
-      try {
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-          try {
-            // NOTA: owner=PROFILE_REPO, repo='simrim96' (PROFILE_REPO è il
-            // nome del repo del profilo, che coincide con l'owner), path='README.md'
-            console.log(
-              `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
-            );
-            const rf = await ghGet(
-              token,
-              PROFILE_REPO,
-              PROFILE_REPO,
-              'README.md'
-            );
-            if (!rf) {
-              console.log('[readme-update] ghGet returned null (README assente/illegibile)');
-              return;
-            }
-            console.log('[readme-update] ghGet OK, sha present:', Boolean(rf.sha));
-
-            const oldReadme = Buffer.from(rf.content, 'base64').toString(
-              'utf-8'
-            );
-            let newReadme = oldReadme.replace(
-              /api\/image\?(?:v|cache_buster)=[0-9]*/g,
-              `api/image?v=${spinStart}`
-            );
-            newReadme = updateReadmeMarkers(
-              newReadme,
-              state,
-              winningLang,
-              repoMatch,
-              fact
-            );
-
-            if (newReadme !== oldReadme) {
-              await ghPut(
-                token,
-                PROFILE_REPO,
-                PROFILE_REPO,
-                'README.md',
-                newReadme,
-                rf.sha,
-                '🎰 Update slot'
-              );
-              console.log(`[readme-update] ghPut OK, new ?v=${spinStart}`);
-            } else {
-              console.log('[readme-update] README unchanged, skip PUT');
-            }
-            return; // Successo
-          } catch (e) {
-            lastError = e;
-            console.warn(
-              `README update attempt ${attempt + 1} failed:`,
-              e.message
-            );
-            if (attempt < MAX_RETRIES - 1) {
-              await new Promise((r) =>
-                setTimeout(r, RETRY_DELAY_MS * Math.pow(2, attempt))
-              );
-            }
-          }
-        }
-        // Se tutti i retry falliscono, logga l'errore finale
-        console.error(
-          'README update failed after',
-          MAX_RETRIES,
-          'attempts:',
-          lastError?.message
-        );
-      } catch (e) {
-        // Catch-all for any unexpected errors
-        console.error(`README background task error:`, e.message);
-      }
-    };
-
-    // waitUntil: registra il task asincrono con Vercel così sopravvive al
-    // redirect. Il redirect è già stato inviato (res.redirect sopra), quindi
-    // l'utente non attende nulla.
-    try {
-      waitUntil(
-        updateReadmeBackground()
-          .then(() => {
-            console.log(
-              `[Background Task ${backgroundTaskId}] Completed successfully`
-            );
-          })
-          .catch((err) => {
-            console.error(
-              `[Background Task ${backgroundTaskId}] Unhandled rejection:`,
-              err.message
-            );
-          })
-      );
-    } catch {
-      // Se waitUntil non è disponibile (es. ambiente non-Vercel), esegui lo
-      // stesso in background senza bloccare (best-effort).
-      updateReadmeBackground().catch((err) =>
-        console.error(`[readme-update] fallback error:`, err.message)
-      );
-    }
-    try {
-      Sentry.addBreadcrumb({
-        category: 'background-task',
-        message: `Started ${backgroundTaskId}`,
-        level: 'info',
-      });
-    } catch {
-      // Sentry might not be initialized, ignore
-    }
   } catch (err) {
     // Cattura l'errore su Sentry
     Sentry.captureException(err);

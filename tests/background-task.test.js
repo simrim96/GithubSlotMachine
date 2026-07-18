@@ -1,10 +1,12 @@
-// ─── Tests per Background Task Memory Leak Fixes ──────────────────────────────
-// Verifica che le promesse in background vengano gestite correttamente e non
-// si accumulino come memory leak.
+// ─── Tests per Background Task / README update ────────────────────────────────
+// Verifica che l'aggiornamento della README avvenga nel flusso principale
+// (rete VIVA su Vercel), in parallelo con slot.svg+state, e NON in background
+// post-redirect (waitUntil su Vercel non ha rete in uscita → timeout 5000ms,
+// bug "stessa svg più volte").
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-describe('Background Task Memory Leak Fixes', () => {
+describe('README update nel flusso principale (no waitUntil)', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -15,90 +17,36 @@ describe('Background Task Memory Leak Fixes', () => {
     vi.restoreAllMocks();
   });
 
-  it('trackSpin non blocca il redirect', async () => {
-    // Simula trackSpin function
-    const trackSpin = (metrics) => {
-      if (process.env.VERCEL) {
-        return fetch('https://api.vercel.com/v1/analytics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            events: [
-              {
-                event: 'spin',
-                timestamp: Date.now(),
-                ...metrics,
-              },
-            ],
-          }),
-        }).catch(() => {});
-      }
-      return Promise.resolve(); // Silently ignore in non-Vercel
-    };
-
-    // trackSpin deve essere non-bloccante
-    Date.now();
-    const redirectPromise = Promise.resolve('redirect');
-    const analyticsPromise = trackSpin({ win: 'win', win_type: 'jackpot' });
-
-    // Il redirect non deve aspettare l'analytics
-    const [redirectResult] = await Promise.allSettled([
-      redirectPromise,
-      analyticsPromise,
-    ]);
-
-    expect(redirectResult.status).toBe('fulfilled');
-  });
-
-  it('IIFE background task ha cleanup handlers', () => {
-    // Verifica che il pattern usato in spin.js includa .then() e .catch()
+  it('non usa più waitUntil (rete bloccata post-redirect su Vercel)', () => {
     const spinJsContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
       'utf-8'
     );
-
-    // Cerca il pattern corretto: funzione assegnata a variabile + .then() + .catch()
-    expect(spinJsContent).toMatch(/updateReadmeBackground\s*\(\)/);
-    expect(spinJsContent).toMatch(/\.then\s*\(\s*\(\)\s*=>/);
-    expect(spinJsContent).toMatch(/\.catch\s*\(\s*\(err\)\s*=>/);
-
-    // Non deve esserci più il vecchio pattern IIFE senza handler
-    const iifePattern = /async\s*\(\)\s*=>\s*\{[\s\S]*?\}\s*\)\s*\(\s*\)/;
-    const iifeMatches = spinJsContent.match(iifePattern);
-
-    // Se ci sono match, devono essere all'interno di una assegnazione a variabile
-    if (iifeMatches) {
-      const index = spinJsContent.indexOf(iifeMatches[0]);
-      const contextBefore = spinJsContent.slice(Math.max(0, index - 50), index);
-      expect(contextBefore).toMatch(/updateReadmeBackground\s*=\s*async/);
-    }
+    expect(spinJsContent).not.toMatch(/waitUntil\s*\(/);
+    expect(spinJsContent).not.toMatch(/import\s*\{\s*waitUntil\s*\}/);
   });
 
-  it('Background task ha ID univoco e flag completion', async () => {
+  it('README scritta in Promise.allSettled con slot.svg+state', () => {
     const spinJsContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
       'utf-8'
     );
-
-    // Deve avere task ID univoco basato su spinStart
-    expect(spinJsContent).toMatch(
-      /backgroundTaskId\s*=\s*`readme-update-\$\{spinStart\}`/
-    );
-
-    // Deve gestire completamento e rejection tramite .then()/.catch()
-    expect(spinJsContent).toMatch(/\.then\(\s*\(\s*\)\s*=>/);
-    expect(spinJsContent).toMatch(/\.catch\(\s*\(err\)\s*=>/);
+    // Deve esserci un Promise.allSettled che include saveSlotSvg, writeState
+    // e la promise di aggiornamento README.
+    expect(spinJsContent).toMatch(/Promise\.allSettled\s*\(/);
+    expect(spinJsContent).toMatch(/saveSlotSvg\s*\(/);
+    expect(spinJsContent).toMatch(/writeState\s*\(/);
+    // La README usa ghGet/ghPut con la regex ?v= al suo interno
+    expect(spinJsContent).toMatch(/api\/image\?v=\$\{spinStart\}/);
   });
 
-  it('Background task registra breadcrumbs su Sentry', async () => {
+  it('ha un timeout di sicurezza per non bloccare il redirect', () => {
     const spinJsContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
       'utf-8'
     );
-
-    // Deve aggiungere breadcrumb su Sentry
-    expect(spinJsContent).toMatch(/Sentry\.addBreadcrumb/);
-    expect(spinJsContent).toMatch(/category:\s*'background-task'/);
+    expect(spinJsContent).toMatch(/README_TIMEOUT_MS/);
+    expect(spinJsContent).toMatch(/Promise\.race\s*\(/);
   });
 });
 
@@ -151,7 +99,12 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(spinContent).not.toMatch(
       /ghPut\(\s*token,\s*PROFILE_REPO,\s*'README\.md'/
     );
-    // E deve usare waitUntil per sopravvivere al redirect su Vercel.
-    expect(spinContent).toMatch(/waitUntil\(/);
+    // La forma a 4 argomenti (owner, repo, path) deve essere presente.
+    expect(spinContent).toMatch(
+      /ghGet\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
+    );
+    expect(spinContent).toMatch(
+      /ghPut\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'/
+    );
   });
 });
