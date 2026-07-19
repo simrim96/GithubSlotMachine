@@ -18,18 +18,6 @@ testati (vedi "Copertura dei test" in fondo).
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-5  [BASSO] config-loader: YAML non veramente supportato in produzione
-File: `api/_lib/config-loader.js` — `loadYAML()` (righe ~44-55)
-
-Usa `await import('yaml')` ma `yaml` NON è nelle `dependencies` di package.json.
-In produzione l'import fallisce → ritorna `null` silenziosamente → i file
-`.yaml`/`.yml` di lingue esterne vengono ignorati senza errore chiaro. La
-documentazione promette il supporto YAML.
-
-Fix: aggiungere `yaml` alle `dependencies` oppure rimuovere il riferimento YAML
-da README/doc.
-
---------------------------------------------------------------------------------
 ### ISSUE-6  [BASSO] health.js stampa mezzo header Authorization nel log
 File: `api/health.js` — riga 72
 
@@ -76,11 +64,9 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 - `tests/state-migration.test.js` ora copre `migrateState` con stato v1 (v1→v2), verifica terminazione entro 3s e schema corretto. BUCA COLMATA (ex ISSUE-1).
 - BUCA COLMATA (ex ISSUE-2a image.js): `image.js` ora usa `kvGet` da `./_lib/kv.js` (con timeout), rimuovendo la chiamata diretta `kv.get`. Test mancante su `image.js` ancora da aggiungere per prevenire regressioni.
 - BUCA COLMATA (ex ISSUE-3, repos.js): `tests/repos.test.js` ora copre timeout (AbortController + GITHUB_API_TIMEOUT_MS), concorrenza limitata a batch da 20, ed errore catturato su fetch fallita, con fetch GitHub simulata.
-- `config-loader` è testato ma solo lato unit; il caricamento YAML reale senza
-  il package `yaml` non è coperto da nessun check di integrazione (ISSUE-5).
 - Resta da aggiungere un test su `image.js` per prevenire regressioni (vedi sopra).
 
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-5..8 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-6..8 (basso) — segreti nei log, audit dep
