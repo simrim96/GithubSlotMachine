@@ -13,24 +13,6 @@ Stato dei check automatici (aggiornato al commit corrente):
 NOTA: i test verdi non coprono i bug critici sotto, perché i casi limite non sono
 testati (vedi "Copertura dei test" in fondo).
 
-================================================================================
-## MEDI
-================================================================================
-
-### ISSUE-3  [MEDIO] analytics trackSpin invia a endpoint Vercel non documentato
-File: `api/spin.js` — `trackSpin()` (righe ~148-168)
-
-`fetch('https://api.vercel.com/v1/analytics', {method:'POST'})` viene chiamato
-ad ogni spin quando `process.env.VERCEL` è vero. Questo endpoint NON è la Web
-Analytics ufficiale di Vercel (che si inietta lato client), e non è documentato
-come API pubblica affidabile. Le richieste probabilmente finiscono in 404/401
-silenziosi (il `.catch(()=>{})` maschera tutto).
-
-Impatto: traffico di rete inutile a ogni spin + log di warning nascosti. Nessun
-dato analitico reale viene raccolto.
-
-Fix: usare Vercel Web Analytics (script lato client nel README embed) oppure
-rimuovere `trackSpin`. Non chiamare un endpoint server-side non documentato.
 
 ================================================================================
 ## BASSI / MANUTENZIONE
@@ -110,5 +92,4 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-3 (medio)    — analytics endpoint fasullo
-2. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep
