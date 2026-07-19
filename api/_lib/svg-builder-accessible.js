@@ -41,18 +41,31 @@ export function buildAccessibleSVG(params) {
   // Estrai e modifica l'SVG per aggiungere accessibilità
   let accessibleSVG = originalSVG;
 
-  // Aggiungi role="img", aria-label e aria-hidden all'elemento <svg> root, preservando data-testid
-  // Sostituisce l'apertura <svg ...> con <svg ... role="img" aria-label="..." aria-hidden="false">
+  // ID stabili e univoci per il collegamento ARIA (best-practice per SVG
+  // embeddati come <img>: gli screen reader leggono <title>/<desc> solo se
+  // referenziati via aria-labelledby/aria-describedby, non l'aria-label solo).
+  const uidSafe = String(params.uid ?? '0').replace(/[^a-zA-Z0-9_-]/g, '');
+  const titleId = `slot-title-${uidSafe}`;
+  const descId = `slot-desc-${uidSafe}`;
+
+  // Aggiungi role="img" + riferimenti ARIA all'elemento <svg> root,
+  // preservando data-testid. aria-label resta come fallback.
   accessibleSVG = accessibleSVG.replace(/(<svg[^>]*>)/, (match) =>
     match.replace(
       />$/,
-      ` role="img" aria-label="${escapeXml(ariaLabel)}" aria-hidden="false">`
+      ` role="img" aria-labelledby="${titleId}" aria-describedby="${descId}" aria-label="${escapeXml(
+        ariaLabel
+      )}" aria-hidden="false">`
     )
   );
 
-  // Aggiungi <title> e <desc> per screen reader (dopo <defs> o all'inizio)
-  const titleElement = `<title>Dev Stack Slot Machine - ${isWin ? 'Vincita' : 'Nessuna vincita'}</title>`;
-  const descElement = `<desc>Una slot machine animata che mostra il tuo stack tecnologico. ${ariaLabel}</desc>`;
+  // Aggiungi <title> e <desc> per screen reader, con gli id referenziati sopra
+  const titleElement = `<title id="${titleId}">Dev Stack Slot Machine - ${
+    isWin ? 'Vincita' : 'Nessuna vincita'
+  }</title>`;
+  const descElement = `<desc id="${descId}">Una slot machine animata che mostra il tuo stack tecnologico. ${escapeXml(
+    ariaLabel
+  )}</desc>`;
 
   // Inserisci title e desc dopo l'apertura del svg
   accessibleSVG = accessibleSVG.replace(
