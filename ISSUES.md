@@ -18,16 +18,6 @@ testati (vedi "Copertura dei test" in fondo).
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-7  [BASSO] file runtime (slot.svg, state.json) nel repo ma gitignati solo parzialmente
-File: `.gitignore` (righe 23-24) + root
-
-`slot.svg` e `state.json` sono gitignati (giusto: cambiano a ogni spin), ma
-sono PRESENTI nella working dir (committati? no, ignorati). Il `.gitignore`
-ignora `state.json` ma NON `/tmp/GithubSlotMachine_state.json` (che è fuori repo,
-ok). Piccolo rischio: se qualcuno fa `git add -f`, ricomincia a sporcare la
-history. Verificare che non siano mai stati committati (al momento non lo sono).
-
---------------------------------------------------------------------------------
 ### ISSUE-8  [BASSO] dipendenze vulnerabilities (31, di cui 17 high)
 `npm audit` riporta 31 vulnerabilità, quasi tutte transitive dentro `vercel`
 (undici <=6.26.0: header injection, request smuggling, DoS WebSocket; tar
@@ -53,4 +43,4 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-7..8 (basso) — audit dep
+1. ISSUE-8 (basso) — audit dipendenze `vercel` (npm audit)
