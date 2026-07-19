@@ -1,7 +1,7 @@
 # ISSUES.md — GitHub Slot Machine
 
 Analisi statica + test eseguite il 19/07/2026.
-Stato test: `npx vitest run` → 183/183 passati.
+Stato test: `npx vitest run` → 190/190 passati.
 Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
 Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
@@ -11,18 +11,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 ================================================================================
 # A) BUG CONCRETI (da fixare)
 ================================================================================
-
-## ISSUE-21 · [ALTA] Lo SVG accessibile è un "dead-end": non viene mai servito
-- File: api/_lib/svg-builder-accessible.js  vs  api/spin.js:238
-- Sintomo: `buildAccessibleSVG` è usato SOLO da `tests/verify-issue3.mjs`
-  (verifica offline). L'SVG realmente scritto su KV / README / /api/image è
-  quello di `buildSVG`, che ha un `aria-label` STATICO fisso
-  ("GitHub Slot Machine — Slot interattiva", svg-builder-accessible.js:79).
-- Conseguenza: tutto il lavoro di accessibilità dinamica (ISSUE-3) non entra
-  nel prodotto. Gli screen reader non ricevono mai il risultato dello spin.
-- Fix: far sì che `spin.js` generi e serva l'SVG accessibile (es. come
-  `<title>`/`<desc>` dentro lo stesso SVG di `buildSVG`, o come variant
-  alternativa), oppure rimuovere il modulo se non è il percorso reale.
 
 ## ISSUE-22 · [BASSA] ghHeaders (single-source) non è usato in ghGet/ghPut
 - File: api/_lib/github.js:54,113  vs  github.js:24 (definizione ghHeaders)
@@ -118,8 +106,9 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M1: Collegare l'SVG accessibile al percorso reale (vedi ISSUE-21) e aggiungere
-     un test che verifica l'aria-label dinamico su spin vincente/perdente.
+- M1: Collegare l'SVG accessibile al percorso reale (✅ fatto, ISSUE-21) e aggiungere
+     un test che verifica l'aria-label dinamico su spin vincente/perdente
+     (tests/accessible-svg.test.js).
 - M2: Aggiungere ESLint come gate CI (✅ fatto, ISSUE-26) e un job di `npm audit` /
      secret-scan per la sicurezza (almeno documentare che non esiste, ISSUE-27).
 - M3: Centralizzare TUTTI gli header GitHub su `ghHeaders` (ISSUE-22) e aggiungere
