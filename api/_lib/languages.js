@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  LANGUAGES CONFIG
-//  Configurazione estensibile: supporta linguaggi hardcoded + esterni (JSON/YAML).
+//  Configurazione estensibile: supporta linguaggi hardcoded + esterni (JSON).
 //
 //  PER AGGIUNGERE LINGUAGGI:
 //  1. **Linguaggi hardcoded** (default): modifca questo file, aggiungi un oggetto
@@ -332,7 +332,7 @@ export const SCATTER = {
 };
 
 // ══════════════════════════ LINGUAGGI ESTERNI (DINAMICI) ═════════════════════
-// Carica linguaggi da file esterni (JSON/YAML) se disponibili.
+// Carica linguaggi da file esterni (JSON) se disponibili.
 // Ritorna promise per caricamento asincrono.
 let externalLanguagesPromise = null;
 

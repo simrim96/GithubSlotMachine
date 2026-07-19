@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONFIG LOADER
-//  Carica configurazioni esterne da file JSON o YAML (se disponibile).
+//  Carica configurazioni esterne da file JSON.
 //  Supporta:
 //    - languages-external.json (linguaggi custom aggiuntivi)
-//    - languages-external.yaml / .yml (formato YAML alternativo)
 //  Il loader cerca i file in ordine:
 //    1. Root del progetto
 //    2. Directory config/
@@ -37,27 +36,9 @@ function loadJSON(filePath) {
 }
 
 /**
- * Tenta di caricare un file YAML (se yaml module disponibile).
- * @param {string} filePath - Percorso assoluto al file YAML
- * @returns {object|null} Parsed YAML o null se non trovato/errore/non supportato
- */
-async function loadYAML(filePath) {
-  if (!existsSync(filePath)) return null;
-  try {
-    // Prova a usare yaml package (se installato)
-    const yaml = await import('yaml');
-    const content = readFileSync(filePath, 'utf-8');
-    return yaml.parse(content);
-  } catch (err) {
-    // yaml package non installato, ignora
-    return null;
-  }
-}
-
-/**
  * Cerca un file con estensione data in una lista di directory.
  * @param {string[]} dirs - Directory da cercare
- * @param {string[]} extensions - Estensioni da cercare (es. ['.json', '.yaml'])
+ * @param {string[]} extensions - Estensioni da cercare (es. ['.json'])
  * @returns {string|null} Primo file trovato o null
  */
 function findFile(dirs, extensions) {
@@ -101,7 +82,7 @@ function findFile(dirs, extensions) {
  */
 export async function loadExternalLanguages() {
   const searchDirs = [PROJECT_ROOT, join(PROJECT_ROOT, 'config')];
-  const extensions = ['.json', '.yaml', '.yml'];
+  const extensions = ['.json'];
 
   const filePath = findFile(searchDirs, extensions);
   if (!filePath) {
@@ -110,18 +91,9 @@ export async function loadExternalLanguages() {
 
   console.log(`[ConfigLoader] Caricamento config esterna: ${filePath}`);
 
-  // Prova prima JSON
-  let config = loadJSON(filePath);
+  const config = loadJSON(filePath);
   if (config && config.languages) {
     return config.languages;
-  }
-
-  // Se JSON non ha languages, prova YAML
-  if (!filePath.endsWith('.json')) {
-    config = await loadYAML(filePath);
-    if (config && config.languages) {
-      return config.languages;
-    }
   }
 
   console.warn(
