@@ -28,10 +28,10 @@ duplicazione che ha generato falsi allarmi nella review).
 
 ## 💡 Miglioramenti suggeriti (non bug)
 
-1. **CI smoke test di import** — un job `node -e "import('./api/_lib/svg-builder.js')"`
-   avrebbe dato feedback immediato su rotture di modulo.
-2. **Contract test sull'header** — asserire che ogni `fetch` a `api.github.com`
+1. **Contract test sull'header** — asserire che ogni `fetch` a `api.github.com`
    usi `Bearer `. Copre eventuali regressioni tipo ISSUE-16.
+   (Implementato in `tests/header-contract.test.js`, ma non ancora marcato
+   come risolto — da rivedere/confermare prima di chiudere.)
 3. **Gestione errore globale in `spin.js`** — avvolgere la logica in `try/catch`
    e, in caso di eccezione imprevista, rispondere comunque con un redirect o un
    SVG di errore anziché un 500 nudo.
