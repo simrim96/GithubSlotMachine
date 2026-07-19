@@ -10,7 +10,7 @@
 // senza modificare la logica di rendering esistente.
 
 import { escapeXml } from './svg/utils.js';
-import { buildSVG } from './svg-builder.js';
+import { buildSVG, errorSVG, errorSVGString } from './svg-builder.js';
 
 // Funzione wrapper accessibile che usa buildSVG originale e aggiunge ARIA
 export function buildAccessibleSVG(params) {
@@ -77,48 +77,7 @@ export function buildAccessibleSVG(params) {
 }
 
 // ─── Error SVG Generator ──────────────────────────────────────────────────────────
-// Restituisce un SVG di degrado per errori graceful. Due varianti:
-//   • errorSVGString() → markup SVG GREZZO (salvabile come slot.svg, embed in <img>)
-//   • errorSVG()       → data-URI base64 (per retro-compat / test)
-// Il catch di spin.js salva la stringa grezza su slot.svg così l'utente vede
-// davvero la slot di errore invece di un data-URI corrotto.
-function errorSvgMarkup({ owner = 'simrim96', message = 'Ops, riprova un attimo!' }) {
-  const SVG_W = 600;
-  const SVG_H = 624;
-
-  // Escapa e tronca il messaggio (max 80 char)
-  const safeMsg = String(message ?? '')
-    .slice(0, 80)
-    .replace(
-      /[<>&'\\"]/g,
-      (c) =>
-        ({
-          '<': '&lt;',
-          '>': '&gt;',
-          '&': '&amp;',
-          "'": '&apos;',
-          '"': '&quot;',
-          '\\': '\\\\',
-        })[c]
-    );
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530" role="img" aria-label="Errore della slot machine. ${safeMsg} Riprova.">
-  <title>Errore slot machine</title>
-  <rect width="${SVG_W}" height="${SVG_H}" fill="#171530"/>
-  <text x="${SVG_W / 2}" y="${SVG_H / 2 - 20}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="24" font-weight="700" fill="#ff4040">⚠️ Errore</text>
-  <text x="${SVG_W / 2}" y="${SVG_H / 2}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="16" fill="#e8e8f4">${safeMsg}</text>
-  <text x="${SVG_W / 2}" y="${SVG_H / 2 + 30}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf"><a href="https://github.com/${owner}">github.com/${owner}</a></text>
-  <text x="${SVG_W / 2}" y="${SVG_H / 2 + 50}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf">Tenta di nuovo!</text>
-</svg>`;
-}
-
-// SVG grezzo (salvabile su slot.svg / embeddabile in <img>)
-export function errorSVGString(input) {
-  return errorSvgMarkup(input ?? {});
-}
-
-// Restituisce un data-URI SVG di degrado per errori graceful
-export function errorSVG(input) {
-  return `data:image/svg+xml;base64,${Buffer.from(errorSvgMarkup(input ?? {})).toString('base64')}`;
-}
+// errorSVG / errorSVGString sono definiti in svg-builder.js (fonte canonica,
+// ISSUE-29) e re-importati qui per retrocompatibilità: svg-builder-accessible
+// non deve ridefinirli (evita la dipendenza circolare con svg-builder.js).
+export { errorSVG, errorSVGString };
