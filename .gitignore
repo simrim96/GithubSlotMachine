@@ -20,5 +20,8 @@ Thumbs.db
 
 # Runtime-generated artifacts (written by the slot via GitHub Contents API / Redis).
 # Never commit — they diverge from the live value on every spin.
+# NB: sono ignorati QUI, ma finché resteranno nell'index storico un `git add -f`
+# potrebbe ricommetterli. L'hook pre-commit in .githooks/ blocca esplicitamente
+# state.json e slot.svg (vedi ISSUE-7).
 state.json
 slot.svg

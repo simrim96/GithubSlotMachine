@@ -3,7 +3,9 @@
 // Restituisce lo slot.svg "vivo" (quello generato dall'ultimo spin). Priorità:
 //   1. Upstash Redis (kv:gsm:slotSvg) — velocissimo, elimina il GET su GitHub
 //      che prima aggiungeva 150-400ms ogni caricamento.
-//   2. Fallback: legge slot.svg dal repo (per dev locale / Redis non configurato).
+//   2. Fallback: legge slot.svg dal repo REMOTO via GitHub Contents API
+//      (per dev locale / Redis non configurato). Non legge dal filesystem
+//      locale (vedi ISSUE-7 — la copia locale è solo un artefatto ignorato).
 //
 // Fork-aware: legge SLOT_OWNER / SLOT_REPO dalle env var come fa spin.js
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).

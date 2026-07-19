@@ -1,10 +1,12 @@
 // Persistenza dello stato della community (contatore spin + last win).
 //
 // Priorità: Upstash Redis (veloce, same-region ~10ms, nessuno spam nella git
-// history). Fallback: file state.json committato nel repo della slot (usato
-// solo se Redis non è configurato E GITHUB_PAT è presente. In locale/dev,
-// lo stato viene scritto su /tmp/GithubSlotMachine_state.json per non
-// inquina re la git history.
+// history). Fallback: scrittura remota su state.json nel repo della slot via
+// GitHub Contents API (usata solo se Redis non è configurato E GITHUB_PAT è
+// presente). In locale/dev (senza token), lo stato viene scritto su
+// /tmp/GithubSlotMachine_state.json per non inquinare la git history.
+// NOTA: non esiste alcuna lettura/scrittura di state.json dal filesystem
+// locale del repo (vedi ISSUE-7 — qualsiasi copia locale è un artefatto).
 //
 // Tutte le chiamate KV passano dai wrapper con timeout in kv.js, così Redis
 // lento/cross-region non blocca mai lo spin.
