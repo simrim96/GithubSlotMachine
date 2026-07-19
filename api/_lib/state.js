@@ -10,6 +10,7 @@
 // lento/cross-region non blocca mai lo spin.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
+import { ghGet, ghPut } from './github.js';
 import { promises as fs } from 'fs';
 
 const STATE_KEY = 'gsm:state';
@@ -118,20 +119,12 @@ async function writeStateLocal(state) {
 }
 
 // ── Fallback GitHub ───────────────────────────────────────────────────────────
+// ISSUE-1: tutte le chiamate GitHub sono centralizzate in github.js (ghGet/ghPut)
+// che applica già AbortController (timeout), circuit breaker e retry su 409.
+// Niente più fetch diretti non protetti qui.
 async function readStateGitHub(token, owner, repo) {
-  const r = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${STATE_PATH}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'GithubSlotMachine',
-      },
-    }
-  );
-  if (r.status === 404) return { state: { ...DEFAULTS }, sha: null };
-  if (!r.ok) throw new Error(`state get: ${r.status}`);
-  const data = await r.json();
+  const data = await ghGet(token, owner, repo, STATE_PATH);
+  if (!data) return { state: { ...DEFAULTS }, sha: null };
   let parsed;
   try {
     parsed = JSON.parse(Buffer.from(data.content, 'base64').toString('utf-8'));
@@ -146,36 +139,18 @@ async function writeStateGitHub(
   owner,
   repo,
   state,
-  sha,
-  _retry = false
+  sha
 ) {
-  const encoded = Buffer.from(JSON.stringify(state, null, 2)).toString(
-    'base64'
+  const encoded = JSON.stringify(state, null, 2);
+  await ghPut(
+    token,
+    owner,
+    repo,
+    STATE_PATH,
+    encoded,
+    sha,
+    '🎰 Update slot stats'
   );
-  const body = {
-    message: '🎰 Update slot stats',
-    content: encoded,
-  };
-  if (sha) body.sha = sha;
-  const r = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${STATE_PATH}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'GithubSlotMachine',
-      },
-      body: JSON.stringify(body),
-    }
-  );
-  if (r.status === 409 && !_retry) {
-    // SHA stale: rifetch e riprova una volta.
-    const { sha: freshSha } = await readStateGitHub(token, owner, repo);
-    return writeStateGitHub(token, owner, repo, state, freshSha, true);
-  }
-  if (!r.ok) throw new Error(`state put: ${r.status}`);
 }
 
 // ── API pubblica ───────────────────────────────────────────────────────────────
