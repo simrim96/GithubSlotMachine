@@ -9,30 +9,8 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 (ISSUE-20+) per problemi ancora aperti.
 
 ================================================================================
-# A) BUG CONCRETI (da fixare)
-================================================================================
-
-## ISSUE-25 · [RIMOSSO] — vedi cronologia git (fix CORS wildcard su /api/image e /api/lever)
-
-================================================================================
 # B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
 ================================================================================
-
-## ISSUE-29 · [BASSA] errorSVG importato da due percorsi diversi
-- File: api/spin.js:27 (da svg-builder-accessible.js) vs
-  tests/* (da svg-builder.js che lo re-exporta)
-- Sintomo: `errorSVG` vive in `svg-builder-accessible.js` e viene re-importato
-  e ri-esposto da `svg-builder.js`. Due sorgenti per lo stesso simbolo →
-  confusione su quale sia "quella giusta".
-- Fix: scegliere un'unica fonte (probabilmente svg-builder.js) e importare
-  sempre da lì.
-
-## ISSUE-30 · [DESIGN CHOICE] Nessun rate-limit per-IP sugli spin
-- File: api/_lib/ratelimit.js:7-13 (commento esplicito), api/spin.js
-- Nota: è una scelta INTENZIONALE (ISSUE-11) — non si emette mai 429, la
-  protezione è demandata al rate-limit globale GitHub (5000/h). Va bene per una
-  slot personale, ma se qualcuno embeddesse la slot su molte pagine potenzialmente
-  si esaurisce il budget GitHub condiviso. Da rivalutare solo se il traffico cresce.
 
 ## ISSUE-31 · [BASSA] Sentry `debug:true` in development
 - File: sentry.config.js:22-24

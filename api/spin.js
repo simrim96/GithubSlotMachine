@@ -23,8 +23,8 @@ import {
   winningLangId,
   wrap,
 } from './_lib/game.js';
-import { buildSVG } from './_lib/svg-builder.js';
-import { buildAccessibleSVG, errorSVG, errorSVGString } from './_lib/svg-builder-accessible.js';
+import { buildSVG, errorSVG, errorSVGString } from './_lib/svg-builder.js';
+import { buildAccessibleSVG } from './_lib/svg-builder-accessible.js';
 import {
   ghGet,
   ghPut,

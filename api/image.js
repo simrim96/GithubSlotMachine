@@ -13,7 +13,7 @@
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCorsWildcard } from './_lib/cors.js';
-import { errorSVGString } from './_lib/svg-builder-accessible.js';
+import { errorSVGString } from './_lib/svg-builder.js';
 import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
