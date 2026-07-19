@@ -36,7 +36,6 @@ import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
-import { kvEnabled } from './_lib/kv.js';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
 const ALLOWED_ORIGINS = [
@@ -143,29 +142,15 @@ export {
   SCATTER_ID,
 };
 
-// ─── Analytics Tracking ──────────────────────────────────────────────────────
-// Invia metriche a Vercel Analytics per monitoraggio produzione
-async function trackSpin(metrics) {
-  if (process.env.VERCEL) {
-    try {
-      await fetch('https://api.vercel.com/v1/analytics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          events: [
-            {
-              event: 'spin',
-              timestamp: Date.now(),
-              ...metrics,
-            },
-          ],
-        }),
-      }).catch(() => {}); // Silently ignore analytics failures
-    } catch (e) {
-      console.warn('analytics track failed:', e.message);
-    }
-  }
-}
+// ─── Analytics ───────────────────────────────────────────────────────────────
+// ISSUE-3 fix: rimosso il tracking server-side verso l'endpoint non documentato
+// `https://api.vercel.com/v1/analytics` (risposte 404/401 silenziose, nessun
+// dato reale raccolto, traffico di rete inutile a ogni spin).
+// Ora l'analytics è gestita lato client tramite Vercel Web Analytics, iniettata
+// in `public/index.html` (il frontend della leva servito da Vercel). Lo script
+// traccia automaticamente le page view e, al click della leva, un evento
+// `spin` custom via `window.va('track', 'spin', {...})`. Nessuna chiamata
+// server-side residua.
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
@@ -269,8 +254,6 @@ export default async function handler(req, res) {
       dest = repoMatch?.url || `https://github.com/${OWNER}`;
     }
 
-    const githubLatency = Date.now() - spinStart;
-
     // ── Scritture ────────────────────────────────────────────────────────────
     // Eseguite IN PARALLELO nel flusso principale (rete VIVA), PRIMA del
     // redirect, così GitHub risponde davvero (waitUntil post-redirect su Vercel
@@ -372,14 +355,6 @@ export default async function handler(req, res) {
         console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
       }
       res.redirect(302, redirectUrl);
-      await trackSpin({
-        win: isWin ? 'win' : 'loss',
-        win_type: isJackpot ? 'jackpot' : isWin ? 'near-miss' : 'loss',
-        lang_id: winningLang?.id || null,
-        redis_hit: kvEnabled,
-        github_latency_ms: githubLatency,
-        error: null,
-      });
       return;
     }
 
@@ -400,16 +375,6 @@ export default async function handler(req, res) {
 
     res.redirect(302, redirectUrl);
     console.log('Security: Redirecting to:', redirectUrl);
-
-    // Track analytics (non bloccante)
-    await trackSpin({
-      win: isWin ? 'win' : 'loss',
-      win_type: isJackpot ? 'jackpot' : isWin ? 'near-miss' : 'loss',
-      lang_id: winningLang?.id || null,
-      redis_hit: kvEnabled,
-      github_latency_ms: githubLatency,
-      error: null,
-    });
   } catch (err) {
     // Cattura l'errore su Sentry
     Sentry.captureException(err);
@@ -451,14 +416,5 @@ export default async function handler(req, res) {
     } catch {
       res.status(500).send('Errore temporaneo, riprova.');
     }
-    // Track analytics (non bloccante)
-    await trackSpin({
-      win: 'error',
-      win_type: 'error',
-      lang_id: null,
-      redis_hit: kvEnabled,
-      github_latency_ms: Date.now() - spinStart,
-      error: err?.message || String(err),
-    });
   }
 }

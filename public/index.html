@@ -264,6 +264,19 @@
         animation: pulse-critical 1.5s infinite;
       }
     </style>
+    <!-- ISSUE-3 fix: Vercel Web Analytics (lato client). Sostituisce il tracking
+         server-side fasullo rimosso da api/spin.js. Lo script è servito
+         automaticamente da Vercel quando Web Analytics è abilitato sul
+         progetto (Dashboard → Analytics). Nessuna chiamata manuale a endpoint
+         non documentati; la pagina traccia page view + eventi custom `spin`. -->
+    <script>
+      window.va =
+        window.va ||
+        function () {
+          (window.vaq = window.vaq || []).push(arguments);
+        };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
   </head>
   <body>
     <!-- LIVE REGIONS PER ACCESSIBILITÀ -->
@@ -442,6 +455,16 @@
           // Prima il pulsante ricaricava SOLO l'immagine esistente
           // (api/image?v=Date.now()) mostrando sempre la stessa schermata
           // dei rulli — di fatto nessuno spin. Ora si comporta come la leva.
+          //
+          // ISSUE-3 fix: traccia lo spin via Vercel Web Analytics (lato client).
+          // Sostituisce il tracking server-side rimosso da api/spin.js. Al
+          // momento del click il risultato (win/lang) non è ancora noto lato
+          // client, quindi registriamo l'evento `spin` generico; i dettagli
+          // di vittoria restano visibili nei contatori del profilo.
+          if (typeof window.va === 'function') {
+            window.va('track', 'spin', {});
+          }
+
           window.location.assign('/api/spin');
         });
 
