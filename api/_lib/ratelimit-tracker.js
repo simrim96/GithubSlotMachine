@@ -3,8 +3,8 @@
 // per scopi di logging/monitoraggio. Non serializza più le chiamate: per una
 // slot machine personale il limite di 5000 req/h non è mai un vincolo reale,
 // e la coda (RateLimitQueue) aggiungeva solo latenza e log fuorvianti sugli
-// AbortError di timeout. Le chiamate GitHub passano direttamente dal circuit
-// breaker in github.js.
+// AbortError di timeout. Le chiamate GitHub passano direttamente da github.js
+// (timeout via AbortController).
 
 export const GITHUB_RATE_LIMIT_HEADER_REMAINING = 'X-RateLimit-Remaining';
 export const GITHUB_RATE_LIMIT_HEADER_RESET = 'X-RateLimit-Reset';

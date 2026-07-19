@@ -179,7 +179,7 @@ export default async function handler(req, res) {
   // Nessun rate-limit per-IP (ISSUE-1): l'utente può effettuare tutti gli
   // spin che vuole, anche di fila. La protezione contro l'abuso del
   // rate-limit globale GitHub (5000/h) resta demandata al graceful-fallback
-  // in state.js / github.js (circuit breaker + timeout), non a un blocco 429
+  // in state.js / github.js (timeout via AbortController), non a un blocco 429
   // sugli spin.
   const token = process.env.GITHUB_PAT;
   if (!token) {

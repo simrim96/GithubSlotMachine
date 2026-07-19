@@ -120,7 +120,7 @@ async function writeStateLocal(state) {
 
 // ── Fallback GitHub ───────────────────────────────────────────────────────────
 // ISSUE-1: tutte le chiamate GitHub sono centralizzate in github.js (ghGet/ghPut)
-// che applica già AbortController (timeout), circuit breaker e retry su 409.
+// che applica già AbortController (timeout) e retry su 409.
 // Niente più fetch diretti non protetti qui.
 async function readStateGitHub(token, owner, repo) {
   const data = await ghGet(token, owner, repo, STATE_PATH);
