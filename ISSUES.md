@@ -12,8 +12,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M4: Monitoring: log/alert quando il sync Redis→GitHub (state.js:222) fallisce
-     ripetutamente, così ci si accorge se lo stato non si sta salvando.
 - M5: Documentare nel README il comportamento della cache repo (ISSUE-28) e il
      fatto che il primo spin può puntare al profilo.
 - M6: Uniformare la gestione CORS (ISSUE-25) e scrivere un test che verifichi

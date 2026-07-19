@@ -14,6 +14,79 @@
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { ghGet, ghPut } from './github.js';
 import { promises as fs } from 'fs';
+import * as Sentry from '../../sentry.config.js';
+
+// ── Monitoring del sync Redis→GitHub (Miglioramento M4, ISSUES.md) ───────────
+// Lo stato vivo risiede in Redis (kvSet, ~10ms). Per avere un backup
+// leggibile da umani e resiliente a un'eventuale perdita di Redis, ogni
+// writeState() fa anche un sync asincrono su state.json nel repo via
+// GitHub Contents API. Quel sync è volutamente fire-and-forget (non blocca
+// lo spin), ma se fallisce ripetutamente in modo silenzioso non ce ne
+// accorgiamo: lo stato "ufficiale" persistito smette di aggiornarsi mentre
+// Redis continua a crescere, e a un certo punto il backup su GitHub resta
+// fermo a una vecchia snapshot.
+//
+// Qui teniamo un contatore di *fallimenti consecutivi* a livello di modulo.
+// Ogni volta che lo sync GitHub fallisce lo incrementiamo; al primo successo
+// lo azzeriamo. Quando supera la soglia STATE_SYNC_FAILURE_ALERT_THRESHOLD
+// emettiamo un alert esplicito (log + Sentry) una sola volta, così chi
+// monitora i log/Sentry vede subito che lo stato non si sta salvando su
+// GitHub. Usiamo un flag `_alertRaised` per non inondare Sentry a ogni spin.
+const STATE_SYNC_FAILURE_ALERT_THRESHOLD =
+  parseInt(process.env.STATE_SYNC_FAILURE_ALERT_THRESHOLD) || 5;
+
+let _syncFailureCount = 0;
+let _alertRaised = false;
+
+// Sentry è opzionale (il DSN può non essere configurato in dev/test):
+// lo importiamo in modo dinamico/lazy così un'eventuale assenza del modulo
+// non rompe lo spin. In spin.js Sentry è già usato, quindi è una dipendenza
+// presente; qui lo carichiamo ma lo usiamo solo se il DSN è settato.
+function reportStateSyncAlert(failures, lastError) {
+  const msg =
+    `[state] ALERT: sync Redis→GitHub fallito ${failures} volte di fila. ` +
+    `Lo stato persistito su GitHub (state.json) NON si sta aggiornando. ` +
+    `Ultimo errore: ${lastError || 'sconosciuto'}`;
+  console.error(msg);
+  // Best-effort: Sentry cattura l'evento come errore applicativo (solo se
+  // il DSN è configurato; altrimenti captureMessage è un no-op silenzioso).
+  try {
+    if (Sentry && typeof Sentry.captureMessage === 'function') {
+      Sentry.captureMessage(msg, 'error');
+    }
+  } catch {
+    /* Sentry non disponibile: il console.error sopra basta */
+  }
+}
+
+function recordStateSyncFailure(err) {
+  _syncFailureCount += 1;
+  if (
+    !_alertRaised &&
+    _syncFailureCount >= STATE_SYNC_FAILURE_ALERT_THRESHOLD
+  ) {
+    _alertRaised = true;
+    reportStateSyncAlert(_syncFailureCount, err?.message || String(err));
+  } else if (_alertRaised) {
+    // Continuiamo a loggare (a livello warn, meno rumoroso) finché l'alert
+    // è già stato sollevato, così chi guarda i log vede la persistenza.
+    console.warn(
+      `[state] sync Redis→GitHub ancora fallito (totale ${_syncFailureCount} consecutivi): ` +
+        `${err?.message || err}`
+    );
+  }
+}
+
+function recordStateSyncSuccess() {
+  if (_syncFailureCount !== 0 || _alertRaised) {
+    console.log(
+      `[state] sync Redis→GitHub recuperato dopo ${_syncFailureCount} ` +
+        `fallimenti consecutivi — contatore azzerato.`
+    );
+  }
+  _syncFailureCount = 0;
+  _alertRaised = false;
+}
 
 const STATE_KEY = 'gsm:state';
 const STATE_PATH = 'state.json';
@@ -217,11 +290,16 @@ export async function writeState(token, owner, repo, state, _sha) {
       stateToSave.version = 1;
     }
     await kvSet(STATE_KEY, stateToSave);
-    // Sync asincrono su GitHub per backup (non blocca lo spin)
-    // Se fallisce, viene logged ma non interrompe l'esecuzione
-    writeStateGitHub(token, owner, repo, stateToSave, _sha).catch((e) =>
-      console.warn('Redis state sync to GitHub failed:', e.message)
-    );
+    // Sync asincrono su GitHub per backup (non blocca lo spin).
+    // Se fallisce, viene registrato dal monitor M4 (conteggio fallimenti
+    // consecutivi + alert su Sentry/log quando supera la soglia) così ci si
+    // accorge se lo stato persistito su GitHub smette di aggiornarsi.
+    writeStateGitHub(token, owner, repo, stateToSave, _sha)
+      .then(() => recordStateSyncSuccess())
+      .catch((e) => {
+        console.warn('Redis state sync to GitHub failed:', e.message);
+        recordStateSyncFailure(e);
+      });
     return;
   }
   // Se non c'è token, scrivi su /tmp (locale) invece che nel repo.
@@ -230,4 +308,21 @@ export async function writeState(token, owner, repo, state, _sha) {
     return;
   }
   return writeStateGitHub(token, owner, repo, state, _sha);
+}
+
+// ── Export del monitor M4 (per testabilità) ───────────────────────────────────
+// Esposti per i test: permettono di verificare il conteggio dei fallimenti
+// consecutivi e il sollevamento dell'alert senza dover chiamare GitHub reali.
+export {
+  recordStateSyncFailure,
+  recordStateSyncSuccess,
+  reportStateSyncAlert,
+  STATE_SYNC_FAILURE_ALERT_THRESHOLD,
+};
+// Getter dello stato corrente del monitor (utile per assertions nei test).
+export function getSyncFailureCount() {
+  return _syncFailureCount;
+}
+export function isAlertRaised() {
+  return _alertRaised;
 }
