@@ -13,6 +13,7 @@
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
+import { errorSVGString } from './_lib/svg-builder-accessible.js';
 import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
@@ -50,6 +51,14 @@ export default async function handler(req, res) {
   );
   if (!r.ok) return res.status(r.status).send('Slot image not found');
   const data = await r.json();
+  // ISSUE-24: se `r.ok` è true ma `data.content` è assente (repo esistente ma
+  // slot.svg vuoto / risposta inattesa), `Buffer.from(undefined)` lancia.
+  // In tal caso servi un SVG di degrado invece di crashare.
+  if (!data || !data.content) {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(errorSVGString({ owner: user, message: 'Slot image unavailable' }));
+  }
   const svg = Buffer.from(data.content, 'base64').toString('utf-8');
   res.setHeader('Content-Type', 'image/svg+xml');
   res.setHeader('Cache-Control', 'no-store');

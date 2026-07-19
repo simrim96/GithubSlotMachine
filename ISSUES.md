@@ -1,7 +1,7 @@
 # ISSUES.md — GitHub Slot Machine
 
 Analisi statica + test eseguite il 19/07/2026.
-Stato test: `npx vitest run` → 195/195 passati.
+Stato test: `npx vitest run` → 199/199 passati.
 Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
 Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
@@ -11,14 +11,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 ================================================================================
 # A) BUG CONCRETI (da fixare)
 ================================================================================
-
-## ISSUE-24 · [BASSA] /api/image fallback GitHub non gestisce content assente
-- File: api/image.js:47-53
-- Sintomo: se `r.ok` è true ma `data.content` è `undefined`/`null`
-  (repo esistente ma `slot.svg` vuoto o risposta inattesa),
-  `Buffer.from(data.content, 'base64')` lancia un'eccezione non gestita.
-- Fix: verificare `data?.content` prima del decode, altrimenti servire
-  `errorSVG()`.
 
 ## ISSUE-25 · [BASSA] CORS ibrido: reflect-Origin vs wildcard nello stesso file
 - File: api/_lib/cors.js:34 (applyCors → riflette `origin`) vs cors.js:57
