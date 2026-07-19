@@ -1,6 +1,12 @@
 // ─── GET /api/ratelimit-status ────────────────────────────────────────────────
-// Espone lo stato corrente del GitHub API rate limit tracker.
+// Espone lo stato corrente del GitHub API rate limit.
 // Usato dal frontend per mostrare un badge con remaining requests, reset time, etc.
+//
+// A differenza della versione precedente, NON manteniamo più uno stato
+// osservazionale in-process (la classe RateLimitTracker era puramente
+// cosmetica e non bloccava nulla — vedi ISSUE-12). Leggiamo lo stato LIVE
+// dall'endpoint GitHub /rate_limit — che NON consuma il budget delle 5000
+// req/h — e parsiamo gli header X-RateLimit-* per il logging.
 //
 // Esempio di risposta:
 //   {
@@ -9,16 +15,22 @@
 //     "reset": 1784267400,
 //     "resetTime": "17/07/2026, 08:10:00",
 //     "secondsUntilReset": 300,
-//     "percentage": 1,
-//     "status": "warning", // 'ok', 'warning', 'critical'
-//     "totalRequests": 142
+//     "percentageUsed": 99,
+//     "status": "warning", // 'ok', 'warning', 'critical', 'unknown'
+//     "totalRequests": null,
+//     "isBelowWarningThreshold": true
 //   }
 //
 // Endpoints correlati:
 //   • GET /api/health     - Health check completo
 //   • GET /api/stats      - Statistiche dell'applicazione
 
-import { getDefaultTracker } from './_lib/ratelimit-tracker.js';
+import {
+  GITHUB_RATE_LIMIT_HEADER_REMAINING,
+  GITHUB_RATE_LIMIT_HEADER_RESET,
+  GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
+  safeGetHeader,
+} from './_lib/ratelimit-tracker.js';
 
 export default async function handler(req) {
   // Supporta solo GET
@@ -29,45 +41,80 @@ export default async function handler(req) {
     });
   }
 
-  const tracker = getDefaultTracker();
-  const state = tracker.getState();
+  // /rate_limit NON conta verso il limite, ma con token ritorna il limite
+  // dell'utente autenticato (5000/h) anziché quello anonimo (60/h).
+  const token = process.env.GITHUB_PAT;
+  const headers = { 'User-Agent': 'GithubSlotMachine' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch('https://api.github.com/rate_limit', { headers });
+  } catch (error) {
+    console.warn('[ratelimit-status] fetch /rate_limit fallita:', error?.message);
+    return new Response(
+      JSON.stringify({ status: 'unknown', remaining: null, reset: null }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      }
+    );
+  }
+
+  const remainingRaw = safeGetHeader(response, GITHUB_RATE_LIMIT_HEADER_REMAINING);
+  const resetRaw = safeGetHeader(response, GITHUB_RATE_LIMIT_HEADER_RESET);
+
+  const remaining =
+    remainingRaw !== null && remainingRaw !== undefined
+      ? parseInt(remainingRaw, 10)
+      : null;
+  const reset =
+    resetRaw !== null && resetRaw !== undefined ? parseInt(resetRaw, 10) : null;
 
   // Calcola il limite totale (GitHub free tier: 5000 richieste/ora)
-  // Se non abbiamo mai ricevuto l'header X-RateLimit-Limit, usiamo il default
   const totalLimit = 5000;
 
   // Calcola la percentuale utilizzata
   const percentageUsed =
-    state.remaining !== null
-      ? (((totalLimit - state.remaining) / totalLimit) * 100).toFixed(2)
+    remaining !== null
+      ? (((totalLimit - remaining) / totalLimit) * 100).toFixed(2)
       : null;
 
-  // Determina lo stato del rate limit (solo visualizzazione: il tracker è
-  // osservazionale e non blocca le chiamate)
+  // Determina lo stato del rate limit (solo visualizzazione)
   let status = 'unknown';
-  if (state.remaining === null) {
+  if (remaining === null) {
     status = 'unknown';
-  } else if (state.remaining <= 2) {
+  } else if (remaining <= 2) {
     status = 'critical';
-  } else if (state.remaining <= 10) {
+  } else if (remaining <= 10) {
     status = 'warning';
   } else {
     status = 'ok';
   }
 
-  const response = {
-    remaining: state.remaining,
+  const secondsUntilReset =
+    reset !== null ? Math.max(0, reset - Math.floor(Date.now() / 1000)) : null;
+  const resetTime =
+    reset !== null ? new Date(reset * 1000).toLocaleString() : null;
+
+  const body = {
+    remaining: remaining,
     limit: totalLimit,
-    reset: state.reset,
-    resetTime: state.resetTime,
-    secondsUntilReset: state.secondsUntilReset,
+    reset: reset,
+    resetTime: resetTime,
+    secondsUntilReset: secondsUntilReset,
     percentageUsed: percentageUsed,
     status: status,
-    totalRequests: state.totalRequests,
-    isBelowWarningThreshold: state.isBelowWarningThreshold,
+    // Non teniamo più uno stato in-process: il conteggio è live, non cumulativo.
+    totalRequests: null,
+    isBelowWarningThreshold:
+      remaining !== null && remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
   };
 
-  return new Response(JSON.stringify(response), {
+  return new Response(JSON.stringify(body), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',

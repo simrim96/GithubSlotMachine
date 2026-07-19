@@ -82,6 +82,36 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(content).not.toMatch(/export function getDefaultQueue/);
   });
 
+  it('ratelimit-tracker.js non espone più la classe osservazionale (ISSUE-12)', () => {
+    const content = require('fs').readFileSync(
+      new URL('../api/_lib/ratelimit-tracker.js', import.meta.url),
+      'utf-8'
+    );
+
+    // La classe RateLimitTracker e il suo factory sono stati rimossi:
+    // restano solo il parsing header e il logging.
+    expect(content).not.toMatch(/class RateLimitTracker/);
+    expect(content).not.toMatch(/export class RateLimitTracker/);
+    expect(content).not.toMatch(/export function getDefaultTracker/);
+    // La definizione di metodo (non la menzione in commento) non deve esistere.
+    expect(content).not.toMatch(/isBelowWarningThreshold\s*\(\s*\)/);
+
+    // Gli helper di parsing/logging devono invece esserci.
+    expect(content).toMatch(/export function safeGetHeader/);
+    expect(content).toMatch(/export function parseRateLimitHeaders/);
+    expect(content).toMatch(/export function logRateLimit/);
+  });
+
+  it('github.js usa logRateLimit() al posto del tracker (ISSUE-12)', () => {
+    const githubContent = require('fs').readFileSync(
+      new URL('../api/_lib/github.js', import.meta.url),
+      'utf-8'
+    );
+    expect(githubContent).toMatch(/import\s*\{\s*logRateLimit\s*\}/);
+    expect(githubContent).toMatch(/logRateLimit\(response\)/);
+    expect(githubContent).not.toMatch(/getDefaultTracker\(\)/);
+  });
+
   it('spin.js: ghGet/ghPut per la README usano 4 argomenti (owner, repo, path)', () => {
     const spinContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
