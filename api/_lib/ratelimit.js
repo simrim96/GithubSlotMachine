@@ -4,12 +4,13 @@
 // per chiudere l'open-redirect: solo [A-Za-z0-9-], max 39 char, niente
 // path/underscore/slash.
 //
-// NOTA: il rate-limit per-IP (token-bucket 1 spin / 3s, ex RL_WINDOW_SEC) è
-// stato RIMOSSO (ISSUE-1): l'utente deve poter effettuare tutti gli spin che
-// vuole senza ricevere "429 Troppe richieste". La protezione contro l'abuso
-// del rate-limit globale GitHub (5000/h) resta demandata al graceful-fallback
-// in state.js / github.js (timeout via AbortController), non a un blocco 429
-// sugli spin.
+// NOTA: gli spin per-IP NON hanno alcun rate-limit (nessun 429). L'utente può
+// effettuare tutti gli spin che vuole, senza limite per indirizzo IP
+// (ISSUE-11, fix 2). La protezione contro l'abuso resta demandata al
+// graceful-fallback GitHub (limite globale 5000/h) implementato in state.js /
+// github.js tramite AbortController (timeout sulle chiamate API), non a un
+// blocco 429 sugli spin. Questo file espone ora SOLO isValidUser(...) per la
+// validazione del parametro ?user= (chiusura dell'open-redirect).
 
 // Regex per GitHub login: solo lettere/cifre/trattino, lunghezza 1-39.
 // Niente underscore (GitHub non li permette nei login), niente slash, niente path.
