@@ -13,7 +13,7 @@
 // Layout: leva quasi verticale (delta x = 10px su delta y = 78px) → quindi
 // "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
 
-import { applyCors } from './_lib/cors.js';
+import { applyCorsWildcard } from './_lib/cors.js';
 
 const W = 52;
 const H = 150;
@@ -150,7 +150,9 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
 </svg>`;
 
 export default function handler(req, res) {
-  applyCors(req, res);
+  // ── CORS (ISSUE-25: wildcard `*`, la leva è embeddata cross-origin
+  //    su github.com e altri domini non deterministici) ──
+  applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;

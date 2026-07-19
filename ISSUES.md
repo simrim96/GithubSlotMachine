@@ -1,7 +1,7 @@
 # ISSUES.md — GitHub Slot Machine
 
 Analisi statica + test eseguite il 19/07/2026.
-Stato test: `npx vitest run` → 199/199 passati.
+Stato test: `npx vitest run` → 206/206 passati.
 Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
 Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
@@ -12,16 +12,7 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # A) BUG CONCRETI (da fixare)
 ================================================================================
 
-## ISSUE-25 · [BASSA] CORS ibrido: reflect-Origin vs wildcard nello stesso file
-- File: api/_lib/cors.js:34 (applyCors → riflette `origin`) vs cors.js:57
-  (corsHeaders → `*`).
-- Sintomo: due handler diversi nello stesso modulo usano due politiche CORS
-  diverse. Per un SVG embeddato in una README GitHub l'origine non è
-  deterministica, quindi il wildcard `*` (corsHeaders) è quello corretto;
-  `applyCors` che riflette `origin` può negare richieste valide da contesti
-  senza Origin esplicito.
-- Fix: uniformare su `*` per gli endpoint SVG/immagine, o documentare
-  esplicitamente perché i due percorsi differiscono.
+## ISSUE-25 · [RIMOSSO] — vedi cronologia git (fix CORS wildcard su /api/image e /api/lever)
 
 ================================================================================
 # B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
