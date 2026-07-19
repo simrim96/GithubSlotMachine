@@ -12,13 +12,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
 ================================================================================
 
-## ISSUE-31 · [BASSA] Sentry `debug:true` in development
-- File: sentry.config.js:22-24
-- Sintomo: se `SENTRY_DSN` è impostato in dev, `debug:true` invia eventi/logger
-  a Sentry anche in locale. Minore, ma rumoroso.
-- Fix: `debug` solo se `SENTRY_DEBUG === 'true'` (già così) — togliere il
-  fallthrough su `NODE_ENV === 'development'`.
-
 ================================================================================
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
