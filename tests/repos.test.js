@@ -1,7 +1,6 @@
 // Test su api/_lib/repos.js — copre il fix ISSUE-3:
 //   • timeout reale su ogni fetch (AbortController + GITHUB_API_TIMEOUT_MS)
 //   • concorrenza limitata a REPO_LANG_BATCH_SIZE (niente burst di ~100 in parallelo)
-//   • il circuit breaker di github.js è riusato (gli errori propagano e contano)
 //   • la cache byLangId viene popolata correttamente (≥30% di un linguaggio)
 //
 // Ogni test ricrea il grafo dei moduli (vi.resetModules) così la cache
@@ -15,8 +14,8 @@ vi.mock('../api/_lib/kv.js', () => ({
   kvEnabled: false,
 }));
 
-// Mock di github.js: manteniamo il circuit breaker REALE ma accorciamo il
-// timeout a 60ms per testare velocemente l'AbortController.
+// Mock di github.js: accorciamo il timeout a 60ms per testare velocemente
+// l'AbortController (le chiamate GitHub reali non sono colpite da questo mock).
 vi.mock('../api/_lib/github.js', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, GITHUB_API_TIMEOUT_MS: 60 };
@@ -86,15 +85,14 @@ afterEach(() => {
   global.fetch = realFetch;
 });
 
-// Ricrea il grafo moduli + importa fresco (cache fredda, breaker pulito).
+// Ricrea il grafo moduli + importa fresco (cache fredda).
 async function freshImport() {
   vi.resetModules();
   const repos = await import('../api/_lib/repos.js');
-  const gh = await import('../api/_lib/github.js');
-  return { repos, gh };
+  return { repos };
 }
 
-describe('repos.js — ISSUE-3 (timeout + concorrenza + breaker)', () => {
+describe('repos.js — ISSUE-3 (timeout + concorrenza)', () => {
   it('REPO_LANG_BATCH_SIZE è definito e ≤ 20 (limite di concorrenza)', async () => {
     const { repos } = await freshImport();
     expect(repos.REPO_LANG_BATCH_SIZE).toBeGreaterThan(0);
@@ -179,14 +177,21 @@ describe('repos.js — ISSUE-3 (timeout + concorrenza + breaker)', () => {
     expect(Date.now() - t0).toBeLessThan(400);
   });
 
-  it('propaga l’errore al circuit breaker (fetch che fallisce conta come failure)', async () => {
-    const { repos, gh } = await freshImport();
+  it('un fetch che fallisce non rompe gli altri (errore propagato e catturato)', async () => {
+    const { repos } = await freshImport();
     const reposList = [makeRepo('broken', { Python: 100 })];
     global.fetch = buildFetch(reposList, {
       failUrls: [reposList[0].languages_url],
     });
-    await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
-    await new Promise((r) => setTimeout(r, 60));
-    expect(gh.githubCircuitBreaker.failures).toBeGreaterThanOrEqual(1);
+    // getRepoForLanguage non deve lanciare: la refresh gira in background e
+    // cattura l'errore, ritornando null come match.
+    let threw = false;
+    try {
+      await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
+      await new Promise((r) => setTimeout(r, 60));
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(false);
   });
 });

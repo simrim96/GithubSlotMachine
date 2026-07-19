@@ -14,7 +14,7 @@
 // spin. Così il tempo tra click e reload non dipende mai dallo stall GitHub.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
-import { githubCircuitBreaker, GITHUB_API_TIMEOUT_MS } from './github.js';
+import { GITHUB_API_TIMEOUT_MS } from './github.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
 const KV_KEY = 'gsm:repoCache';
@@ -34,20 +34,17 @@ function ghHeaders(token) {
   return h;
 }
 
-// Fetch con timeout (AbortController) + circuit breaker, riusando l'infrastruttura
-// di github.js così lo stall GitHub NON può restare appeso all'infinito e i failure
-// cascading sono protetti dal breaker.
+// Fetch con timeout (AbortController) riusando l'infrastruttura
+// di github.js così lo stall GitHub NON può restare appeso all'infinito.
 async function ghFetchWithTimeout(url, headers) {
-  return githubCircuitBreaker.call(async () => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
-    try {
-      const r = await fetch(url, { headers, signal: controller.signal });
-      return r;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { headers, signal: controller.signal });
+    return r;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // Esegue i task in batch di `size` elementi, così non lanciamo mai più di `size`
@@ -93,7 +90,7 @@ async function refreshCache(token, owner, languages) {
 
   // Per ogni repo, fetch /languages a BATCH (cap pratico: 100 repo × 1 call,
   // ma mai più di LANG_BATCH_SIZE in parallelo). Una fetch lenta/piantata è
-  // protetta da AbortController (timeout) + circuit breaker.
+  // protetta da AbortController (timeout).
   const langMaps = await mapBatch(repos, LANG_BATCH_SIZE, async (rep) => {
     try {
       const lr = await ghFetchWithTimeout(rep.languages_url, headers);

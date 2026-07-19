@@ -8,7 +8,7 @@
 // stato RIMOSSO (ISSUE-1): l'utente deve poter effettuare tutti gli spin che
 // vuole senza ricevere "429 Troppe richieste". La protezione contro l'abuso
 // del rate-limit globale GitHub (5000/h) resta demandata al graceful-fallback
-// in state.js / github.js (circuit breaker + timeout), non a un blocco 429
+// in state.js / github.js (timeout via AbortController), non a un blocco 429
 // sugli spin.
 
 // Regex per GitHub login: solo lettere/cifre/trattino, lunghezza 1-39.

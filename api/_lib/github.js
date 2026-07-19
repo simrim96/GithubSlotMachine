@@ -14,80 +14,6 @@ export const GITHUB_API_TIMEOUT_MS =
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
 const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
 
-// ─── Circuit Breaker per GitHub API ──────────────────────────────────────────
-// Previene failure cascading quando GitHub API ha outage o rate limit.
-// Stati: 'closed' (normale), 'open' (bloccato), 'half-open' (tentativo recupero)
-// Con fallback: quando il circuit è open, le chiamate passano comunque direttamente
-// all'API senza passare dal circuit breaker, per evitare blocchi completi.
-export class GitHubCircuitBreaker {
-  constructor(failureThreshold = 3, resetTimeout = 60000) {
-    this.failures = 0;
-    this.threshold = failureThreshold;
-    this.resetTimeout = resetTimeout;
-    this.lastFailure = 0;
-    this.state = 'closed'; // 'closed', 'open', 'half-open'
-  }
-
-  isOpen() {
-    if (this.state === 'closed') return false;
-    if (this.state === 'half-open') return false; // half-open permette una chiamata di prova
-    if (
-      this.state === 'open' &&
-      Date.now() - this.lastFailure > this.resetTimeout
-    ) {
-      this.reset();
-      return false;
-    }
-    return true;
-  }
-
-  onSuccess() {
-    this.failures = 0;
-    this.state = 'closed';
-  }
-
-  onFailure() {
-    this.failures++;
-    this.lastFailure = Date.now();
-    if (this.failures >= this.threshold) {
-      this.state = 'open';
-      console.warn(`GitHub API circuit open after ${this.failures} failures`);
-    }
-  }
-
-  reset() {
-    this.failures = 0;
-    this.state = 'half-open';
-  }
-
-  async call(fn) {
-    if (this.isOpen()) {
-      console.warn('GitHub API circuit open - falling back to direct API call');
-      // Fallback: esegui direttamente la funzione senza passare dal circuit breaker
-      // Questo mantiene il sistema operativo anche quando il circuit è aperto
-      try {
-        const result = await fn();
-        return result;
-      } catch (err) {
-        // Se il fallback fallisce, conta comunque come fallimento
-        this.onFailure();
-        throw err;
-      }
-    }
-
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (err) {
-      this.onFailure();
-      throw err;
-    }
-  }
-}
-
-export const githubCircuitBreaker = new GitHubCircuitBreaker(3, 60000);
-
 export function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -97,12 +23,11 @@ export function escapeMarkdown(s) {
 }
 
 // ghGet: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
-// Chiamata diretta via circuit breaker: niente coda di rate limiting. Per una slot
+// Chiamata diretta con timeout (AbortController): niente coda di rate limiting. Per una slot
 // personale il limite di 5000 req/h non è mai un vincolo reale, e la coda
 // aggiungeva solo latenza e log fuorvianti sugli AbortError di timeout.
 export async function ghGet(token, owner, repo, path) {
-  return githubCircuitBreaker.call(async () => {
-    try {
+  try {
       // Applica timeout alla chiamata
       const controller = new AbortController();
       const timeoutId = setTimeout(
@@ -143,8 +68,7 @@ export async function ghGet(token, owner, repo, path) {
     }
     if (typeof Sentry !== 'undefined') Sentry.captureException(error);
     throw error;
-    }
-  });
+  }
 }
 
 export async function ghPut(
@@ -157,8 +81,7 @@ export async function ghPut(
   message,
   _retry = false
 ) {
-  return githubCircuitBreaker.call(async () => {
-      try {
+  try {
         const encoded = Buffer.from(content).toString('base64');
         const body = { message, content: encoded };
         if (sha) body.sha = sha;
@@ -215,7 +138,6 @@ export async function ghPut(
         Sentry.captureException(error);
         throw error;
       }
-    });
 }
 
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
