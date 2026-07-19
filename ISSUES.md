@@ -12,7 +12,5 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M6: Uniformare la gestione CORS (ISSUE-25) e scrivere un test che verifichi
-     gli header CORS sugli endpoint /api/*.
 - M7: Separare token di lettura/scrittura Upstash (ISSUE-23) e testare il
      fallimento silenzioso delle scritture.
