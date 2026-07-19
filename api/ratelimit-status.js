@@ -11,9 +11,7 @@
 //     "secondsUntilReset": 300,
 //     "percentage": 1,
 //     "status": "warning", // 'ok', 'warning', 'critical'
-//     "totalRequests": 142,
-//     "requestsBlocked": 3,
-//     "callsQueued": 0
+//     "totalRequests": 142
 //   }
 //
 // Endpoints correlati:
@@ -44,7 +42,8 @@ export default async function handler(req) {
       ? (((totalLimit - state.remaining) / totalLimit) * 100).toFixed(2)
       : null;
 
-  // Determina lo stato del rate limit
+  // Determina lo stato del rate limit (solo visualizzazione: il tracker è
+  // osservazionale e non blocca le chiamate)
   let status = 'unknown';
   if (state.remaining === null) {
     status = 'unknown';
@@ -65,10 +64,7 @@ export default async function handler(req) {
     percentageUsed: percentageUsed,
     status: status,
     totalRequests: state.totalRequests,
-    requestsBlocked: state.requestsBlocked,
-    callsQueued: state.callsQueued,
     isBelowWarningThreshold: state.isBelowWarningThreshold,
-    isBelowBlockThreshold: state.isBelowBlockThreshold,
   };
 
   return new Response(JSON.stringify(response), {
