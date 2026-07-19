@@ -3,7 +3,7 @@
 Problemi emersi dalla code review del `2026-07-19`. Ordinati per severità.
 I numeri proseguono dalla numerazione esistente (ISSUE-1, ISSUE-3, ISSUE-6/7/8, ISSUE-11
 già risolti/chiusi). Tutti i punti qui sotto sono stati verificati a livello di
-byte grezzi o con `npm test` (137 test passing).
+byte grezzi o con `npm test` (138 test passing).
 
 > Nota metodologica: in una prima bozza erano stati segnalati due "bug critici"
 > (`Authorization: *** ` in github.js/health.js e un import mancante di
@@ -13,18 +13,6 @@ byte grezzi o con `npm test` (137 test passing).
 > Non sono stati inclusi in questo file.
 
 ---
-
----
-
-## 🟠 ISSUE-12 — `ratelimit-tracker.js` è puramente osservazionale
-
-`api/_lib/ratelimit-tracker.js` traccia `X-RateLimit-Remaining` e stampa un
-warning sotto soglia, ma **non blocca nulla** (la classe stessa lo dichiara nei
-commenti). Espone `isBelowWarningThreshold()` che nessun handler interroga.
-
-**Fix:** o collegare `isBelowWarningThreshold()` a uno skip reale della scrittura
-su GitHub quando `remaining` è basso (per non esaurire i 5000/h), oppure
-rimuovere la classe e tenere solo il parsing degli header per il logging.
 
 ---
 

@@ -2,7 +2,7 @@
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
-import { getDefaultTracker } from './ratelimit-tracker.js';
+import { logRateLimit } from './ratelimit-tracker.js';
 import * as Sentry from '@sentry/node';
 
 // Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
@@ -50,7 +50,7 @@ export async function ghGet(token, owner, repo, path) {
       clearTimeout(timeoutId);
 
       // Traccia i rate limit headers (solo logging warning, non blocca)
-      getDefaultTracker().updateFromResponse(response);
+      logRateLimit(response);
 
       return response.ok ? await response.json() : null;
     } catch (error) {
@@ -111,7 +111,7 @@ export async function ghPut(
         clearTimeout(timeoutId);
 
         // Traccia i rate limit headers
-        getDefaultTracker().updateFromResponse(response);
+        logRateLimit(response);
 
         if (response.status === 409 && !_retry) {
           // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
