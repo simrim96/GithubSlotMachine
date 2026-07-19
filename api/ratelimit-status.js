@@ -31,13 +31,17 @@ import {
   GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
   safeGetHeader,
 } from './_lib/ratelimit-tracker.js';
+import { corsHeaders } from './_lib/cors.js';
 
 export default async function handler(req) {
+  const origin = req.headers?.get?.('origin') ?? req.headers?.origin;
+
   // Supporta solo GET
   if (req.method !== 'GET') {
     return new Response(null, {
       status: 405,
       statusText: 'Method Not Allowed',
+      headers: { ...corsHeaders(origin) },
     });
   }
 
@@ -59,6 +63,7 @@ export default async function handler(req) {
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
+          ...corsHeaders(origin),
         },
       }
     );
@@ -121,6 +126,7 @@ export default async function handler(req) {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       Pragma: 'no-cache',
       Expires: '0',
+      ...corsHeaders(origin),
     },
   });
 }

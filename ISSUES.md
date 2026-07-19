@@ -28,8 +28,6 @@ duplicazione che ha generato falsi allarmi nella review).
 
 ## 💡 Miglioramenti suggeriti (non bug)
 
-4. **Centralizzare CORS** — la logica CORS duplicata in `spin.js` può diventare
-   un middleware riusabile (o usare l'helper headers di `@vercel/functions`).
 5. **`kv.js` legge `KV_REST_API_READ_ONLY_TOKEN`** (riga 31) e lo usa come
    fallback per il token di lettura Upstash — è corretto, ma `.env.example` lo
    documenta in modo ambiguo ("+ KV_REST_API_READ_ONLY_TOKEN" in un commento).
