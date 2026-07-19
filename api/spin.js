@@ -204,6 +204,8 @@ export default async function handler(req, res) {
 
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
+    const isJackpot = wins.some((w) => w.count === 5);
+    const nearMissCol = detectNearMiss(grid, wins);
     const winningLang = isWin ? LANGUAGE_BY_ID[winningLangId(wins)] : null;
 
     let repoMatch = null;
@@ -243,6 +245,9 @@ export default async function handler(req, res) {
       fact,
       repoMatch,
       owner: OWNER,
+      isWin,
+      isJackpot,
+      nearMissCol,
     });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
@@ -251,7 +256,6 @@ export default async function handler(req, res) {
     // proprietario di default → chiude l'open-redirect verso altri host/percorsi.
     const rawUser = req.query?.user ? String(req.query.user).trim() : '';
     const targetOwner = rawUser && isValidUser(rawUser) ? rawUser : OWNER;
-    const isJackpot = wins.some((w) => w.count === 5);
     let dest;
     if (winningLang && isJackpot) {
       const ghLang = encodeURIComponent(

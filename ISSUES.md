@@ -12,16 +12,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # A) BUG CONCRETI (da fixare)
 ================================================================================
 
-## ISSUE-20 · [MEDIA] buildAccessibleSVG non riceve i flag di vittoria
-- File: api/_lib/svg-builder-accessible.js:21-23  vs  api/spin.js:238
-- Sintomo: `buildAccessibleSVG` legge `params.isWin`, `params.isJackpot`,
-  `params.nearMissCol`, ma `spin.js` chiama `buildSVG(...)` e NON passa MAI
-  questi flag all'SVG accessibile. Risultato: l'aria-label per screen reader
-  dice sempre "Nessun vincitore" anche quando l'utente ha vinto davvero.
-- Fix: passare `isWin`, `isJackpot`, `nearMissCol` dal risultato di
-  `analyzeResult` all'SVG accessibile, oppure generare l'aria-label a partire
-  dallo stesso `result` usato da `buildSVG`.
-
 ## ISSUE-21 · [ALTA] Lo SVG accessibile è un "dead-end": non viene mai servito
 - File: api/_lib/svg-builder-accessible.js  vs  api/spin.js:238
 - Sintomo: `buildAccessibleSVG` è usato SOLO da `tests/verify-issue3.mjs`
