@@ -339,7 +339,7 @@ let externalLanguagesPromise = null;
 // Variabile per memorizzare i linguaggi completi (hardcoded + esterni)
 let mergedLanguages = null;
 
-async function loadExternalLanguages() {
+async function loadExternalLanguagesInternal() {
   if (externalLanguagesPromise) return externalLanguagesPromise;
 
   externalLanguagesPromise = (async () => {
@@ -385,9 +385,9 @@ export function buildLookups(languages) {
 
 // Vista pubblica di LANGUAGES (supporto dinamico)
 // Ritorna LANGUAGES_BASE per backward compatibility (sync),
-// oppure la funzione loadExternalLanguages() per caricare esterni.
+// oppure la funzione loadExternalLanguagesInternal() per caricare esterni.
 export async function getLanguages() {
-  return loadExternalLanguages();
+  return loadExternalLanguagesInternal();
 }
 
 // Getter sync per backward compatibility (usa sempre LANGUAGES_BASE)
