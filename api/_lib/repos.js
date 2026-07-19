@@ -8,15 +8,20 @@
 // Se Redis non è configurato, la cache resta solo in-memory (comportamento
 // originale, con stall possibile sui cold starts).
 //
-// NON-BLOCCANTE: se la cache è fredda, NON aspettiamo lo stall di refresh — lo
-// lanciamo in background e ritorniamo subito il valore corrente (spesso null al
-// primo giro → il redirect punta al profilo). La cache si popola per il prossimo
-// spin. Così il tempo tra click e reload non dipende mai dallo stall GitHub.
+// NON-BLOCCANTE: se la cache è stale ma già stata popolata una volta, NON
+// aspettiamo lo stall di refresh — lo lanciamo in background e ritorniamo subito
+// il valore ancora valido. Solo al COLD START (cache mai popolata, ts===0)
+// facciamo un breve await (ISSUE-28, timeout 800ms) così il PRIMO spin ha già i
+// repo se la rete risponde, invece di puntare sempre al profilo.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
+// Al cold start (cache mai popolata) aspettiamo al massimo questo timeout prima
+// di arrenderci e ritornare null — così il PRIMO spin ha i repo se la rete
+// risponde (ISSUE-28), senza però appenderci all'infinito sullo stall GitHub.
+const COLD_START_WAIT_MS = 800;
 const KV_KEY = 'gsm:repoCache';
 // Dimensione dei batch per la fetch dei /languages: evita il burst di ~100
 // richieste parallele a freddo che esaurirebbe il rate-limit GitHub (5000/h).
@@ -136,10 +141,33 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
   await loadFromKv();
   const fresh = Date.now() - cache.ts < TTL_MS;
   if (!fresh) {
-    // NON bloccare il redirect: popola la cache in background, ritorna subito.
-    refreshCache(token, owner, languages).catch((e) =>
-      console.warn('repos cache refresh failed:', e.message)
-    );
+    const isColdStart = cache.ts === 0;
+    if (isColdStart) {
+      // PRIMO giro (cache mai popolata): facciamo un breve await così lo spin
+      // ha già i repo se la rete risponde (ISSUE-28). Se scade il timeout,
+      // ritorniamo subito quel che c'è (spesso null → redirect al profilo).
+      try {
+        await Promise.race([
+          refreshCache(token, owner, languages),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('cold-start timeout')),
+              COLD_START_WAIT_MS
+            )
+          ),
+        ]);
+      } catch (e) {
+        if (e.message !== 'cold-start timeout') {
+          console.warn('repos cache refresh failed:', e.message);
+        }
+      }
+    } else {
+      // Cache già popolata ma stale: non blocchiamo il redirect, popoliamo in
+      // background per le prossime richieste.
+      refreshCache(token, owner, languages).catch((e) =>
+        console.warn('repos cache refresh failed:', e.message)
+      );
+    }
   }
   return cache.byLangId[lang.id] || null;
 }

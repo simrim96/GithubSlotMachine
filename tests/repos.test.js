@@ -195,3 +195,57 @@ describe('repos.js — ISSUE-3 (timeout + concorrenza)', () => {
     expect(threw).toBe(false);
   });
 });
+
+describe('repos.js — ISSUE-28 (cold-start non-bloccante ma popolato)', () => {
+  it('al PRIMO giro (cache fredda) ritorna il repo popolato se la rete risponde', async () => {
+    const { repos } = await freshImport();
+    const reposList = [makeRepo('pyapp', { Python: 90, JavaScript: 10 })];
+    global.fetch = buildFetch(reposList);
+    // Chiamata singola, cold start: deve fare await della refresh (timeout
+    // 800ms) e ritornare il match già al primo giro, NON null.
+    const t0 = Date.now();
+    const match = await repos.getRepoForLanguage(
+      'tok',
+      'owner',
+      LANGUAGES[0],
+      LANGUAGES
+    );
+    expect(match).not.toBeNull();
+    expect(match.name).toBe('pyapp');
+    // Non deve appenderci all'infinito: la rete risponde subito, ma anche nel
+    // worst case il timeout cold-start è 800ms.
+    expect(Date.now() - t0).toBeLessThan(800);
+  });
+
+  it('al cold start con rete troppo lenta ritorna null senza sforare l\'800ms', async () => {
+    const { repos } = await freshImport();
+    const reposList = [makeRepo('slowapp', { Python: 100 })];
+    // fetch /repos? lenta (900ms) → sfora il cold-start timeout di 800ms.
+    global.fetch = (url, opts) =>
+      new Promise((resolve, reject) => {
+        const signal = opts?.signal;
+        if (signal?.aborted)
+          return reject(new DOMException('aborted', 'AbortError'));
+        const onAbort = () => reject(new DOMException('aborted', 'AbortError'));
+        signal?.addEventListener('abort', onAbort, { once: true });
+        setTimeout(() => {
+          signal?.removeEventListener('abort', onAbort);
+          if (url.includes('/repos?'))
+            return resolve({
+              ok: true,
+              json: async () => reposList,
+            });
+          resolve({ ok: true, json: async () => reposList[0].langs });
+        }, 900);
+      });
+    const t0 = Date.now();
+    const match = await repos.getRepoForLanguage(
+      'tok',
+      'owner',
+      LANGUAGES[0],
+      LANGUAGES
+    );
+    expect(match).toBeNull();
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
