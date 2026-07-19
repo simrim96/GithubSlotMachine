@@ -42,6 +42,38 @@ function applyCors(req, res) {
   res.setHeader('Referrer-Policy', 'no-referrer');
 }
 
+// ── Policy WILDCARD `*` (ISSUE-25) ─────────────────────────────────────────
+// Gli endpoint che servono SVG/immagini (api/image.js, api/lever.js) vengono
+// embeddati in contesti cross-origin non deterministici (es. una README su
+// github.com, o fork su domini qualsiasi). In quei casi l'Origin non è noto a
+// priori e non può stare in una allowlist: rifletterlo negherebbe richieste
+// valide (immagini che non si caricano, leva che non risponde). Per questi
+// endpoint serviamo `Access-Control-Allow-Origin: *`, che è sicuro perché la
+// slot è un contenuto statico/ pubblico e non espone mai credenziali (niente
+// `Access-Control-Allow-Credentials`).
+function applyCorsWildcard(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+}
+
+// Variante Web Response (formato `new Response(body, { headers })`) con
+// wildcard `*` — usata se in futuro un endpoint immagine passa al formato
+// Response anziché (req, res).
+function corsHeadersWildcard() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  };
+}
+
 // Helper per endpoint che usano il formato Web Response (es.
 // ratelimit-status.js): ritorna un oggetto header da spargere in
 // `new Response(body, { headers })`, così la policy è identica ovunque.
@@ -59,4 +91,11 @@ function corsHeaders(origin) {
   return h;
 }
 
-export { CORS_ALLOWED, isAllowedOrigin, applyCors, corsHeaders };
+export {
+  CORS_ALLOWED,
+  isAllowedOrigin,
+  applyCors,
+  applyCorsWildcard,
+  corsHeaders,
+  corsHeadersWildcard,
+};

@@ -12,7 +12,7 @@
 
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { ghHeaders } from './_lib/github.js';
-import { applyCors } from './_lib/cors.js';
+import { applyCorsWildcard } from './_lib/cors.js';
 import { errorSVGString } from './_lib/svg-builder-accessible.js';
 import * as Sentry from '@sentry/node';
 
@@ -23,8 +23,9 @@ export default async function handler(req, res) {
   const repo = process.env.SLOT_REPO || 'GithubSlotMachine';
   const token = process.env.GITHUB_PAT || '';
 
-  // ── CORS + preflight ─────────────────────────────────────────────────────
-  applyCors(req, res);
+  // ── CORS + preflight (ISSUE-25: wildcard `*`, l'SVG è embeddato
+  //    cross-origin su github.com e altri domini non deterministici) ──
+  applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
