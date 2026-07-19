@@ -18,15 +18,6 @@ testati (vedi "Copertura dei test" in fondo).
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-4  [BASSO] MIGRATIONS[2] placeholder crea stato "ahead" (v3 > STATE_VERSION=2)
-File: `api/_lib/state.js` — `MIGRATIONS[2]` (righe ~63-73)
-
-La migrazione per v2→v3 è un placeholder che setta `version: 3`, ma
-`STATE_VERSION` è 2. Se mai raggiunta, produce uno stato con versione superiore
-a quella corrente, rompendo il confronto `currentVersion < STATE_VERSION` in
-`readState`. Va rimossa finché non serve davvero una v3.
-
---------------------------------------------------------------------------------
 ### ISSUE-5  [BASSO] config-loader: YAML non veramente supportato in produzione
 File: `api/_lib/config-loader.js` — `loadYAML()` (righe ~44-55)
 
@@ -92,4 +83,4 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-5..8 (basso) — pulizia, segreti nei log, audit dep
