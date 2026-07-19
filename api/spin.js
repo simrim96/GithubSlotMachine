@@ -24,7 +24,7 @@ import {
   wrap,
 } from './_lib/game.js';
 import { buildSVG } from './_lib/svg-builder.js';
-import { buildAccessibleSVG, errorSVG } from './_lib/svg-builder-accessible.js';
+import { buildAccessibleSVG, errorSVG, errorSVGString } from './_lib/svg-builder-accessible.js';
 import {
   ghGet,
   ghPut,
@@ -109,6 +109,23 @@ function isValidRedirectUrl(urlString) {
     return false;
   }
 }
+
+// ─── Security: Resolve validated redirect URL ───────────────────────────────
+// Centralizza la logica di redirect convalidato (evita l'open-redirect verso
+// altri host/percorsi). Se ?(redirect)=<url> è presente ed è un URL valido
+// (dominio consentito, protocollo sicuro), lo usa; altrimenti cade sul
+// `defaultUrl` (sempre stesso-origin o il profilo dell'owner).
+function resolveRedirectUrl(rawRedirect, defaultUrl) {
+  const r = rawRedirect && typeof rawRedirect === 'string' ? rawRedirect.trim() : '';
+  if (r && isValidRedirectUrl(r)) {
+    console.log('Security: Allowed validated redirect to:', r);
+    return r;
+  }
+  if (r && !isValidRedirectUrl(r)) {
+    console.warn(`[Security] Blocked open redirect attempt to: ${r}`);
+  }
+  return defaultUrl;
+}
 // Fork-ready: every value falls back to the original owner's repos, but you can
 // override them with environment variables on Vercel (or in vercel.json) so the
 // slot points at YOUR profile and repo without editing the code. Optionally a
@@ -137,7 +154,9 @@ export {
   buildSVG,
   buildAccessibleSVG,
   errorSVG,
+  errorSVGString,
   isValidRedirectUrl,
+  resolveRedirectUrl,
   WILD_ID,
   SCATTER_ID,
 };
@@ -167,14 +186,24 @@ export default async function handler(req, res) {
   // in state.js / github.js (timeout via AbortController), non a un blocco 429
   // sugli spin.
   const token = process.env.GITHUB_PAT;
-  if (!token) {
-    res.status(500).send('GITHUB_PAT non configurato.');
-    return;
-  }
 
   const spinStart = Date.now();
 
   try {
+    // Se manca il token di GitHub, NON rispondere con un 500 nudo (che
+    // "rompe" la leva): facciamo comunque un redirect verso il profilo
+    // dell'owner così l'utente non vede mai una pagina rotta. Lo spin non
+    // persistito non è critico (il contatore si aggiorna al giro dopo).
+    if (!token) {
+      console.error('spin handler: GITHUB_PAT non configurato — redirect graceful');
+      const redirectUrl = resolveRedirectUrl(
+        req.query?.redirect ? String(req.query.redirect).trim() : '',
+        `https://github.com/${OWNER}`
+      );
+      res.redirect(302, redirectUrl);
+      return;
+    }
+
     // generateGrid è DENTRO il try: se lancia, degrada a errore graceful.
     const grid = generateGrid();
 
@@ -358,20 +387,11 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Redirect con validazione Open Redirect
+    // Redirect con validazione Open Redirect (helper centralizzato)
     const rawRedirect = req.query?.redirect
       ? String(req.query.redirect).trim()
       : '';
-    let redirectUrl = dest; // default al redirect calcolato
-
-    if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
-      redirectUrl = rawRedirect;
-      console.log('Security: Allowed validated redirect to:', redirectUrl);
-    } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-      console.warn(
-        `[Security] Blocked open redirect attempt to: ${rawRedirect}`
-      );
-    }
+    const redirectUrl = resolveRedirectUrl(rawRedirect, dest);
 
     res.redirect(302, redirectUrl);
     console.log('Security: Redirecting to:', redirectUrl);
@@ -380,41 +400,48 @@ export default async function handler(req, res) {
     Sentry.captureException(err);
 
     // Degrado graceful: invece di un 500 che "rompe" la leva, proviamo a
-    // salvare un SVG di errore su slot.svg (best-effort) e poi facciamo
-    // comunque il redirect verso il profilo dell'owner. L'utente non vede mai
-    // una pagina rotta; al prossimo spin (se l'errore era transitorio) torna
-    // tutto normale. Lo stato dei contatori è già stato incrementato in
-    // memoria ma non persistito, quindi non si perdono dati critici.
+    // salvare un SVG di errore su slot.svg (best-effort, stringa GREZZA così
+    // l'immagine si vede davvero) e poi facciamo comunque il redirect verso
+    // il profilo dell'owner. L'utente non vede mai una pagina rotta; al
+    // prossimo spin (se l'errore era transitorio) torna tutto normale. Lo
+    // stato dei contatori è già stato incrementato in memoria ma non
+    // persistito, quindi non si perdono dati critici.
     console.error('spin handler error:', err?.message || err);
-    const fallback = errorSVG({
+    const fallbackSvg = errorSVGString({
       owner: OWNER,
       message: 'Ops, riprova un attimo!',
     });
     try {
-      await saveSlotSvg(token, OWNER, SLOT_REPO, fallback).catch(() => {});
+      // Salva l'SVG di errore come slot.svg (best-effort). Se il token è
+      // assente (dalla guardia qui sopra non ci arriveremmo, ma per
+      // robustezza evitiamo di chiamare saveSlotSvg senza token).
+      if (token) {
+        await saveSlotSvg(token, OWNER, SLOT_REPO, fallbackSvg).catch(() => {});
+      }
     } catch {
       /* ignora: non blocchiamo il redirect per il fallback */
     }
 
-    // Redirect in caso di errore con validazione Open Redirect
+    // Redirect in caso di errore con validazione Open Redirect (helper
+    // centralizzato). In extremis, se anche res.redirect fallisse (es.
+    // headers già inviati), rispondiamo con l'SVG di errore grezzo anziché
+    // un 500 nudo — così il client vede almeno la slot di errore.
     const rawRedirect = req.query?.redirect
       ? String(req.query.redirect).trim()
       : '';
-    let redirectUrl = `https://github.com/${OWNER}`; // default
-
-    if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
-      redirectUrl = rawRedirect;
-      console.log('Security: Allowed validated redirect to:', redirectUrl);
-    } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-      console.warn(
-        `[Security] Blocked open redirect attempt to: ${rawRedirect}`
-      );
-    }
+    const redirectUrl = resolveRedirectUrl(
+      rawRedirect,
+      `https://github.com/${OWNER}`
+    );
 
     try {
       res.redirect(302, redirectUrl);
     } catch {
-      res.status(500).send('Errore temporaneo, riprova.');
+      // Ultimo baluardo: niente 500 nudo, ma un SVG di errore valido.
+      res
+        .status(200)
+        .setHeader('Content-Type', 'image/svg+xml')
+        .send(fallbackSvg);
     }
   }
 }

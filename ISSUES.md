@@ -28,13 +28,6 @@ duplicazione che ha generato falsi allarmi nella review).
 
 ## 💡 Miglioramenti suggeriti (non bug)
 
-1. **Contract test sull'header** — asserire che ogni `fetch` a `api.github.com`
-   usi `Bearer `. Copre eventuali regressioni tipo ISSUE-16.
-   (Implementato in `tests/header-contract.test.js`, ma non ancora marcato
-   come risolto — da rivedere/confermare prima di chiudere.)
-3. **Gestione errore globale in `spin.js`** — avvolgere la logica in `try/catch`
-   e, in caso di eccezione imprevista, rispondere comunque con un redirect o un
-   SVG di errore anziché un 500 nudo.
 4. **`vercel.json`** ha `"rewrites": []` vuoto: rimuoverlo se non serve.
 5. **Centralizzare CORS** — la logica CORS duplicata in `spin.js` può diventare
    un middleware riusabile (o usare l'helper headers di `@vercel/functions`).

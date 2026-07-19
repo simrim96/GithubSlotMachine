@@ -64,12 +64,12 @@ export function buildAccessibleSVG(params) {
 }
 
 // ─── Error SVG Generator ──────────────────────────────────────────────────────────
-// Restituisce un data-URI SVG di degrado per errori graceful
-export function errorSVG(input) {
-  // Gestisce input undefined/null
-  const { owner = 'simrim96', message = 'Ops, riprova un attimo!' } =
-    input ?? {};
-
+// Restituisce un SVG di degrado per errori graceful. Due varianti:
+//   • errorSVGString() → markup SVG GREZZO (salvabile come slot.svg, embed in <img>)
+//   • errorSVG()       → data-URI base64 (per retro-compat / test)
+// Il catch di spin.js salva la stringa grezza su slot.svg così l'utente vede
+// davvero la slot di errore invece di un data-URI corrotto.
+function errorSvgMarkup({ owner = 'simrim96', message = 'Ops, riprova un attimo!' }) {
   const SVG_W = 600;
   const SVG_H = 624;
 
@@ -89,15 +89,23 @@ export function errorSVG(input) {
         })[c]
     );
 
-  const svgContent = `<?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530">
+  return `<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530" role="img" aria-label="Errore della slot machine. ${safeMsg} Riprova.">
+  <title>Errore slot machine</title>
   <rect width="${SVG_W}" height="${SVG_H}" fill="#171530"/>
   <text x="${SVG_W / 2}" y="${SVG_H / 2 - 20}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="24" font-weight="700" fill="#ff4040">⚠️ Errore</text>
   <text x="${SVG_W / 2}" y="${SVG_H / 2}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="16" fill="#e8e8f4">${safeMsg}</text>
   <text x="${SVG_W / 2}" y="${SVG_H / 2 + 30}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf"><a href="https://github.com/${owner}">github.com/${owner}</a></text>
   <text x="${SVG_W / 2}" y="${SVG_H / 2 + 50}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf">Tenta di nuovo!</text>
 </svg>`;
+}
 
-  // Restituisce data-URI
-  return `data:image/svg+xml;base64,${Buffer.from(svgContent).toString('base64')}`;
+// SVG grezzo (salvabile su slot.svg / embeddabile in <img>)
+export function errorSVGString(input) {
+  return errorSvgMarkup(input ?? {});
+}
+
+// Restituisce un data-URI SVG di degrado per errori graceful
+export function errorSVG(input) {
+  return `data:image/svg+xml;base64,${Buffer.from(errorSvgMarkup(input ?? {})).toString('base64')}`;
 }
