@@ -7,6 +7,7 @@
 
 import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
+import { ghHeaders } from './_lib/github.js';
 import { LANGUAGES } from './_lib/languages.js';
 import * as Sentry from '@sentry/node';
 
@@ -68,11 +69,10 @@ export default async function handler(req, res) {
       const r = await fetch(
         'https://api.github.com/repos/' + OWNER + '/' + OWNER + '/readme',
         {
-          headers: {
-            Authorization: 'Bearer ' + token,
-            'User-Agent': 'gsm-health',
-            Accept: 'application/vnd.github+json',
-          },
+          headers: ghHeaders(token, {
+            accept: 'application/vnd.github+json',
+            userAgent: 'gsm-health',
+          }),
         }
       );
       steps.github_readme_get_ms = now() - t0;

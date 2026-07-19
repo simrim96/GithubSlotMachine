@@ -14,7 +14,7 @@
 // spin. Così il tempo tra click e reload non dipende mai dallo stall GitHub.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
-import { GITHUB_API_TIMEOUT_MS } from './github.js';
+import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
 const KV_KEY = 'gsm:repoCache';
@@ -24,15 +24,6 @@ const LANG_BATCH_SIZE = 20;
 export const REPO_LANG_BATCH_SIZE = LANG_BATCH_SIZE;
 const cache = { ts: 0, byLangId: {} };
 let kvLoaded = false;
-
-function ghHeaders(token) {
-  const h = {
-    Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'GithubSlotMachine',
-  };
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
 
 // Fetch con timeout (AbortController) riusando l'infrastruttura
 // di github.js così lo stall GitHub NON può restare appeso all'infinito.

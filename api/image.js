@@ -11,15 +11,10 @@
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).
 
 import { kvGet, kvEnabled } from './_lib/kv.js';
+import { ghHeaders } from './_lib/github.js';
 import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
-
-function ghHeaders(token) {
-  const h = { 'User-Agent': 'GithubSlotMachine' };
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
 
 export default async function handler(req, res) {
   const user = process.env.SLOT_OWNER || 'simrim96';

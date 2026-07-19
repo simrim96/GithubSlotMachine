@@ -14,7 +14,7 @@ byte grezzi o con `npm test` (138 test passing).
 
 ---
 
-## 🟡 ISSUE-16 — Header GitHub duplicato in `repos.js` invece di riusare `github.js`
+## 🟡 ISSUE-16 — Header GitHub duplicato in `repos.js` invece di riusare `github.js` — ✅ RISOLTO
 
 `api/_lib/repos.js:28` **e** `api/image.js:18` ridefiniscono localmente
 `function ghHeaders(token)` (con `Bearer` corretto) invece di importare un'unica
@@ -22,8 +22,7 @@ sorgente da `github.js`. Due (potenzialmente tre) copie dello stesso header in
 file diversi moltiplicano il rischio di divergenza (è esattamente il genere di
 duplicazione che ha generato falsi allarmi nella review).
 
-**Fix:** esportare una sola `ghHeaders(token)` da `github.js` e importarla in
-`repos.js`, `image.js`, `health.js`.
+**Fix applicato (2026-07-19):** esportata un'unica `ghHeaders(token, opts)` da `api/_lib/github.js` (con valori di default `Accept: application/vnd.github.v3+json` e `User-Agent: GithubSlotMachine`, overridabili via `opts`). Rimosse le copie locali in `api/_lib/repos.js`, `api/image.js` e `api/health.js`; questi ultimi due ora importano `ghHeaders` da `github.js` (health.js passa `accept: application/vnd.github+json` e `userAgent: gsm-health`). Verificato con `npm test` (138 test passing) e grep: resta un'unica definizione in `github.js`.
 
 ---
 

@@ -14,6 +14,18 @@ export const GITHUB_API_TIMEOUT_MS =
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
 const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
 
+// Header standard per le chiamate GitHub API. Unica sorgente condivisa
+// (evita duplicazioni divergenti in repos.js / image.js / health.js — ISSUE-16).
+export function ghHeaders(token, opts = {}) {
+  const {
+    accept = 'application/vnd.github.v3+json',
+    userAgent = 'GithubSlotMachine',
+  } = opts;
+  const h = { Accept: accept, 'User-Agent': userAgent };
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
+
 export function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
