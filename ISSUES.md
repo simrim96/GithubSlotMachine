@@ -12,8 +12,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M5: Documentare nel README il comportamento della cache repo (ISSUE-28) e il
-     fatto che il primo spin può puntare al profilo.
 - M6: Uniformare la gestione CORS (ISSUE-25) e scrivere un test che verifichi
      gli header CORS sugli endpoint /api/*.
 - M7: Separare token di lettura/scrittura Upstash (ISSUE-23) e testare il

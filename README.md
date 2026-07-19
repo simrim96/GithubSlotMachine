@@ -157,6 +157,33 @@ You can also override the redirect target per-request with
 
 ---
 
+## 🗄️ Repo cache (language → repo lookup)
+
+The "best repo for language X" lookup (`api/_lib/repos.js`) is cached so a spin
+never has to wait for up to ~100 sequential `/languages` calls on a cold Vercel
+instance. This is the **ISSUE-28** behaviour.
+
+- **Two-level cache.** An in-memory (module-level) map is the fast path while the
+  Vercel instance stays warm. When Upstash Redis is configured, the cache is also
+  persisted there, so it survives Vercel cold starts — the first spin after a cold
+  boot no longer stalls for 1–3 s scanning `/languages`.
+- **Non-blocking refresh.** Once the cache has been populated at least once, a
+  stale read triggers a background refresh and immediately returns the still-valid
+  value. The redirect never waits on a slow GitHub scan.
+- **Cold-start wait (ISSUE-28).** On the very first request after boot — when the
+  cache has never been populated (`ts === 0`) — the handler awaits the refresh for
+  at most **800 ms**. If GitHub answers in time, the first spin already has a repo
+  to link to; if the network is slow or down, an `AbortController` enforces the
+  800 ms cap and the call returns immediately rather than hanging.
+- **First spin can point to the profile.** Because of that 800 ms cap, when GitHub
+  is slow or unreachable on a cold start the lookup returns `null` and the
+  win/redirect falls back to your **GitHub profile** instead of a specific repo
+  (the same fallback used when no repo qualifies). On every subsequent spin — once
+  the cache is warm or Redis-backed — the repo links are available again. This is
+  expected, not a bug: the spin counter and slot image still update normally.
+
+---
+
 ## 🎰 Embedding the slot in a README
 
 The slot is split into **two side-by-side images**: the cabinet
