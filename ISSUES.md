@@ -17,22 +17,6 @@ testati (vedi "Copertura dei test" in fondo).
 ## MEDI
 ================================================================================
 
-### ISSUE-2  [MEDIO] RateLimitTracker: solo logging, nessun blocco reale
-File: `api/_lib/ratelimit-tracker.js` — `GITHUB_RATE_LIMIT_BLOCK_THRESHOLD` (riga 12)
-
-I metodi `isBelowBlockThreshold()` e le costanti `GITHUB_RATE_LIMIT_BLOCK_THRESHOLD`
-(=2) / `GITHUB_RATE_LIMIT_WARNING_THRESHOLD` (=10) sono definiti ma NON usati da
-nessuna logica che fermi le chiamate. Il tracker aggiorna `remaining`/`reset` e
-stampa warning, ma non influenza mai se una chiamata GitHub parte o meno.
-
-Impatto: falso senso di sicurezza. Se restano pochi rate-limit, il codice
-continua a scrivere su GitHub (slot.svg + state + README a ogni spin) e rischia
-un 403 che fa cascare nel graceful-fallback.
-
-Fix: collegare `isBelowBlockThreshold()` al percorso di spin (es. saltare la
-scrittura README quando remaining è basso) oppure rimuovere la logica morta.
-
---------------------------------------------------------------------------------
 ### ISSUE-3  [MEDIO] analytics trackSpin invia a endpoint Vercel non documentato
 File: `api/spin.js` — `trackSpin()` (righe ~148-168)
 
@@ -117,7 +101,7 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 
 - `tests/state-migration.test.js` ora copre `migrateState` con stato v1 (v1→v2), verifica terminazione entro 3s e schema corretto. BUCA COLMATA (ex ISSUE-1).
-- BUCA COLMATA (ex ISSUE-2): `image.js` ora usa `kvGet` da `./_lib/kv.js` (con timeout), rimuovendo la chiamata diretta `kv.get`. Test mancante su `image.js` ancora da aggiungere per prevenire regressioni.
+- BUCA COLMATA (ex ISSUE-2a image.js): `image.js` ora usa `kvGet` da `./_lib/kv.js` (con timeout), rimuovendo la chiamata diretta `kv.get`. Test mancante su `image.js` ancora da aggiungere per prevenire regressioni.
 - BUCA COLMATA (ex ISSUE-3, repos.js): `tests/repos.test.js` ora copre timeout (AbortController + GITHUB_API_TIMEOUT_MS), concorrenza limitata a batch da 20, ed errore catturato su fetch fallita, con fetch GitHub simulata.
 - `config-loader` è testato ma solo lato unit; il caricamento YAML reale senza
   il package `yaml` non è coperto da nessun check di integrazione (ISSUE-5).
@@ -126,6 +110,5 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-2 (medio)  — rate-limit tracker inefficace
-2. ISSUE-3 (medio)    — analytics endpoint fasullo
-3. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-3 (medio)    — analytics endpoint fasullo
+2. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep

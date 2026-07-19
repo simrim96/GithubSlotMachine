@@ -5,11 +5,16 @@
 // e la coda (RateLimitQueue) aggiungeva solo latenza e log fuorvianti sugli
 // AbortError di timeout. Le chiamate GitHub passano direttamente da github.js
 // (timeout via AbortController).
+//
+// NOTA: questo modulo è solo osservazionale. Registra il remaining e stampa un
+// warning quando si avvicina allo zero, ma NON blocca le chiamate. Il blocco
+// reale (skip della scrittura su GitHub quando remaining è basso) non è
+// implementato: chi legge questo codice non deve aspettarsi un rate-limit
+// enforcement lato server.
 
 export const GITHUB_RATE_LIMIT_HEADER_REMAINING = 'X-RateLimit-Remaining';
 export const GITHUB_RATE_LIMIT_HEADER_RESET = 'X-RateLimit-Reset';
-export const GITHUB_RATE_LIMIT_WARNING_THRESHOLD = 10; // Attiva la coda quando remaining <= 10
-export const GITHUB_RATE_LIMIT_BLOCK_THRESHOLD = 2; // Blocca quando remaining <= 2
+export const GITHUB_RATE_LIMIT_WARNING_THRESHOLD = 10; // Stampa warning quando remaining <= 10
 
 // ─── RateLimitTracker ────────────────────────────────────────────────────────
 // Legge gli headers e mantiene lo stato corrente del rate limit.
@@ -21,8 +26,6 @@ export class RateLimitTracker {
 
     // Statistiche per monitoraggio
     this.totalRequests = 0;
-    this.requestsBlocked = 0;
-    this.callsQueued = 0;
   }
 
   updateFromResponse(headers) {
@@ -50,15 +53,6 @@ export class RateLimitTracker {
         `[GitHub Rate Limit] Remaining: ${this.remaining}, Reset at: ${this.formatResetTime()}`
       );
     }
-
-    if (
-      this.remaining !== null &&
-      this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD
-    ) {
-      console.error(
-        `[GitHub Rate Limit] CRITICAL: Only ${this.remaining} requests left!`
-      );
-    }
   }
 
   // Ritorna true se siamo sotto il threshold di warning
@@ -66,14 +60,6 @@ export class RateLimitTracker {
     return (
       this.remaining !== null &&
       this.remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD
-    );
-  }
-
-  // Ritorna true se siamo sotto il threshold di blocco
-  isBelowBlockThreshold() {
-    return (
-      this.remaining !== null &&
-      this.remaining <= GITHUB_RATE_LIMIT_BLOCK_THRESHOLD
     );
   }
 
@@ -99,10 +85,7 @@ export class RateLimitTracker {
       resetTime: this.formatResetTime(),
       secondsUntilReset: this.getSecondsUntilReset(),
       totalRequests: this.totalRequests,
-      requestsBlocked: this.requestsBlocked,
-      callsQueued: this.callsQueued,
       isBelowWarningThreshold: this.isBelowWarningThreshold(),
-      isBelowBlockThreshold: this.isBelowBlockThreshold(),
     };
   }
 
@@ -111,8 +94,6 @@ export class RateLimitTracker {
     this.remaining = null;
     this.reset = null;
     this.totalRequests = 0;
-    this.requestsBlocked = 0;
-    this.callsQueued = 0;
   }
 }
 
