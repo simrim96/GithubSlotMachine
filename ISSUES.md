@@ -14,26 +14,6 @@ byte grezzi o con `npm test` (138 test passing).
 
 ---
 
----
-
-## 🟡 ISSUE-14 — Name collision / shadowing di `loadExternalLanguages`
-
-In `api/_lib/languages.js`:
-- riga 342: `async function loadExternalLanguages()` (locale)
-- riga 347: dentro quella stessa funzione, fa
-  `const { loadExternalLanguages: loader, mergeLanguages } = await import('./config-loader.js')`
-
-Quindi la funzione locale **si chiama ricorsivamente da sola** (riga 390 chiama
-`loadExternalLanguages()` che risolve sulla definizione locale), mentre il nome
-`loadExternalLanguages` importato da `config-loader.js` viene rinominato in
-`loader`. Funziona, ma è fragile e confonde chi legge: due entità con lo stesso
-nome nello stesso scope modulare.
-
-**Fix:** rinominare la funzione locale in `loadExternalLanguagesInternal()` o
-spostare tutta la logica di merge in `config-loader.js` ed esporla da lì.
-
----
-
 ## 🟡 ISSUE-16 — Header GitHub duplicato in `repos.js` invece di riusare `github.js`
 
 `api/_lib/repos.js:28` **e** `api/image.js:18` ridefiniscono localmente
