@@ -9,18 +9,9 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 (ISSUE-20+) per problemi ancora aperti.
 
 ================================================================================
-# B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
-================================================================================
-
-================================================================================
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M2: Aggiungere ESLint come gate CI (✅ fatto, ISSUE-26) e un job di `npm audit` /
-     secret-scan per la sicurezza (almeno documentare che non esiste, ISSUE-27).
-- M3: ✅ fatto — tutti gli header GitHub centralizzati su `ghHeaders`
-     (ISSUE-22 risolta); tests/header-contract.test.js copre già
-     image/health/ratelimit-status.
 - M4: Monitoring: log/alert quando il sync Redis→GitHub (state.js:222) fallisce
      ripetutamente, così ci si accorge se lo stato non si sta salvando.
 - M5: Documentare nel README il comportamento della cache repo (ISSUE-28) e il

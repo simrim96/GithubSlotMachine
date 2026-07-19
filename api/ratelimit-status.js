@@ -31,6 +31,7 @@ import {
   GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
   safeGetHeader,
 } from './_lib/ratelimit-tracker.js';
+import { ghHeaders } from './_lib/github.js';
 import { corsHeaders } from './_lib/cors.js';
 
 export default async function handler(req) {
@@ -48,8 +49,10 @@ export default async function handler(req) {
   // /rate_limit NON conta verso il limite, ma con token ritorna il limite
   // dell'utente autenticato (5000/h) anziché quello anonimo (60/h).
   const token = process.env.GITHUB_PAT;
-  const headers = { 'User-Agent': 'GithubSlotMachine' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Header centralizzati su ghHeaders (unica sorgente condivisa, ISSUE-22 / M3):
+  // garantisce Accept + User-Agent + Authorization: Bearer <token> coerenti
+  // con gli altri endpoint GitHub del repo, evitando header inline divergenti.
+  const headers = ghHeaders(token);
 
   let response;
   try {
