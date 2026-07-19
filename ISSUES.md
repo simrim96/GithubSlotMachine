@@ -28,7 +28,4 @@ duplicazione che ha generato falsi allarmi nella review).
 
 ## 💡 Miglioramenti suggeriti (non bug)
 
-5. **`kv.js` legge `KV_REST_API_READ_ONLY_TOKEN`** (riga 31) e lo usa come
-   fallback per il token di lettura Upstash — è corretto, ma `.env.example` lo
-   documenta in modo ambiguo ("+ KV_REST_API_READ_ONLY_TOKEN" in un commento).
-   Chiarire che è opzionale e serve solo per il read-path.
+_Nessuno aperto._
