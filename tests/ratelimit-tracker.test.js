@@ -1,13 +1,11 @@
 // Test per api/_lib/ratelimit-tracker.js — parsing header rate limit GitHub
 // (ISSUE-12: la classe RateLimitTracker è stata rimossa; restano solo gli
 // helper di parsing header e il logging).
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   safeGetHeader,
   parseRateLimitHeaders,
   logRateLimit,
-  GITHUB_RATE_LIMIT_HEADER_REMAINING,
-  GITHUB_RATE_LIMIT_HEADER_RESET,
   GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
 } from '../api/_lib/ratelimit-tracker.js';
 

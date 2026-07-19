@@ -3,6 +3,7 @@
     "node": true,
     "es2021": true
   },
+  "plugins": ["import"],
   "extends": ["eslint:recommended"],
   "parserOptions": {
     "ecmaVersion": "latest",
@@ -16,5 +17,20 @@
     "no-useless-escape": "off",
     "no-constant-condition": "off"
   },
+  "overrides": [
+    {
+      "files": ["tests/**/*.js"],
+      "globals": {
+        "describe": "readonly",
+        "it": "readonly",
+        "expect": "readonly",
+        "vi": "readonly",
+        "beforeEach": "readonly",
+        "afterEach": "readonly",
+        "beforeAll": "readonly",
+        "afterAll": "readonly"
+      }
+    }
+  ],
   "ignorePatterns": ["node_modules/", "dist/", "*.min.js"]
 }

@@ -36,3 +36,9 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # Lint gate (ISSUE-26): ESLint fallisce su errori, bloccando il merge
+      # quando compaiono undefined globals, regole sconosciute o import rotti.
+      # I warning restano visibili ma non bloccano la CI.
+      - name: Lint
+        run: npm run lint

@@ -57,7 +57,6 @@ vi.mock('../api/_lib/ratelimit.js', () => ({
   isValidUser: vi.fn(() => true),
 }));
 
-// eslint-disable-next-line import/first
 import handler from '../api/spin.js';
 
 // ── Mock response ──────────────────────────────────────────────────────────

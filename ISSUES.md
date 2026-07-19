@@ -1,31 +1,146 @@
-# ISSUES.md — GitHubSlotMachine
+# ISSUES.md — GitHub Slot Machine
 
-Problemi emersi dalla code review del `2026-07-19`. Ordinati per severità.
-I numeri proseguono dalla numerazione esistente (ISSUE-1, ISSUE-3, ISSUE-6/7/8, ISSUE-11
-già risolti/chiusi). Tutti i punti qui sotto sono stati verificati a livello di
-byte grezzi o con `npm test` (138 test passing).
+Analisi statica + test eseguite il 19/07/2026.
+Stato test: `npx vitest run` → 183/183 passati.
+Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
-> Nota metodologica: in una prima bozza erano stati segnalati due "bug critici"
-> (`Authorization: *** ` in github.js/health.js e un import mancante di
-> `svg-builder-accessible.js`). Entrambi erano **falsi positivi** causati
-> dall'output redatto dello strumento di ricerca: i file contengono in realtà
-> `Bearer ` corretto e l'import esiste. Verificati con `od -c` e `node -e import()`.
-> Non sono stati inclusi in questo file.
+Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
+ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi ID
+(ISSUE-20+) per problemi ancora aperti.
 
----
+================================================================================
+# A) BUG CONCRETI (da fixare)
+================================================================================
 
-## 🟡 ISSUE-16 — Header GitHub duplicato in `repos.js` invece di riusare `github.js` — ✅ RISOLTO
+## ISSUE-20 · [MEDIA] buildAccessibleSVG non riceve i flag di vittoria
+- File: api/_lib/svg-builder-accessible.js:21-23  vs  api/spin.js:238
+- Sintomo: `buildAccessibleSVG` legge `params.isWin`, `params.isJackpot`,
+  `params.nearMissCol`, ma `spin.js` chiama `buildSVG(...)` e NON passa MAI
+  questi flag all'SVG accessibile. Risultato: l'aria-label per screen reader
+  dice sempre "Nessun vincitore" anche quando l'utente ha vinto davvero.
+- Fix: passare `isWin`, `isJackpot`, `nearMissCol` dal risultato di
+  `analyzeResult` all'SVG accessibile, oppure generare l'aria-label a partire
+  dallo stesso `result` usato da `buildSVG`.
 
-`api/_lib/repos.js:28` **e** `api/image.js:18` ridefiniscono localmente
-`function ghHeaders(token)` (con `Bearer` corretto) invece di importare un'unica
-sorgente da `github.js`. Due (potenzialmente tre) copie dello stesso header in
-file diversi moltiplicano il rischio di divergenza (è esattamente il genere di
-duplicazione che ha generato falsi allarmi nella review).
+## ISSUE-21 · [ALTA] Lo SVG accessibile è un "dead-end": non viene mai servito
+- File: api/_lib/svg-builder-accessible.js  vs  api/spin.js:238
+- Sintomo: `buildAccessibleSVG` è usato SOLO da `tests/verify-issue3.mjs`
+  (verifica offline). L'SVG realmente scritto su KV / README / /api/image è
+  quello di `buildSVG`, che ha un `aria-label` STATICO fisso
+  ("GitHub Slot Machine — Slot interattiva", svg-builder-accessible.js:79).
+- Conseguenza: tutto il lavoro di accessibilità dinamica (ISSUE-3) non entra
+  nel prodotto. Gli screen reader non ricevono mai il risultato dello spin.
+- Fix: far sì che `spin.js` generi e serva l'SVG accessibile (es. come
+  `<title>`/`<desc>` dentro lo stesso SVG di `buildSVG`, o come variant
+  alternativa), oppure rimuovere il modulo se non è il percorso reale.
 
-**Fix applicato (2026-07-19):** esportata un'unica `ghHeaders(token, opts)` da `api/_lib/github.js` (con valori di default `Accept: application/vnd.github.v3+json` e `User-Agent: GithubSlotMachine`, overridabili via `opts`). Rimosse le copie locali in `api/_lib/repos.js`, `api/image.js` e `api/health.js`; questi ultimi due ora importano `ghHeaders` da `github.js` (health.js passa `accept: application/vnd.github+json` e `userAgent: gsm-health`). Verificato con `npm test` (138 test passing) e grep: resta un'unica definizione in `github.js`.
+## ISSUE-22 · [BASSA] ghHeaders (single-source) non è usato in ghGet/ghPut
+- File: api/_lib/github.js:54,113  vs  github.js:24 (definizione ghHeaders)
+- Sintomo: `ghHeaders` è definito come "unica fonte" degli header, ma
+  `ghGet` e `ghPut` costruiscono gli header inline (`Authorization: Bearer`,
+  `Accept`, `User-Agent` hardcoded). Se un giorno si aggiorna `ghHeaders`
+  (es. nuovo header di autenticazione GitHub), le chiamate reali non lo
+  ereditano → divergenza silenziosa.
+- Fix: usare `...ghHeaders(token)` dentro gli oggetti `headers` di ghGet/ghPut.
 
----
+## ISSUE-23 · [MEDIA] kv.js può usare un token READ-ONLY per le scritture
+- File: api/_lib/kv.js:31
+- Sintomo: il token è
+  `UPSTASH_REDIS_REST_TOKEN || KV_REST_API_TOKEN || KV_REST_API_READ_ONLY_TOKEN`.
+  Se è impostato solo `KV_REST_API_READ_ONLY_TOKEN` (come suggerisce il nome,
+  in sola lettura), `kvSet`/`kvMset` falliscono silenziosamente (try/catch →
+  return false) e lo stato della community NON persiste, senza alcun errore
+  visibile a runtime.
+- Fix: separare il token di scrittura da quello di lettura, oppure loggare un
+  warning esplicito quando una scrittura fallisce per 401/403.
 
-## 💡 Miglioramenti suggeriti (non bug)
+## ISSUE-24 · [BASSA] /api/image fallback GitHub non gestisce content assente
+- File: api/image.js:47-53
+- Sintomo: se `r.ok` è true ma `data.content` è `undefined`/`null`
+  (repo esistente ma `slot.svg` vuoto o risposta inattesa),
+  `Buffer.from(data.content, 'base64')` lancia un'eccezione non gestita.
+- Fix: verificare `data?.content` prima del decode, altrimenti servire
+  `errorSVG()`.
 
-_Nessuno aperto._
+## ISSUE-25 · [BASSA] CORS ibrido: reflect-Origin vs wildcard nello stesso file
+- File: api/_lib/cors.js:34 (applyCors → riflette `origin`) vs cors.js:57
+  (corsHeaders → `*`).
+- Sintomo: due handler diversi nello stesso modulo usano due politiche CORS
+  diverse. Per un SVG embeddato in una README GitHub l'origine non è
+  deterministica, quindi il wildcard `*` (corsHeaders) è quello corretto;
+  `applyCors` che riflette `origin` può negare richieste valide da contesti
+  senza Origin esplicito.
+- Fix: uniformare su `*` per gli endpoint SVG/immagine, o documentare
+  esplicitamente perché i due percorsi differiscono.
+
+================================================================================
+# B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
+================================================================================
+
+## ISSUE-27 · [MEDIA] CI-CD-GUIDE.md descrive una pipeline che NON esiste
+- File: .github/CI-CD-GUIDE.md  vs  .github/workflows/ci.yml
+- Sintomo: la guida documenta 5 job (test, security, preview, production,
+  dependabot) con linting ESLint, Prettier, build, Snyk, Gitleaks, deploy
+  Vercel automatico. Il `ci.yml` reale ha UN SOLO job `test`
+  (npm ci + import-smoke + npm test). Nessun deploy, nessun security scan,
+  nessun lint gate.
+- Rischio: chi legge la guida crede ci sia un controllo di sicurezza/deploy
+  automatico che non c'è → falsa sicurezza.
+- Fix: o implementare la pipeline descritta, o riscrivere la guida per
+  riflettere la realtà (1 job test, deploy manuale/Vercel Git).
+
+## ISSUE-28 · [BASSA/MEDIA] Cache repo non-bloccante disabilita il "repo per
+##                    lingua" al primo giro
+- File: api/_lib/repos.js:135-145 (getRepoForLanguage)
+- Sintomo: al primo spin (cache vuota, `ts=0`) la funzione lancia
+  `refreshCache` in background e RITORNA SUBITO `cache.byLangId[lang.id] || null`
+  → `null`. Quindi lo spin punta sempre al profilo utente, mai a un repo
+  specifico, finché la cache non si popola (fino a 1-3s sul cold start). Solo
+  dal 2° spin in poi la feature funziona.
+- Fix (nice-to-have): al primo spin fare `await` di `refreshCache` con un
+  timeout corto (es. 800ms) invece di ritornare subito, così almeno il primo
+  giro ha già i repo se la rete risponde.
+
+## ISSUE-29 · [BASSA] errorSVG importato da due percorsi diversi
+- File: api/spin.js:27 (da svg-builder-accessible.js) vs
+  tests/* (da svg-builder.js che lo re-exporta)
+- Sintomo: `errorSVG` vive in `svg-builder-accessible.js` e viene re-importato
+  e ri-esposto da `svg-builder.js`. Due sorgenti per lo stesso simbolo →
+  confusione su quale sia "quella giusta".
+- Fix: scegliere un'unica fonte (probabilmente svg-builder.js) e importare
+  sempre da lì.
+
+## ISSUE-30 · [DESIGN CHOICE] Nessun rate-limit per-IP sugli spin
+- File: api/_lib/ratelimit.js:7-13 (commento esplicito), api/spin.js
+- Nota: è una scelta INTENZIONALE (ISSUE-11) — non si emette mai 429, la
+  protezione è demandata al rate-limit globale GitHub (5000/h). Va bene per una
+  slot personale, ma se qualcuno embeddesse la slot su molte pagine potenzialmente
+  si esaurisce il budget GitHub condiviso. Da rivalutare solo se il traffico cresce.
+
+## ISSUE-31 · [BASSA] Sentry `debug:true` in development
+- File: sentry.config.js:22-24
+- Sintomo: se `SENTRY_DSN` è impostato in dev, `debug:true` invia eventi/logger
+  a Sentry anche in locale. Minore, ma rumoroso.
+- Fix: `debug` solo se `SENTRY_DEBUG === 'true'` (già così) — togliere il
+  fallthrough su `NODE_ENV === 'development'`.
+
+================================================================================
+# C) MIGLIORAMENTI / NICE-TO-HAVE
+================================================================================
+
+- M1: Collegare l'SVG accessibile al percorso reale (vedi ISSUE-21) e aggiungere
+     un test che verifica l'aria-label dinamico su spin vincente/perdente.
+- M2: Aggiungere ESLint come gate CI (✅ fatto, ISSUE-26) e un job di `npm audit` /
+     secret-scan per la sicurezza (almeno documentare che non esiste, ISSUE-27).
+- M3: Centralizzare TUTTI gli header GitHub su `ghHeaders` (ISSUE-22) e aggiungere
+     un test di contract che assicuri che ogni `fetch` a api.github.com usi
+     `ghHeaders` (esiste già tests/header-contract.test.js per l'intestazione
+     Authorization — estenderlo agli handler image/health/ratelimit-status).
+- M4: Monitoring: log/alert quando il sync Redis→GitHub (state.js:222) fallisce
+     ripetutamente, così ci si accorge se lo stato non si sta salvando.
+- M5: Documentare nel README il comportamento della cache repo (ISSUE-28) e il
+     fatto che il primo spin può puntare al profilo.
+- M6: Uniformare la gestione CORS (ISSUE-25) e scrivere un test che verifichi
+     gli header CORS sugli endpoint /api/*.
+- M7: Separare token di lettura/scrittura Upstash (ISSUE-23) e testare il
+     fallimento silenzioso delle scritture.
