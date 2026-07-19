@@ -1,7 +1,7 @@
 # ISSUES.md — GitHub Slot Machine
 
 Analisi statica + test eseguite il 19/07/2026.
-Stato test: `npx vitest run` → 206/206 passati.
+Stato test: `npx vitest run` → 208/208 passati.
 Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
 Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
@@ -17,18 +17,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 ================================================================================
 # B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
 ================================================================================
-
-## ISSUE-28 · [BASSA/MEDIA] Cache repo non-bloccante disabilita il "repo per
-##                    lingua" al primo giro
-- File: api/_lib/repos.js:135-145 (getRepoForLanguage)
-- Sintomo: al primo spin (cache vuota, `ts=0`) la funzione lancia
-  `refreshCache` in background e RITORNA SUBITO `cache.byLangId[lang.id] || null`
-  → `null`. Quindi lo spin punta sempre al profilo utente, mai a un repo
-  specifico, finché la cache non si popola (fino a 1-3s sul cold start). Solo
-  dal 2° spin in poi la feature funziona.
-- Fix (nice-to-have): al primo spin fare `await` di `refreshCache` con un
-  timeout corto (es. 800ms) invece di ritornare subito, così almeno il primo
-  giro ha già i repo se la rete risponde.
 
 ## ISSUE-29 · [BASSA] errorSVG importato da due percorsi diversi
 - File: api/spin.js:27 (da svg-builder-accessible.js) vs
