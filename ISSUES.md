@@ -18,10 +18,23 @@ testati (vedi "Copertura dei test" in fondo).
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-8  [BASSO] dipendenze vulnerabilities (31, di cui 17 high)
-`npm audit` riporta 31 vulnerabilità, quasi tutte transitive dentro `vercel`
-(undici <=6.26.0: header injection, request smuggling, DoS WebSocket; tar
-<=7.5.15: path traversal all'estrazione; smol-toml via @vercel/rust).
+### ISSUE-8  [BASSO] dipendenze vulnerabilities — CHIUSA (19/07/2026)
+Stato originale: 31 vuln (17 high, 12 moderate, 2 low), quasi tutte transitive
+dentro `vercel` (undici@5.x: header injection, request smuggling, DoS WebSocket;
+tar <=7.5.15: path traversal; smol-toml via @vercel/rust).
+
+Azione eseguita:
+- Aggiunto `overrides: { "tar": "7.5.20" }` in package.json (patch che risolve
+  i 4 advisory tar, non-breaking, nessun impatto su vercel).
+- `npm audit fix` non-breaking applicato al lockfile per il resto.
+
+Risultato: 30 vuln residue (21 high, 7 moderate, 2 low). Le rimanenti sono
+tutte dentro `vercel@56.3.2` (undici@5.28.4/5.29.0 e smol-toml): non esiste
+oggi una versione 56.x di vercel che le risolva senza breaking, e
+`npm audit fix --force` propone un downgrade a `vercel@54.17.3` (sconsigliato).
+Chiusura concordata: in attesa di patch upstream di vercel.
+
+Verifica: `npm run lint` pulito, `npm run test` 137/137 passati.
 
 Fix:
 - `npm audit fix` (non-breaking) per tar/smol-toml dove possibile.
@@ -43,4 +56,4 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-8 (basso) — audit dipendenze `vercel` (npm audit)
+1. ISSUE-8 (basso) — CHIUSA (override tar 7.5.20; restanti vuln transitive di vercel in attesa di patch upstream)

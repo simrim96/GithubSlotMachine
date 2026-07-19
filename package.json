@@ -44,5 +44,8 @@
     "vercel",
     "portfolio"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "tar": "7.5.20"
+  }
 }
