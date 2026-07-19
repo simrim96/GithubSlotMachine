@@ -14,28 +14,10 @@ NOTA: i test verdi non coprono i bug critici sotto, perché i casi limite non so
 testati (vedi "Copertura dei test" in fondo).
 
 ================================================================================
-## ALTI
-================================================================================
-
-### ISSUE-1  [ALTO] state.js: writeStateGitHub parte un'ulteriore fetch GitHub
-non protetta
-File: `api/_lib/state.js` — `writeStateGitHub` / `readStateGitHub` (righe ~126-184)
-
-Queste funzioni fanno `fetch` dirette a `api.github.com` SENZA `AbortController`
-e SENZA circuit breaker (a differenza di `github.js`). Sono usate sia come
-fallback (quando Redis non c'è) sia come sync asincrono in `writeState`. Se
-GitHub è lento, lo spin principale (nel percorso fallback) può bloccarsi oltre
-il previsto, e il sync asincrono può generare un 409-loop se lo SHA va stale
-(ce un retry solo su 409, ma la rilettura stessa può fallire silenziosamente).
-
-Fix: centralizzare TUTTE le chiamate GitHub in `github.js` (con timeout +
-circuit breaker + retry 409 già presenti) e rimuovere i fetch duplicati qui.
-
-================================================================================
 ## MEDI
 ================================================================================
 
-### ISSUE-2  [MEDIO] Circuit breaker è di fatto un no-op (fallback disabilita la protezione)
+### ISSUE-1  [MEDIO] Circuit breaker è di fatto un no-op (fallback disabilita la protezione)
 File: `api/_lib/github.js` — `GitHubCircuitBreaker.call()` (righe ~63-86)
 
 Quando il circuito è `open`, invece di rifiutare la chiamata (comportamento
@@ -52,7 +34,7 @@ Fix: decidere se il breaker deve davvero aprirsi (ritornare errore/usare cache)
 oppure rimuoverlo e tenere solo i timeout. Lo stato attuale è fuorviante.
 
 --------------------------------------------------------------------------------
-### ISSUE-3  [MEDIO] RateLimitTracker: solo logging, nessun blocco reale
+### ISSUE-2  [MEDIO] RateLimitTracker: solo logging, nessun blocco reale
 File: `api/_lib/ratelimit-tracker.js` — `GITHUB_RATE_LIMIT_BLOCK_THRESHOLD` (riga 12)
 
 I metodi `isBelowBlockThreshold()` e le costanti `GITHUB_RATE_LIMIT_BLOCK_THRESHOLD`
@@ -68,7 +50,7 @@ Fix: collegare `isBelowBlockThreshold()` al percorso di spin (es. saltare la
 scrittura README quando remaining è basso) oppure rimuovere la logica morta.
 
 --------------------------------------------------------------------------------
-### ISSUE-4  [MEDIO] analytics trackSpin invia a endpoint Vercel non documentato
+### ISSUE-3  [MEDIO] analytics trackSpin invia a endpoint Vercel non documentato
 File: `api/spin.js` — `trackSpin()` (righe ~148-168)
 
 `fetch('https://api.vercel.com/v1/analytics', {method:'POST'})` viene chiamato
@@ -87,7 +69,7 @@ rimuovere `trackSpin`. Non chiamare un endpoint server-side non documentato.
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-5  [BASSO] MIGRATIONS[2] placeholder crea stato "ahead" (v3 > STATE_VERSION=2)
+### ISSUE-4  [BASSO] MIGRATIONS[2] placeholder crea stato "ahead" (v3 > STATE_VERSION=2)
 File: `api/_lib/state.js` — `MIGRATIONS[2]` (righe ~63-73)
 
 La migrazione per v2→v3 è un placeholder che setta `version: 3`, ma
@@ -96,7 +78,7 @@ a quella corrente, rompendo il confronto `currentVersion < STATE_VERSION` in
 `readState`. Va rimossa finché non serve davvero una v3.
 
 --------------------------------------------------------------------------------
-### ISSUE-6  [BASSO] config-loader: YAML non veramente supportato in produzione
+### ISSUE-5  [BASSO] config-loader: YAML non veramente supportato in produzione
 File: `api/_lib/config-loader.js` — `loadYAML()` (righe ~44-55)
 
 Usa `await import('yaml')` ma `yaml` NON è nelle `dependencies` di package.json.
@@ -108,7 +90,7 @@ Fix: aggiungere `yaml` alle `dependencies` oppure rimuovere il riferimento YAML
 da README/doc.
 
 --------------------------------------------------------------------------------
-### ISSUE-7  [BASSO] health.js stampa mezzo header Authorization nel log
+### ISSUE-6  [BASSO] health.js stampa mezzo header Authorization nel log
 File: `api/health.js` — riga 72
 
     Authorization: *** ' + token,
@@ -124,7 +106,7 @@ il file per i dettagli del mask — nel source qui presente il token è
 correttamente mascherato come `Bearer ***`, ma in health.js il concat è rotto).
 
 --------------------------------------------------------------------------------
-### ISSUE-8  [BASSO] file runtime (slot.svg, state.json) nel repo ma gitignati solo parzialmente
+### ISSUE-7  [BASSO] file runtime (slot.svg, state.json) nel repo ma gitignati solo parzialmente
 File: `.gitignore` (righe 23-24) + root
 
 `slot.svg` e `state.json` sono gitignati (giusto: cambiano a ogni spin), ma
@@ -134,7 +116,7 @@ ok). Piccolo rischio: se qualcuno fa `git add -f`, ricomincia a sporcare la
 history. Verificare che non siano mai stati committati (al momento non lo sono).
 
 --------------------------------------------------------------------------------
-### ISSUE-9  [BASSO] dipendenze vulnerabilities (31, di cui 17 high)
+### ISSUE-8  [BASSO] dipendenze vulnerabilities (31, di cui 17 high)
 `npm audit` riporta 31 vulnerabilità, quasi tutte transitive dentro `vercel`
 (undici <=6.26.0: header injection, request smuggling, DoS WebSocket; tar
 <=7.5.15: path traversal all'estrazione; smol-toml via @vercel/rust).
@@ -155,13 +137,12 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 - BUCA COLMATA (ex ISSUE-2): `image.js` ora usa `kvGet` da `./_lib/kv.js` (con timeout), rimuovendo la chiamata diretta `kv.get`. Test mancante su `image.js` ancora da aggiungere per prevenire regressioni.
 - BUCA COLMATA (ex ISSUE-3, repos.js): `tests/repos.test.js` ora copre timeout (AbortController + GITHUB_API_TIMEOUT_MS), concorrenza limitata a batch da 20, e riuso del circuit breaker, con fetch GitHub simulata.
 - `config-loader` è testato ma solo lato unit; il caricamento YAML reale senza
-  il package `yaml` non è coperto da nessun check di integrazione (ISSUE-6).
+  il package `yaml` non è coperto da nessun check di integrazione (ISSUE-5).
 - Resta da aggiungere un test su `image.js` per prevenire regressioni (vedi sopra).
 
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-1 (alto)     — state.js fetch GitHub non protetti
-2. ISSUE-2/3 (medio)  — circuit breaker e rate-limit tracker inefficaci
-3. ISSUE-4 (medio)    — analytics endpoint fasullo
-4. ISSUE-5..9 (basso) — pulizia, segreti nei log, audit dep
+1. ISSUE-1/2 (medio)  — circuit breaker e rate-limit tracker inefficaci
+2. ISSUE-3 (medio)    — analytics endpoint fasullo
+3. ISSUE-4..8 (basso) — pulizia, segreti nei log, audit dep
