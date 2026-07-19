@@ -106,9 +106,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # C) MIGLIORAMENTI / NICE-TO-HAVE
 ================================================================================
 
-- M1: Collegare l'SVG accessibile al percorso reale (✅ fatto, ISSUE-21) e aggiungere
-     un test che verifica l'aria-label dinamico su spin vincente/perdente
-     (tests/accessible-svg.test.js).
 - M2: Aggiungere ESLint come gate CI (✅ fatto, ISSUE-26) e un job di `npm audit` /
      secret-scan per la sicurezza (almeno documentare che non esiste, ISSUE-27).
 - M3: Centralizzare TUTTI gli header GitHub su `ghHeaders` (ISSUE-22) e aggiungere
