@@ -18,10 +18,10 @@ Sentry.init({
 
   release: process.env.npm_package_version || '1.0.0',
   integrations: [Sentry.httpIntegration()],
-  // Debug: disabilita in produzione
+  // Debug: solo se esplicitamente abilitato via SENTRY_DEBUG, per evitare di
+  // inviare eventi/logger a Sentry in locale durante lo sviluppo (ISSUE-31).
   debug:
-    process.env.SENTRY_DEBUG === 'true' ||
-    process.env.NODE_ENV === 'development',
+    process.env.SENTRY_DEBUG === 'true',
 });
 
 export default Sentry;
