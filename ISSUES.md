@@ -27,18 +27,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # B) DEBOLEZZE ARCHITETTURALI / QUALITÀ
 ================================================================================
 
-## ISSUE-27 · [MEDIA] CI-CD-GUIDE.md descrive una pipeline che NON esiste
-- File: .github/CI-CD-GUIDE.md  vs  .github/workflows/ci.yml
-- Sintomo: la guida documenta 5 job (test, security, preview, production,
-  dependabot) con linting ESLint, Prettier, build, Snyk, Gitleaks, deploy
-  Vercel automatico. Il `ci.yml` reale ha UN SOLO job `test`
-  (npm ci + import-smoke + npm test). Nessun deploy, nessun security scan,
-  nessun lint gate.
-- Rischio: chi legge la guida crede ci sia un controllo di sicurezza/deploy
-  automatico che non c'è → falsa sicurezza.
-- Fix: o implementare la pipeline descritta, o riscrivere la guida per
-  riflettere la realtà (1 job test, deploy manuale/Vercel Git).
-
 ## ISSUE-28 · [BASSA/MEDIA] Cache repo non-bloccante disabilita il "repo per
 ##                    lingua" al primo giro
 - File: api/_lib/repos.js:135-145 (getRepoForLanguage)
