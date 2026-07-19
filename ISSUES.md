@@ -12,16 +12,7 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 # A) BUG CONCRETI (da fixare)
 ================================================================================
 
-## ISSUE-22 · [BASSA] ghHeaders (single-source) non è usato in ghGet/ghPut
-- File: api/_lib/github.js:54,113  vs  github.js:24 (definizione ghHeaders)
-- Sintomo: `ghHeaders` è definito come "unica fonte" degli header, ma
-  `ghGet` e `ghPut` costruiscono gli header inline (`Authorization: Bearer`,
-  `Accept`, `User-Agent` hardcoded). Se un giorno si aggiorna `ghHeaders`
-  (es. nuovo header di autenticazione GitHub), le chiamate reali non lo
-  ereditano → divergenza silenziosa.
-- Fix: usare `...ghHeaders(token)` dentro gli oggetti `headers` di ghGet/ghPut.
 
-## ISSUE-23 · [MEDIA] kv.js può usare un token READ-ONLY per le scritture
 - File: api/_lib/kv.js:31
 - Sintomo: il token è
   `UPSTASH_REDIS_REST_TOKEN || KV_REST_API_TOKEN || KV_REST_API_READ_ONLY_TOKEN`.
@@ -108,10 +99,9 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 
 - M2: Aggiungere ESLint come gate CI (✅ fatto, ISSUE-26) e un job di `npm audit` /
      secret-scan per la sicurezza (almeno documentare che non esiste, ISSUE-27).
-- M3: Centralizzare TUTTI gli header GitHub su `ghHeaders` (ISSUE-22) e aggiungere
-     un test di contract che assicuri che ogni `fetch` a api.github.com usi
-     `ghHeaders` (esiste già tests/header-contract.test.js per l'intestazione
-     Authorization — estenderlo agli handler image/health/ratelimit-status).
+- M3: ✅ fatto — tutti gli header GitHub centralizzati su `ghHeaders`
+     (ISSUE-22 risolta); tests/header-contract.test.js copre già
+     image/health/ratelimit-status.
 - M4: Monitoring: log/alert quando il sync Redis→GitHub (state.js:222) fallisce
      ripetutamente, così ci si accorge se lo stato non si sta salvando.
 - M5: Documentare nel README il comportamento della cache repo (ISSUE-28) e il

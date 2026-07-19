@@ -51,9 +51,7 @@ export async function ghGet(token, owner, repo, path) {
         `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'GithubSlotMachine',
+            ...ghHeaders(token),
           },
           signal: controller.signal,
         }
@@ -110,10 +108,8 @@ export async function ghPut(
           {
             method: 'PUT',
             headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/vnd.github.v3+json',
+              ...ghHeaders(token),
               'Content-Type': 'application/json',
-              'User-Agent': 'GithubSlotMachine',
             },
             body: JSON.stringify(body),
             signal: controller.signal,
