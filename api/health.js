@@ -8,6 +8,7 @@
 import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { ghHeaders } from './_lib/github.js';
+import { applyCors } from './_lib/cors.js';
 import { LANGUAGES } from './_lib/languages.js';
 import * as Sentry from '@sentry/node';
 
@@ -18,6 +19,12 @@ function now() {
 }
 
 export default async function handler(req, res) {
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   res.setHeader('content-type', 'application/json');
   res.setHeader('cache-control', 'no-store');
 

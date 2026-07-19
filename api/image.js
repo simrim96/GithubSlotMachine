@@ -12,6 +12,7 @@
 
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { ghHeaders } from './_lib/github.js';
+import { applyCors } from './_lib/cors.js';
 import * as Sentry from '@sentry/node';
 
 const SVG_PATH = 'slot.svg';
@@ -20,6 +21,13 @@ export default async function handler(req, res) {
   const user = process.env.SLOT_OWNER || 'simrim96';
   const repo = process.env.SLOT_REPO || 'GithubSlotMachine';
   const token = process.env.GITHUB_PAT || '';
+
+  // ── CORS + preflight ─────────────────────────────────────────────────────
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
 
   if (kvEnabled) {
     try {
