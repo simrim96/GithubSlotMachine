@@ -5,7 +5,7 @@ Scope: architettura runtime (Vercel serverless + Upstash Redis + GitHub Contents
 logica di gioco, persistenza stato, caching repo, sicurezza CORS/open-redirect.
 
 Stato dei check automatici (aggiornato al commit corrente):
-- `npx vitest run` → 139 test passati (16 file), nessun fallimento.
+- `npx vitest run` → 137 test passati (16 file), nessun fallimento.
 - `npx eslint .` → 0 problemi segnalati.
 - `npm audit --audit-level=moderate` → 31 vulnerabilità (2 low, 12 moderate, 17 high),
   quasi tutte transitive dentro la dependency tree di `vercel` (undici, tar, smol-toml).
@@ -18,22 +18,6 @@ testati (vedi "Copertura dei test" in fondo).
 ## BASSI / MANUTENZIONE
 ================================================================================
 
-### ISSUE-6  [BASSO] health.js stampa mezzo header Authorization nel log
-File: `api/health.js` — riga 72
-
-    Authorization: *** ' + token,
-
-È un typo/concatenazione errata: il prefisso letterale `'*** '` viene unito al
-token invece di `'Bearer ' + token` (o meglio, di non logarlo affatto). Così il
-log mostra comunque il token PAT in chiaro nei log di diagnostica. Anche se è
-solo su `/api/health`, è una fuoriuscita di segreto nei log.
-
-Fix: non loggare MAI il token. Usare `Authorization: *** ${token}\`` nelle
-request e non stamparlo. Controllare anche `github.js`/`state.js` (leggi
-il file per i dettagli del mask — nel source qui presente il token è
-correttamente mascherato come `Bearer ***`, ma in health.js il concat è rotto).
-
---------------------------------------------------------------------------------
 ### ISSUE-7  [BASSO] file runtime (slot.svg, state.json) nel repo ma gitignati solo parzialmente
 File: `.gitignore` (righe 23-24) + root
 
@@ -69,4 +53,4 @@ runtime serverless, ma vanno comunque risolte prima di un rilascio ufficiale.
 ================================================================================
 ## RIEPILOGO PRIORITÀ
 ================================================================================
-1. ISSUE-6..8 (basso) — segreti nei log, audit dep
+1. ISSUE-7..8 (basso) — audit dep
