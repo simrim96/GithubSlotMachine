@@ -1,0 +1,26 @@
+{
+  "totalSpins": 500,
+  "totalWins": 311,
+  "lastWin": {
+    "langId": "react",
+    "langName": "React",
+    "fact": {
+      "it": "React è stato creato nel 2013 da Jordan Walke (Facebook), ispirato a XHP di PHP. Oggi è il framework UI più usato al mondo",
+      "en": "React was created in 2013 by Jordan Walke (Facebook), inspired by PHP's XHP. Today it's the most-used UI framework in the world."
+    },
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1784470994690
+  },
+  "version": 2,
+  "settings": {
+    "theme": "auto",
+    "sound": true
+  },
+  "stats": {
+    "longestStreak": 0,
+    "currentStreak": 0,
+    "winsByLang": {}
+  }
+}
