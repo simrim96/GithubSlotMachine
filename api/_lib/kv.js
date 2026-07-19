@@ -25,15 +25,29 @@ import { Redis } from '@upstash/redis';
 // Supportiamo entrambi, così kvEnabled è true qualunque modo tu lo abbia collegato.
 const url =
   process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
-const token =
+
+// Token di SCRITTURA: necessario per kvSet/kvMset. Non includiamo
+// KV_REST_API_READ_ONLY_TOKEN perché è, per definizione, in sola lettura e
+// le scritture fallirebbero silenziosamente con 401/403 (vedi ISSUE-23).
+const writeToken =
   process.env.UPSTASH_REDIS_REST_TOKEN ||
   process.env.KV_REST_API_TOKEN ||
+  '';
+
+// Token di LETTURA: usato per kvGet/kvMget. Può essere il read-only token
+// se non c'è un token di scrittura, così almeno la lettura continua a funzionare.
+const readToken =
+  writeToken ||
   process.env.KV_REST_API_READ_ONLY_TOKEN ||
   '';
 
-export const kvEnabled = Boolean(url && token);
+// kvEnabled = possiamo ALMENO leggere da Redis (URL + un qualsiasi token).
+// kvWritable = abbiamo un token di SCRITTURA valido (le scritture non falliranno per auth).
+export const kvEnabled = Boolean(url && readToken);
+export const kvWritable = Boolean(url && writeToken);
 
-export const kv = kvEnabled ? new Redis({ url, token }) : null;
+export const kv = kvEnabled ? new Redis({ url, token: readToken }) : null;
+export const kvWrite = kvWritable ? new Redis({ url, token: writeToken }) : null;
 
 const KV_TIMEOUT_MS = parseInt(process.env.KV_TIMEOUT_MS) || 500;
 
@@ -57,11 +71,29 @@ export async function kvGet(key) {
 
 export async function kvSet(key, val, ttlSec = 0) {
   if (!kvEnabled) return false;
+  if (!kvWritable) {
+    // ISSUE-23: solo token read-only (es. KV_REST_API_READ_ONLY_TOKEN) →
+    // una scrittura fallirebbe con 401/403. Lo segnaliamo esplicitamente
+    // invece di fallire in silenzio.
+    console.warn(
+      `[kv] kvSet ignorato: nessun token di SCRITTURA configurato ` +
+        `(presente solo KV_REST_API_READ_ONLY_TOKEN). La chiave "${key}" ` +
+        `NON verrà persistita. Configura UPSTASH_REDIS_REST_TOKEN o ` +
+        `KV_REST_API_TOKEN per abilitare le scritture.`
+    );
+    return false;
+  }
   try {
-    if (ttlSec > 0) await withTimeout(kv.set(key, val, { ex: ttlSec }));
-    else await withTimeout(kv.set(key, val));
+    if (ttlSec > 0) await withTimeout(kvWrite.set(key, val, { ex: ttlSec }));
+    else await withTimeout(kvWrite.set(key, val));
     return true;
-  } catch {
+  } catch (err) {
+    if (isAuthError(err)) {
+      console.warn(
+        `[kv] kvSet fallito per ${err.status ?? 'auth'}: scrittura negata ` +
+          `(token di scrittura non valido?). Chiave "${key}" NON persistita.`
+      );
+    }
     return false;
   }
 }
@@ -79,13 +111,39 @@ export async function kvMget(...keys) {
 // Batch: scrive più coppie in un solo round-trip (mset).
 export async function kvMset(obj) {
   if (!kvEnabled) return false;
+  if (!kvWritable) {
+    // ISSUE-23: idem kvSet — segnaliamo invece di fallire in silenzio.
+    console.warn(
+      `[kv] kvMset ignorato: nessun token di SCRITTURA configurato ` +
+        `(presente solo KV_REST_API_READ_ONLY_TOKEN). Le chiavi ` +
+        `${Object.keys(obj).join(', ')} NON verranno persistite. ` +
+        `Configura UPSTASH_REDIS_REST_TOKEN o KV_REST_API_TOKEN.`
+    );
+    return false;
+  }
   try {
-    await withTimeout(kv.mset(obj));
+    await withTimeout(kvWrite.mset(obj));
     return true;
-  } catch {
+  } catch (err) {
+    if (isAuthError(err)) {
+      console.warn(
+        `[kv] kvMset fallito per ${err.status ?? 'auth'}: scrittura negata ` +
+          `(token di scrittura non valido?). Chiavi ` +
+          `${Object.keys(obj).join(', ')} NON persistite.`
+      );
+    }
     return false;
   }
 }
 
+// Rileva errori 401/403 (UpstashError espone .status quando la REST API
+// risponde con un codice di stato non-2xx; altrimenti controlla il messaggio).
+function isAuthError(err) {
+  if (!err) return false;
+  if (err.status === 401 || err.status === 403) return true;
+  const msg = String(err.message || err).toLowerCase();
+  return /401|403|unauthorized|forbidden|not authorized|permission/i.test(msg);
+}
+
 // Esportato per testing
-export { withTimeout };
+export { withTimeout, isAuthError };

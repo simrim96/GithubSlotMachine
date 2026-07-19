@@ -5,7 +5,7 @@
 // GET /api/health  → JSON con tempi in ms di ogni hop.
 // GET /api/health?full=1 → aggiunge anche la scansione repo (cold cache).
 
-import { kvEnabled, kvGet, kvSet } from './_lib/kv.js';
+import { kvEnabled, kvWritable, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
@@ -47,11 +47,19 @@ export default async function handler(req, res) {
     }
     steps.kv_roundtrip_ms = now() - t0;
     steps.kv_enabled = true;
+    steps.kv_writable = kvWritable;
     steps.kv_ok = kvOk;
-    steps.kv_note =
-      steps.kv_roundtrip_ms > 60
-        ? 'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.'
-        : 'OK: same-region ~10-20ms.';
+    if (!kvWritable) {
+      steps.kv_note =
+        'READ-ONLY: presente solo KV_REST_API_READ_ONLY_TOKEN. Le scritture ' +
+        '(stato community, cache repo) NON vengono persistite (ISSUE-23). ' +
+        'Configura UPSTASH_REDIS_REST_TOKEN o KV_REST_API_TOKEN per scrivere.';
+    } else {
+      steps.kv_note =
+        steps.kv_roundtrip_ms > 60
+          ? 'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.'
+          : 'OK: same-region ~10-20ms.';
+    }
   } else {
     steps.kv_enabled = false;
     steps.kv_note = 'Upstash NON configurato (uso fallback GitHub).';

@@ -1,7 +1,7 @@
 # ISSUES.md — GitHub Slot Machine
 
 Analisi statica + test eseguite il 19/07/2026.
-Stato test: `npx vitest run` → 190/190 passati.
+Stato test: `npx vitest run` → 195/195 passati.
 Stato lint: `npx eslint .` → 0 errori, 0 warning (gate attivo in CI, ISSUE-26 risolto).
 
 Gli ID "ISSUE-N" già usati nei commenti del codice (ISSUE-1, ISSUE-3, ISSUE-7,
@@ -11,17 +11,6 @@ ISSUE-11, ISSUE-12) si riferiscono a fix già chiusi: qui sotto si usano nuovi I
 ================================================================================
 # A) BUG CONCRETI (da fixare)
 ================================================================================
-
-
-- File: api/_lib/kv.js:31
-- Sintomo: il token è
-  `UPSTASH_REDIS_REST_TOKEN || KV_REST_API_TOKEN || KV_REST_API_READ_ONLY_TOKEN`.
-  Se è impostato solo `KV_REST_API_READ_ONLY_TOKEN` (come suggerisce il nome,
-  in sola lettura), `kvSet`/`kvMset` falliscono silenziosamente (try/catch →
-  return false) e lo stato della community NON persiste, senza alcun errore
-  visibile a runtime.
-- Fix: separare il token di scrittura da quello di lettura, oppure loggare un
-  warning esplicito quando una scrittura fallisce per 401/403.
 
 ## ISSUE-24 · [BASSA] /api/image fallback GitHub non gestisce content assente
 - File: api/image.js:47-53
