@@ -63,10 +63,21 @@ This is a **Vercel serverless** project. Zero config needed beyond the files
 already in the repo (`vercel.json` + `package.json` declare the runtime).
 
 1. **Import the repo** into Vercel (New Project → Git → `simrim96/GithubSlotMachine`).
-2. **Set the environment variable** `GITHUB_PAT`:
-   - A fine-grained PAT with `Contents: read & write` on **this** repo
-     (`GithubSlotMachine`) **and** on your profile repo (`<your-user>`), plus
-     `Metadata: read` so it can list your repos.
+2. **Set the environment variable** `GITHUB_PAT`. **Security (S4): use a
+   *fine-grained* PAT, not a classic one.**
+   - Go to GitHub → Settings → Developer settings → **Fine-grained PATs** →
+     *Generate new token*.
+   - **Repository access:** "Only select repositories" → select **both**:
+     - your slot repo (`GithubSlotMachine`)
+     - your profile repo (`<your-user>/<your-user>`)
+   - **Repository permissions → Contents:** **Read and write**
+   - Leave the account-level `repo` scope **off** — that's exactly what S4
+     protects against (a classic `ghp_…` PAT with `repo` can touch every
+     repo you own if leaked).
+   - Set an **expiration** and rotate it periodically.
+   - The app detects a classic/unknown PAT and emits a Sentry + log warning.
+     For fail-closed behaviour (writes refused, read-only mode) set
+     `GITHUB_PAT_REQUIRE_FINEGRAINED=true`.
 3. **Deploy.** Your endpoints are live at:
    - `https://<your-app>.vercel.app/api/image`
    - `https://<your-app>.vercel.app/api/lever`

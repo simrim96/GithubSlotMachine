@@ -31,6 +31,7 @@ import {
   saveSlotSvg,
   loadSlotSvg,
   updateReadmeMarkers,
+  auditToken,
 } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
@@ -210,7 +211,23 @@ export default async function handler(req, res) {
     return;
   }
 
-  const token = process.env.GITHUB_PAT;
+  // S4 hardening: rileva/rifiuta PAT classici (ISSUES.md §2).
+  // Default: solo warning. Imposta GITHUB_PAT_REQUIRE_FINEGRAINED=true per
+  // fallire in modo "closed" (salta i write GitHub, modalità read-only) quando
+  // è configurato un token NON fine-grained.
+  const enforceFg = process.env.GITHUB_PAT_REQUIRE_FINEGRAINED === 'true';
+  let token = process.env.GITHUB_PAT;
+  if (token) {
+    try {
+      auditToken(token, { enforce: enforceFg });
+    } catch (e) {
+      // Fail-closed: operiamo in read-only (niente token) così non usiamo mai
+      // la credenziale insicura per gli write. Lo spin funziona lo stesso
+      // (redirect graceful verso il profilo).
+      console.error('[S4]', e.message);
+      token = null;
+    }
+  }
 
   const spinStart = Date.now();
 

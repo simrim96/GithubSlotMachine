@@ -9,6 +9,58 @@ import * as Sentry from '@sentry/node';
 export const GITHUB_API_TIMEOUT_MS =
   parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 5000;
 
+// ── S4 hardening: token type detection (ISSUES.md §2) ───────────────────────
+// Un PAT classico (prefisso `ghp_`) con scope `repo` può leggere/scrivere
+// TUTTI i repo dell'utente se viene leakato. S4 richiede un PAT
+// *fine-grained* (prefisso `github_pat_`) limitato SOLO al repo della slot e
+// al repo del profilo, con `Contents: read & write` (+ `Metadata: read` così
+// la lista repo funziona). Questi helper permettono all'app di rilevare una
+// configurazione insicura e avvisare rumorosamente — e opzionalmente di
+// rifiutarsi di operare con un PAT classico (fail-closed).
+const CLASSIC_PAT_PREFIXES = ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_'];
+
+export function detectTokenType(token) {
+  if (!token || typeof token !== 'string' || token.length === 0) {
+    return { kind: 'none', safe: false };
+  }
+  if (token.startsWith('github_pat_')) {
+    return { kind: 'fine-grained', safe: true };
+  }
+  if (CLASSIC_PAT_PREFIXES.some((p) => token.startsWith(p))) {
+    return { kind: 'classic', safe: false };
+  }
+  // Formato sconosciuto (OAuth token, GitHub App token, stringa arbitraria…):
+  // non possiamo assumerlo sicuro → trattato come insicuro.
+  return { kind: 'unknown', safe: false };
+}
+
+// Emette un allarme Sentry + console quando è configurato un token insicuro
+// (classic/unknown). Ritorna il tipo rilevato così il chiamante può decidere
+// se abortire. `enforce` (default false) fa saltare il write GitHub e degrada
+// a read-only quando il token NON è fine-grained.
+export function auditToken(token, { enforce = false } = {}) {
+  const t = detectTokenType(token);
+  if (t.safe || t.kind === 'none') return t; // none = dev/read-only atteso
+  const msg =
+    `[S4] INSECURE GITHUB_PAT detected (kind=${t.kind}). ` +
+    `Classic/unknown PATs can expose ALL your repos if leaked. ` +
+    `Use a fine-grained PAT scoped to the slot + profile repos only ` +
+    `(Contents: read & write, Metadata: read). Rotate the leaked token now.`;
+  console.error(msg);
+  try {
+    if (typeof Sentry !== 'undefined' && Sentry.captureMessage) {
+      Sentry.captureMessage(msg, 'warning');
+    }
+  } catch { /* no-op */ }
+  if (enforce) {
+    throw new Error(
+      'S4 enforcement: refusing to use a non-fine-grained GITHUB_PAT. ' +
+        'Set GITHUB_PAT_REQUIRE_FINEGRAINED=false to override (not recommended).'
+    );
+  }
+  return t;
+}
+
 // TTL per slot.svg: 7 giorni (604800 secondi)
 // Gli SVG sono persistenti per definizione, ma vogliamo che scadeano dopo un periodo
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
