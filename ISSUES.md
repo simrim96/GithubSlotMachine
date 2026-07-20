@@ -16,7 +16,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-| M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
@@ -28,12 +27,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 
 ## 5. Manutenibilità
-
-### M5 — Costanti duplicate in `repos.js`  · P2
-`api/_lib/repos.js` definisce `REPO_LANG_BATCH_SIZE` (non usata da nessuna parte) e
-`REPO_LANG_CONCURRENCY` (usata). La prima è morta.
-**Fix:** rimuovere `REPO_LANG_BATCH_SIZE`; rinominare la seconda in
-`REPO_SEARCH_CONCURRENCY` per chiarezza.
 
 ### M2 — Nomina ingannevole in `state.js`  · P3
 `import { promises as fs } from 'fs'` → la variabile si chiama `fs` ma è in realtà
@@ -138,7 +131,7 @@ JSON, usato ovunque al posto di `console.*`.
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
-8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
+8. **Rimuovi codice morto (M2)** — variabile `fs` in `state.js` (M2).
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
@@ -187,7 +180,8 @@ JSON, usato ovunque al posto di `console.*`.
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
 
- Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
+  Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
+
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
 
 Cache

@@ -35,10 +35,11 @@ const KV_KEY = 'gsm:repoCache';
 // il layer fresh è scaduto/stale, così lo spin ha SEMPRE i repo recenti anche
 // quando Upstash è cross-region o la refresh GitHub fallisce.
 const KV_LASTGOOD_KEY = 'gsm:repoCache:lastgood';
-// Dimensione dei batch per la fetch dei /languages: evita il burst di ~100
+// Concorrenza massima per la fetch dei /languages: evita il burst di ~100
 // richieste parallele a freddo che esaurirebbe il rate-limit GitHub (5000/h).
-const LANG_BATCH_SIZE = 20;
-export const REPO_LANG_BATCH_SIZE = LANG_BATCH_SIZE;
+// Rappresenta quanti repo possiamo interrogare in parallelo durante la
+// ricerca repo (search), non la dimensione di un batch di lingue.
+export const REPO_SEARCH_CONCURRENCY = 20;
 const cache = { ts: 0, byLangId: {} };
 let kvLoaded = false;
 
@@ -122,9 +123,9 @@ async function refreshCache(token, owner, languages) {
   const repos = (await r.json()).filter((rep) => !rep.fork && !rep.archived);
 
   // Per ogni repo, fetch /languages a BATCH (cap pratico: 100 repo × 1 call,
-  // ma mai più di LANG_BATCH_SIZE in parallelo). Una fetch lenta/piantata è
-  // protetta da AbortController (timeout).
-  const langMaps = await mapBatch(repos, LANG_BATCH_SIZE, async (rep) => {
+  // ma mai più di REPO_SEARCH_CONCURRENCY in parallelo). Una fetch
+  // lenta/piantata è protetta da AbortController (timeout).
+  const langMaps = await mapBatch(repos, REPO_SEARCH_CONCURRENCY, async (rep) => {
     try {
       const lr = await ghFetchWithTimeout(rep.languages_url, headers);
       if (!lr.ok) return null;
