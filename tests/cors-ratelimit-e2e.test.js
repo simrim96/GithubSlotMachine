@@ -18,7 +18,7 @@ vi.mock('../api/_lib/state.js', () => ({
 vi.mock('../api/_lib/github.js', () => ({
   loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
   saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
-  ghGet: vi.fn(),
+  ghGetJson: vi.fn(),
   ghPut: vi.fn(),
   updateReadmeMarkers: vi.fn((r) => r),
 }));
