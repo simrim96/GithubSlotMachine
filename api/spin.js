@@ -33,6 +33,7 @@ import {
   updateReadmeMarkers,
   auditToken,
 } from './_lib/github.js';
+import { kvGet, kvSet, kvEnabled } from './_lib/kv.js';
 import { applyCors } from './_lib/cors.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
@@ -341,17 +342,69 @@ export default async function handler(req, res) {
     // causata dalla coda serializzante di RateLimitQueue (rimossa).
     const README_TIMEOUT_MS = 3500;
 
+    // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
+    // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
+    // spin, aggiungendo ~150-400ms. Ora la leggiamo da KV (chiave
+    // `gsm:readme:<owner>`, TTL 60s): su cache HIT saltiamo del tutto la GET
+    // GitHub; su cache MISS facciamo la GET e popoliamo la cache. Dopo una
+    // PUT riuscita refreschiamo la cache col contenuto appena scritto, così
+    // gli spin successivi (entro il TTL) non rifanno la GET. Il TTL breve
+    // garantisce che modifiche esterne alla README (es. edit manuale sul
+    // profilo) vengano rilevate entro ~60s, e ghPut gestisce da solo lo
+    // SHA stale (409 → re-fetch) nel caso raro di divergenza.
+    //
+    // NOTA: non invalidiamo la cache "a ogni scrittura di state.json" come
+    // suggerito testualmente dall'ISSUE, perché state.json viene scritto a
+    // OGNI spin → invalidare ogni volta riporterebbe la GET a ogni spin,
+    // annullando il guadagno. Il refresh-on-PUT qui sotto tiene la cache
+    // coerente con lo stato senza mai forzarla vuota tra spin consecutivi.
+    const README_CACHE_KEY = `gsm:readme:${PROFILE_REPO}`;
+    const README_CACHE_TTL_SEC = 60;
+
     const readmePromise = (async () => {
       console.log(`[readme-update] START spin=${spinStart}`);
       const MAX_RETRIES = 2;
       const RETRY_DELAY_MS = 500;
       let lastError = null;
+
+      // Lettura da cache KV (P1). Se presente, saltiamo la GET GitHub.
+      let rf = null;
+      if (kvEnabled) {
+        try {
+          const cached = await kvGet(README_CACHE_KEY);
+          if (cached) {
+            const parsed =
+              typeof cached === 'string' ? JSON.parse(cached) : cached;
+            if (parsed && parsed.content) {
+              rf = { content: parsed.content, sha: parsed.sha ?? null };
+              console.log('[readme-update] cache HIT — skip GitHub GET');
+            }
+          }
+        } catch (e) {
+          console.warn('[readme-update] cache read failed, fallback GET:', e.message);
+        }
+      }
+
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-          console.log(
-            `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
-          );
-          const rf = await ghGet(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
+          if (!rf) {
+            console.log(
+              `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
+            );
+            rf = await ghGet(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
+            if (rf && kvEnabled) {
+              try {
+                await kvSet(
+                  README_CACHE_KEY,
+                  { content: rf.content, sha: rf.sha },
+                  README_CACHE_TTL_SEC
+                );
+                console.log('[readme-update] cache populated from GitHub GET');
+              } catch (e) {
+                console.warn('[readme-update] cache set failed:', e.message);
+              }
+            }
+          }
           if (!rf) {
             console.log('[readme-update] ghGet returned null (README assente/illegibile)');
             return;
@@ -381,6 +434,22 @@ export default async function handler(req, res) {
               '🎰 Update slot'
             );
             console.log(`[readme-update] ghPut OK, new ?v=${spinStart}`);
+            // Refresh cache con il contenuto appena scritto (P1).
+            if (kvEnabled) {
+              try {
+                await kvSet(
+                  README_CACHE_KEY,
+                  {
+                    content: Buffer.from(newReadme, 'utf-8').toString('base64'),
+                    sha: rf.sha,
+                  },
+                  README_CACHE_TTL_SEC
+                );
+                console.log('[readme-update] cache refreshed after PUT');
+              } catch (e) {
+                console.warn('[readme-update] cache refresh failed:', e.message);
+              }
+            }
           } else {
             console.log('[readme-update] README unchanged, skip PUT');
           }

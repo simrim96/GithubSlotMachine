@@ -18,7 +18,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
-| P1  | Performance     | P2      | README GitHub letta a ogni spin (+150–400ms) non cacheata in KV |
+
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
@@ -35,17 +35,6 @@ Se è presente solo `KV_REST_API_READ_ONLY_TOKEN` (`kvWritable === false`), le
 scritture falliscono silenziosamente (solo `console.warn` in `kv.js`). Comportamento
 accettabile, ma va documentato nel deploy (già fatto in `health.js`). Nessun
 cambiamento richiesto, solo consapevolezza operativa.
-
----
-
-## 4. Performance
-
-### P1 — README GitHub letta a ogni spin  · P2
-Quando `GITHUB_PAT` è configurato, `spin.js` fa un `GET /readme` a GitHub a OGNI
-spin (stimato +150–400ms). L'endpoint `/api/image` ha già una cache KV
-(`gsm:slotSvg`), ma lo spin non cachea la README.
-**Fix:** cacheare la README in KV con TTL breve (es. 60s, `gsm:readme:<owner>`);
-invalidare alla scrittura di `state.json`.
 
 ---
 
@@ -167,7 +156,6 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-3. **Cache README in KV (P1)** — evita il GET GitHub a ogni spin.
 5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
@@ -204,6 +192,13 @@ JSON, usato ovunque al posto di `console.*`.
   `push(write)=True` su `simrim96/simrim96` e `simrim96/GithubSlotMachine`.
   Verificato da `tests/s4-token.test.js` (8 test verdi) e suite intera
   (264 test). Docs aggiornate in `.env.example` e `README.md`.
+
+  **P1 — CHIUSO (2026-07-20):** cache README in KV implementata in
+  `api/spin.js` (import `kvGet, kvSet, kvEnabled` da `./_lib/kv.js`,
+  chiave `gsm:readme:<owner>`, TTL 60s). Su cache HIT la GET GitHub viene
+  saltata del tutto; dopo la `ghPut` la cache viene refrescata. Degradazione
+  graceful se KV non è abilitato. Verificato da `tests/readme-cache-p1.test.js`
+  (2 test verdi) e suite intera (280 test).
 
 Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
