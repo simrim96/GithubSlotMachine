@@ -14,7 +14,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 | ID  | Area            | Gravità | Titolo breve |
 |-----|-----------------|---------|--------------|
-| D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
@@ -25,20 +24,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 
 ## 6. Documentazione
-
-### D1 — README.md obsoleto  · P1
-Il README non riflette l'architettura corrente:
-- Riga 47 e 258 citano `languages.js` come file dei **simboli**, ma i simboli sono
-  stati spostati in `api/_lib/svg/symbols.js`; `languages.js` ora contiene solo la
-  configurazione lingue + caricamento esterno (`languages-external.json`).
-- Non documenta la cartella `api/_lib/` né i moduli `kv.js`, `state.js`, `github.js`,
-  `repos.js`, `game.js`, `cors.js`, `ratelimit-tracker.js`, `config-loader.js`.
-- Le env var non sono tutte elencate: mancano `SLOT_OWNER`, `SLOT_REPO`,
-  `GITHUB_PAT` (scopo), `UPSTASH_REDIS_REST_URL/_TOKEN`, `KV_REST_API_URL/_TOKEN`,
-  `KV_REST_API_READ_ONLY_TOKEN`, `LOG_LEVEL`, `SENTRY_*`, e la dipendenza di
-  regione `fra1` (Upstash deve essere `fra1`).
-**Fix:** riscrivere la sezione "Architettura" e "Environment Variables" dal vero
-codice; rimuovere i riferimenti a `languages.js` come renderer di simboli.
 
 ### D2 — Contratto API non documentato  · P2
 Il README non spiega che:
@@ -112,12 +97,12 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
+6. **Riscrivi README (D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
-14. **Documenta vincolo regione fra1 (O1/D1)** — nel README e (opzionale) alert CI.
+14. **Documenta vincolo regione fra1 (O1)** — nel README e (opzionale) alert CI.
 
 ---
 
@@ -161,6 +146,25 @@ JSON, usato ovunque al posto di `console.*`.
  preserva il comportamento esterno (CORS, rate-limit, redirect 302). Verificato da
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
+
+  **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
+  reale. La sezione "Architettura" ora elenca tutti gli handler `api/*.js`
+  (`spin.js`, `image.js`, `lever.js`, `health.js`, `ratelimit-status.js`) e i
+  moduli `api/_lib/` (`game.js`, `svg-builder.js`, `svg-builder-accessible.js`,
+  `languages.js`, `repos.js`, `state.js`, `github.js`, `kv.js`, `cors.js`,
+  `ratelimit.js`, `ratelimit-tracker.js`, `spin-cooldown.js`, `config-loader.js`,
+  `response-bridge.js`) più il subtree `api/_lib/svg/`. La sezione "Environment
+  Variables" documenta ora TUTTE le env var lette dal codice: `GITHUB_PAT`,
+  `GITHUB_PAT_REQUIRE_FINEGRAINED`, `SLOT_OWNER`, `SLOT_REPO`, `PROFILE_REPO`,
+  `GITHUB_API_TIMEOUT_MS`, `GH_CONTENTS_TIMEOUT_MS`, `UPSTASH_REDIS_REST_*`,
+  `KV_REST_API_*`, `KV_TIMEOUT_MS`, `ALLOWED_CORS_ORIGINS`, `SLOT_ALLOWED_HOSTS`,
+  `SPIN_COOLDOWN_MS`, `STATE_SYNC_*`, `SENTRY_*`. Nota di correzione: ISSUES.md
+  affermava che i simboli erano stati spostati in `api/_lib/svg/symbols.js`, ma
+  quel file NON esiste — il renderer dei simboli (`buildSymbolDefs`/`symbolUse`)
+  risiede ancora in `api/_lib/languages.js`, ed è così che il README lo descrive.
+  `LOG_LEVEL` NON è letto dal codice della slot (solo da tooling terzo), quindi
+  non è documentato come env var reale. Il vincolo di regione `fra1` è ora
+  documentato come hardcoded in `vercel.json`.
 
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
