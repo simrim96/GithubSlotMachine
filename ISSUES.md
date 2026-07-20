@@ -26,26 +26,10 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| B5  | Bug             | P3      | `cacheTtl` in `spin.js` calcolato ma mai usato — **CHIUSO** (commit 1ffddb1) |
 | M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
 | M4  | Manutenibilità  | P3      | Nomi confusionari minori |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
-
----
-
-## 1. Bug / Correttezza
-
-### B5 — `cacheTtl` calcolato ma mai usato in `spin.js`  · P3 — **CHIUSO (2026-07-20)**
-Il codice morto `const cacheTtl = parseLocationHeader(...)` (e la relativa
-funzione `parseLocationHeader`) è stato **già rimosso** nel commit `1ffddb1`
-("Rimuove filosofia fork-ready del progetto e bug B3"). Verifica corrente:
-- `grep -rnE "cacheTtl|parseLocationHeader"` su tutto il repo (escluso
-  `node_modules`) → 0 occorrenze nel codice (solo questo file).
-- `npx eslint .` → 0 errori (l'unico warning residuo è in un test, non in
-  `spin.js` e non relativo a B5).
-**Fix applicato:** rimosso `cacheTtl` e `parseLocationHeader` (non usato altrove).
-Nessuna azione ulteriore richiesta.
 
 ---
 
@@ -258,7 +242,7 @@ JSON, usato ovunque al posto di `console.*`.
 5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
-8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE`, `cacheTtl`.
+8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
 9. **Sanitizza SVG in uscita (S3)** — strip `<script>`/`on*`/`foreignObject`.
 10. **Token GitHub fine-grained (S4)** — scope minimo, rotazione.
 11. **Retry/backoff sync state.json (R2)** — recupero automatico dopo outage GitHub.
