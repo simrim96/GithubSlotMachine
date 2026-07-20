@@ -39,12 +39,27 @@ import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 import * as Sentry from '../sentry.config.js';
-// ─── Security: Allowed Origins for Redirect Validation ────────────────────────
-const ALLOWED_ORIGINS = [
+// ─── Security: Allowlist host per la validazione del redirect (fix S1, ISSUES.md) ─
+// Sostituisce la vecchia logica basata su blocklist (BLOCKED_HOSTS) con un'
+// ALLOWLIST derivata da env (SLOT_ALLOWED_HOSTS, CSV). Default: solo i domini
+// di deploy reali della slot + github.com (destinazione legittima del profilo
+// owner) + localhost/127.0.0.1 per il dev locale. Un host NON presente qui viene
+// SEMPRE rifiutato → nessun open-redirect verso domini arbitrari (es. un fork
+// con dominio personalizzato tipo myslot.example.com).
+const DEFAULT_ALLOWED_HOSTS = [
   'github-slot-machine.vercel.app',
-  'localhost',
   'github.com',
+  'localhost',
+  '127.0.0.1',
 ];
+
+function getAllowedHosts() {
+  const fromEnv = (process.env.SLOT_ALLOWED_HOSTS || '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_HOSTS;
+}
 
 // ─── Security: CORS policy ──────────────────────────────────────────────────
 // La policy CORS è ora centralizzata in api/_lib/cors.js (Miglioramento #4,
@@ -54,6 +69,11 @@ const ALLOWED_ORIGINS = [
 // ALLOWED_CORS_ORIGINS (CSV), con fallback ai domini noti dell'app.
 
 // ─── Security: Validate Redirect URL to Prevent Open Redirect ─────────────────
+// Regole (fix S1, ISSUES.md):
+//   1. URL relativo (inizia con '/') → sempre sicuro (same-origin).
+//   2. URL completo → DEVE usare https (http ammesso SOLO per localhost/127.0.0.1
+//      in dev), l'hostname DEVE appartenere all'allowlist, e il pathname NON
+//      deve essere protocol-relative ('//') né nascondere uno scheme.
 function isValidRedirectUrl(urlString) {
   // Reject empty/null/undefined
   if (!urlString || typeof urlString !== 'string') {
@@ -67,10 +87,14 @@ function isValidRedirectUrl(urlString) {
     return false;
   }
 
-  // Relative URLs (start with /) are always safe
+  // Relative URLs (start with a single '/') are always safe (same-origin).
+  // Reject protocol-relative URLs ('//evil.com') — they would resolve to the
+  // current page's scheme and become an open redirect.
   if (trimmed.startsWith('/')) {
-    return true;
+    return !trimmed.startsWith('//');
   }
+
+  const allowedHosts = getAllowedHosts();
 
   // For full URLs, validate the origin
   try {
@@ -82,7 +106,23 @@ function isValidRedirectUrl(urlString) {
       return false;
     }
 
-    return ALLOWED_ORIGINS.includes(url.hostname);
+    // Enforce secure transport: https obbligatorio, salvo host locali in dev.
+    const isLocal =
+      url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const transportOk =
+      url.protocol === 'https:' ||
+      (isLocal && url.protocol === 'http:');
+    if (!transportOk) {
+      return false;
+    }
+
+    // Reject protocol-relative / host-smuggling paths (es. //evil.com).
+    if (url.pathname.startsWith('//')) {
+      return false;
+    }
+
+    // Hostname must be on the allowlist
+    return allowedHosts.includes(url.hostname.toLowerCase());
   } catch {
     // Invalid URL format
     return false;

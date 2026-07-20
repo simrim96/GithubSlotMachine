@@ -16,7 +16,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-| S1  | Sicurezza       | P2      | Redirect `explain` con blocklist di host arbitraria (non allowlist) |
 | R4  | Affidabilità    | P2      | `ghGetContents` senza timeout esplicito (possibile hang) |
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
@@ -34,17 +33,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 ---
 
 ## 2. Sicurezza
-
-### S1 — Redirect `explain` con blocklist di host arbitraria  · P2
-`api/spin.js` valida il parametro `url` dell'`explain` solo contro `BLOCKED_HOSTS`
-(`github.io`, `vercel.app`, `raw.githubusercontent.com`, `localhost`, `127.0.0.1`).
-È una blocklist, non un'allowlist: un fork con dominio personalizzato (es.
-`myslot.example.com`) non verrebbe bloccato, e la blocklist non è allineata con i
-dominii reali di deploy (`~owner.github.io`, dominio Vercel). Open-redirect verso
-host non previsti è teoricamente possibile.
-**Fix:** invertire la logica → allowlist derivata da env (`SLOT_ALLOWED_HOSTS`),
-con default al solo dominio di deploy della slot. Validare anche protocollo
-(https) e path atteso (`/?l=...`).
 
 ### S3 — Wildcard CORS su `/api/image` e `/api/lever`  · P2  (ISSUE-25)
 `applyCorsWildcard('*')` su entrambi gli endpoint. È INTENZIONALE (l'SVG è
