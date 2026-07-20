@@ -147,13 +147,13 @@ describe('Contract test header — ogni fetch a api.github.com usa Bearer', () =
     global.fetch = realFetch;
   });
 
-  it('ghGet invia Authorization: Bearer', async () => {
-    const { ghGet } = await import('../api/_lib/github.js');
+  it('ghGetJson invia Authorization: Bearer', async () => {
+    const { ghGetJson } = await import('../api/_lib/github.js');
     const { calls } = installGithubFetchSpy();
-    await ghGet('tok-123', 'owner', 'repo', 'slot.svg').catch(() => {});
+    await ghGetJson('tok-123', 'owner', 'repo', 'slot.svg').catch(() => {});
     const ghCalls = calls.filter((c) => c.url.includes('api.github.com'));
     expect(ghCalls.length).toBeGreaterThan(0);
-    ghCalls.forEach((c) => assertValidBearer(c.auth, `ghGet ${c.url}`));
+    ghCalls.forEach((c) => assertValidBearer(c.auth, `ghGetJson ${c.url}`));
   });
 
   it('ghPut invia Authorization: Bearer', async () => {

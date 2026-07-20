@@ -1,4 +1,4 @@
-// Test per R4 — ghGetContents con timeout stretto (ISSUE/R4, ISSUES.md §3).
+// Test per R4 — ghGetContentsJson con timeout stretto (ISSUE/R4, ISSUES.md §3).
 //
 // Verifica che la lettura di contenuto dal repo remoto (percorso critico dello
 // spin quando KV è disabilitato) NON possa appendersi per secondi interi se
@@ -17,7 +17,7 @@ vi.mock('../../sentry.config.js', () => ({
 }));
 
 const github = await import('../api/_lib/github.js');
-const { ghGet, ghGetContents, GH_CONTENTS_TIMEOUT_MS, GITHUB_API_TIMEOUT_MS } =
+const { ghGetJson, ghGetContentsJson, GH_CONTENTS_TIMEOUT_MS, GITHUB_API_TIMEOUT_MS } =
   github;
 
 // fetch stub che NON risolve mai ma rispetta l'AbortSignal: quando il codice
@@ -60,8 +60,8 @@ describe('R4: ghGetContents ha un timeout stretto e non si appoggia all\'infinit
     expect(GH_CONTENTS_TIMEOUT_MS).toBeLessThan(GITHUB_API_TIMEOUT_MS);
   });
 
-  it('ghGetContents abortisce al timeout stretto quando GitHub non risponde', async () => {
-    const p = ghGetContents('tok', 'o', 'r', 'state.json').then(
+  it('ghGetContentsJson abortisce al timeout stretto quando GitHub non risponde', async () => {
+    const p = ghGetContentsJson('tok', 'o', 'r', 'state.json').then(
       () => 'ok',
       (e) => e
     );
@@ -71,12 +71,12 @@ describe('R4: ghGetContents ha un timeout stretto e non si appoggia all\'infinit
     expect(res).not.toBe('ok'); // deve aver lanciato (AbortError), non risolto
   });
 
-  it('ghGet di default usa il timeout largo: a 1000ms è già morto contents ma il default è ancora vivo', async () => {
-    const contentsP = ghGetContents('t', 'o', 'r', 'p').then(
+  it('ghGetJson di default usa il timeout largo: a 1000ms è già morto contents ma il default è ancora vivo', async () => {
+    const contentsP = ghGetContentsJson('t', 'o', 'r', 'p').then(
       () => 'ok-contents',
       () => 'err-contents'
     );
-    const defaultP = ghGet('t', 'o', 'r', 'p').then(
+    const defaultP = ghGetJson('t', 'o', 'r', 'p').then(
       () => 'ok-default',
       () => 'err-default'
     );
@@ -85,7 +85,7 @@ describe('R4: ghGetContents ha un timeout stretto e non si appoggia all\'infinit
     const contentsRes = await contentsP;
     expect(contentsRes).toBe('err-contents');
 
-    // Allo stesso istante, il ghGet di default NON deve essersi ancora risolto:
+    // Allo stesso istante, il ghGetJson di default NON deve essersi ancora risolto:
     // raccogliamo il suo stato senza attendere i 5s.
     let defaultSettled = false;
     defaultP.finally(() => {
@@ -103,7 +103,7 @@ describe('R4: ghGetContents ha un timeout stretto e non si appoggia all\'infinit
   it('readState con KV disabilitato e GitHub lento propaga l\'errore entro ~800ms (il caller fa fallback)', async () => {
     const stateMod = await import('../api/_lib/state.js');
     // Nessuna env Upstash → kvEnabled=false; token presente → readStateGitHub
-    // usa ghGetContents (800ms). fetch hang + abort → readState lancia.
+    // usa ghGetContentsJson (800ms). fetch hang + abort → readState lancia.
     const p = stateMod.readState('fake-token', 'o', 'r');
     // Avanziamo oltre 800ms ma ben sotto 5000ms: readState deve rigettare.
     vi.advanceTimersByTime(1000);

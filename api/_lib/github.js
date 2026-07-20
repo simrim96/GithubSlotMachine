@@ -94,13 +94,14 @@ export function escapeMarkdown(s) {
   return String(s).replace(/[*_`\[\]]/g, '\\$&');
 }
 
-// ghGet: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
+// ghGetJson: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
 // Chiamata diretta con timeout (AbortController): niente coda di rate limiting. Per una slot
 // personale il limite di 5000 req/h non è mai un vincolo reale, e la coda
 // aggiungeva solo latenza e log fuorvianti sugli AbortError di timeout.
 // `timeoutMs` è opzionale: default GITHUB_API_TIMEOUT_MS (5s). Nel percorso
-// critico dello spin usa ghGetContents() che passa il timeout stretto di 800ms.
-export async function ghGet(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
+// critico dello spin usa ghGetContentsJson() che passa il timeout stretto di 800ms.
+// Ritorna l'oggetto JSON della Contents API (con campo `content` in base64) o null.
+export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
   try {
       // Applica timeout alla chiamata
       const controller = new AbortController();
@@ -132,7 +133,7 @@ export async function ghGet(token, owner, repo, path, timeoutMs = GITHUB_API_TIM
       );
     } else {
       console.error(
-        `[ghGet] ERROR ${owner}/${repo}/${path}:`,
+        `[ghGetJson] ERROR ${owner}/${repo}/${path}:`,
         error?.name,
         error?.message,
         error?.stack?.split('\n').slice(0, 3).join(' | ')
@@ -143,14 +144,15 @@ export async function ghGet(token, owner, repo, path, timeoutMs = GITHUB_API_TIM
   }
 }
 
-// ghGetContents: lettura di un file da GitHub Contents API con timeout STRETTO
+// ghGetContentsJson: lettura di un file da GitHub Contents API con timeout STRETTO
 // (800ms, GH_CONTENTS_TIMEOUT_MS) pensato per il percorso critico dello spin —
 // ovvero quando KV è disabilitato e leggiamo state.json dal repo remoto
 // (ISSUE/R4). Se GitHub è lento, lo spin NON si appoggia per secondi: il
 // timeout scade e il chiamante applica il fallback (default di readState).
-// Ritorna lo stesso oggetto di ghGet (json o null su 404/timeout/errore).
-export async function ghGetContents(token, owner, repo, path) {
-  return ghGet(token, owner, repo, path, GH_CONTENTS_TIMEOUT_MS);
+// Ritorna l'oggetto JSON della Contents API (con campo `content` in base64)
+// o null su 404/timeout/errore.
+export async function ghGetContentsJson(token, owner, repo, path) {
+  return ghGetJson(token, owner, repo, path, GH_CONTENTS_TIMEOUT_MS);
 }
 
 export async function ghPut(
@@ -196,7 +198,7 @@ export async function ghPut(
 
         if (response.status === 409 && !_retry) {
           // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
-          const fresh = await ghGet(token, owner, repo, path);
+          const fresh = await ghGetJson(token, owner, repo, path);
           return ghPut(
             token,
             owner,
@@ -245,7 +247,7 @@ export async function loadSlotSvg(token, owner, repo) {
     const svg = await kvGet('gsm:slotSvg');
     if (svg) return { content: svg, sha: null };
   }
-  const data = await ghGet(token, owner, repo, 'slot.svg');
+  const data = await ghGetJson(token, owner, repo, 'slot.svg');
   if (!data) return { content: null, sha: null };
   return {
     content: Buffer.from(data.content, 'base64').toString('utf-8'),

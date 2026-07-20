@@ -26,7 +26,7 @@ import {
 import { buildSVG, errorSVG, errorSVGString } from './_lib/svg-builder.js';
 import { buildAccessibleSVG } from './_lib/svg-builder-accessible.js';
 import {
-  ghGet,
+  ghGetJson,
   ghPut,
   saveSlotSvg,
   loadSlotSvg,
@@ -395,9 +395,9 @@ export default async function handler(req, res) {
         try {
           if (!rf) {
             console.log(
-              `[readme-update] ghGet owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
+              `[readme-update] ghGetJson owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
             );
-            rf = await ghGet(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
+            rf = await ghGetJson(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
             if (rf && kvEnabled) {
               try {
                 await kvSet(
@@ -412,10 +412,10 @@ export default async function handler(req, res) {
             }
           }
           if (!rf) {
-            console.log('[readme-update] ghGet returned null (README assente/illegibile)');
+            console.log('[readme-update] ghGetJson returned null (README assente/illegibile)');
             return;
           }
-          console.log('[readme-update] ghGet OK, sha present:', Boolean(rf.sha));
+          console.log('[readme-update] ghGetJson OK, sha present:', Boolean(rf.sha));
 
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
           let newReadme = oldReadme.replace(

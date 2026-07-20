@@ -35,7 +35,7 @@ vi.mock('../api/_lib/state.js', () => ({
 }));
 
 // ── Mock GitHub network ──────────────────────────────────────────────────────
-// ghGet ritorna la README (base64) solo quando realmente chiamata; tracciamo
+// ghGetJson ritorna la README (base64) solo quando realmente chiamata; tracciamo
 // quante volte viene invocata per verificare che NON lo sia a ogni spin.
 const README_BODY = [
   '# Profile',
@@ -48,11 +48,11 @@ const README_BODY = [
   '',
 ].join('\n');
 
-const ghGet = vi.fn();
+const ghGetJson = vi.fn();
 const ghPut = vi.fn();
 
 vi.mock('../api/_lib/github.js', () => ({
-  ghGet: ghGet,
+  ghGetJson: ghGetJson,
   ghPut: ghPut,
   saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
   loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
@@ -108,7 +108,7 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     store.clear();
-    ghGet.mockImplementation(async () => ({
+    ghGetJson.mockImplementation(async () => ({
       content: Buffer.from(README_BODY, 'utf-8').toString('base64'),
       sha: 'readme-sha-1',
     }));
@@ -125,7 +125,7 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
 
     // ── 1° spin: cache MISS → GET GitHub + PUT ──
     await handler(req, makeRes());
-    expect(ghGet).toHaveBeenCalledTimes(1);
+    expect(ghGetJson).toHaveBeenCalledTimes(1);
     // La chiave di cache è gsm:readme:<owner>
     const cacheCalls = kvSet.mock.calls.filter((c) =>
       String(c[0]).startsWith('gsm:readme:')
@@ -138,12 +138,12 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
 
     // ── 2° spin: cache HIT → NESSUNA nuova GET ──
     await handler(req, makeRes());
-    // ghGet NON deve essere stato chiamato una seconda volta.
-    expect(ghGet).toHaveBeenCalledTimes(1);
+    // ghGetJson NON deve essere stato chiamato una seconda volta.
+    expect(ghGetJson).toHaveBeenCalledTimes(1);
 
     // ── 3° spin: ancora cache HIT ──
     await handler(req, makeRes());
-    expect(ghGet).toHaveBeenCalledTimes(1);
+    expect(ghGetJson).toHaveBeenCalledTimes(1);
   });
 
   it('la GET scatta di nuovo solo quando la cache è assente (kvEnabled=false)', async () => {
@@ -153,6 +153,6 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
     // invece che, con cache popolata, la GET non cresca. (Copertura del ramo
     // "no-cache" è implicita: senza kvEnabled il test sopra conterebbe >1.)
     expect(kv.kvEnabled).toBe(true);
-    expect(ghGet).toHaveBeenCalledTimes(0); // beforeEach lo azzera
+    expect(ghGetJson).toHaveBeenCalledTimes(0); // beforeEach lo azzera
   });
 });

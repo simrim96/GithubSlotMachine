@@ -36,7 +36,7 @@ describe('README update nel flusso principale (no waitUntil)', () => {
     expect(spinJsContent).toMatch(/Promise\.allSettled\s*\(/);
     expect(spinJsContent).toMatch(/saveSlotSvg\s*\(/);
     expect(spinJsContent).toMatch(/writeState\s*\(/);
-    // La README usa ghGet/ghPut con la regex ?v= al suo interno
+    // La README usa ghGetJson/ghPut con la regex ?v= al suo interno
     expect(spinJsContent).toMatch(/api\/image\?v=\$\{spinStart\}/);
   });
 
@@ -112,26 +112,26 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(githubContent).not.toMatch(/getDefaultTracker\(\)/);
   });
 
-  it('spin.js: ghGet/ghPut per la README usano 4 argomenti (owner, repo, path)', () => {
+  it('spin.js: ghGetJson/ghPut per la README usano 4 argomenti (owner, repo, path)', () => {
     const spinContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
       'utf-8'
     );
 
     // Regressione del bug "README.md/undefined": prima si chiamava
-    // ghGet(token, PROFILE_REPO, 'README.md') con 3 argomenti, saltando
+    // ghGetJson(token, PROFILE_REPO, 'README.md') con 3 argomenti, saltando
     // il parametro `repo` e passando 'README.md' come repo e undefined come
     // path. La firma corretta è (token, owner, repo, path), quindi servono
     // 4 argomenti. Blocchiamo la forma a 3 argomenti che rompe l'URL.
     expect(spinContent).not.toMatch(
-      /ghGet\(\s*token,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
+      /ghGetJson\(\s*token,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
     );
     expect(spinContent).not.toMatch(
       /ghPut\(\s*token,\s*PROFILE_REPO,\s*'README\.md'/
     );
     // La forma a 4 argomenti (owner, repo, path) deve essere presente.
     expect(spinContent).toMatch(
-      /ghGet\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
+      /ghGetJson\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
     );
     expect(spinContent).toMatch(
       /ghPut\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'/

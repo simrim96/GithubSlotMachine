@@ -29,7 +29,7 @@ vi.mock('../api/_lib/state.js', () => ({
 vi.mock('../api/_lib/github.js', () => ({
   loadSlotSvg: vi.fn(),
   saveSlotSvg: vi.fn(),
-  ghGet: vi.fn(),
+  ghGetJson: vi.fn(),
   ghPut: vi.fn(),
   updateReadmeMarkers: vi.fn((readme) => readme),
 }));
