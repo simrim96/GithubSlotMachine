@@ -40,20 +40,38 @@ counter** is shown on the slot and (optionally) inside your profile README.
 
 ```
 api/
-  spin.js           # main endpoint: spin, update slot.svg + state + README
-  image.js          # serves slot.svg with aggressive no-cache headers
-  lever.js          # serves the side lever SVG (the actual click target)
+  spin.js                 # main handler: spin → update slot.svg + state + README, then redirect
+  image.js                # serves slot.svg (read-only, aggressive no-cache headers)
+  lever.js                # serves the side lever SVG (the actual spin trigger)
+  health.js               # diagnostics: measures Upstash round-trip + GitHub README GET latencies
+  ratelimit-status.js     # JSON snapshot of the GitHub API rate-limit tracker (consumed by the frontend badge)
   _lib/
-    languages.js    # languages config + SVG symbol renderer (extensible)
-    repos.js        # cached lookup: language → best matching repo (≥30%)
-    state.js        # read/write state.json (spin counter, last win)
+    game.js               # PURE game logic: reel, paylines, grid generation, win / near-miss engineering
+    svg-builder.js        # assembles the full slot SVG from the svg/ submodules
+    svg-builder-accessible.js  # accessibility variant (aria-live regions) of the slot SVG
+    languages.js          # language config + SVG SYMBOL RENDERER (buildSymbolDefs/symbolUse) + external loader
+    repos.js              # cached lookup: language → best matching repo (≥30% of that language)
+    state.js              # read/write state (spin + win counters) with retry/backoff resilience
+    github.js             # GitHub Contents API client + README marker update + PAT audit (S4)
+    kv.js                 # Upstash / Vercel-KV REST client (read/write with timeout + read-only token fallback)
+    cors.js               # centralized CORS policy (ACAO allowlist) + applyCors()
+    ratelimit.js          # per-IP spin rate-limit gate (isValidUser)
+    ratelimit-tracker.js  # GitHub API rate-limit tracker (remaining/limit/reset)
+    spin-cooldown.js      # per-IP time-based spin cooldown (mirrored client-side)
+    config-loader.js      # loads languages-external.json (extra languages)
+    response-bridge.js    # unified Response primitive (buildResponse / sendResponse) used by every handler
+    svg/                  # SVG section modules: defs, reels, panel, effects, marquee, cabinet, screen, paytable, header, jackpot, css, constants, coordinates, utils, analysis
 state.json          # auto-generated/updated by the API
 slot.svg            # auto-generated/updated by the API (live on every spin)
+public/
+  index.html        # accessible slot viewer (uses /api/image + /api/lever, shows rate-limit badge + cooldown)
 legacy/             # deprecated Python + GitHub-Action implementation (history only)
 ```
 
 Folders prefixed with `_` are ignored by Vercel's serverless routing — they're
-treated as private libs.
+treated as private libs. The five top-level `api/*.js` files are the only
+Vercel serverless function entry points; everything in `api/_lib/` (and its
+`svg/` subtree) is a private library imported by them.
 
 ---
 
@@ -103,15 +121,46 @@ embed flow.
 
 ### Configuration
 
-This project is configured for the `simrim96` profile. The relevant env vars
-have the following defaults:
+This project is configured for the `simrim96` profile. Every value is **optional**
+unless noted; unset vars fall back to the defaults shown below (a minimal fork
+only needs `GITHUB_PAT` to actually run).
 
-| Env var        | Default             | Purpose                                          |
-| -------------- | ------------------- | ------------------------------------------------ |
-| `SLOT_OWNER`   | `simrim96`          | Owner of the slot repo + whose repos are scanned |
-| `SLOT_REPO`    | `GithubSlotMachine` | The repo that hosts `slot.svg` / `state.json`    |
-| `PROFILE_REPO` | `= SLOT_OWNER`      | The profile README repo (`<user>/<user>`)       |
-| `GITHUB_PAT`   | _(required)_        | Token used for both reads and writes             |
+#### Environment Variables
+
+| Env var | Default | Purpose |
+| --- | --- | --- |
+| `GITHUB_PAT` | _(required for writes)_ | Fine-grained PAT used for reads **and** writes (see Deploy § for scoping). |
+| `GITHUB_PAT_REQUIRE_FINEGRAINED` | `false` | Set `true` to **refuse writes** (fail-closed, read-only) when the PAT is NOT fine-grained. Default = warn only (S4). |
+| `SLOT_OWNER` | `simrim96` | Owner of the slot repo **and** whose repos are scanned. |
+| `SLOT_REPO` | `GithubSlotMachine` | Repo that hosts `slot.svg` / `state.json`. |
+| `PROFILE_REPO` | `= SLOT_OWNER` | Profile README repo (`<user>/<user>`). |
+| `GITHUB_API_TIMEOUT_MS` | `5000` | Timeout for generic GitHub API calls. |
+| `GH_CONTENTS_TIMEOUT_MS` | `800` | Strict timeout for the README read on the spin hot path. |
+| `UPSTASH_REDIS_REST_URL` | _(empty)_ | Standalone Upstash Redis REST URL (enables Redis if set with the token). |
+| `UPSTASH_REDIS_REST_TOKEN` | _(empty)_ | Standalone Upstash Redis REST token. |
+| `KV_REST_API_URL` | _(empty)_ | Vercel KV REST URL (auto-set by the Vercel KV integration). |
+| `KV_REST_API_TOKEN` | _(empty)_ | Vercel KV REST token. |
+| `KV_REST_API_READ_ONLY_TOKEN` | _(empty, optional)_ | Read-only Upstash token used as a fallback for the read path when the write token is absent. |
+| `KV_TIMEOUT_MS` | `500` | KV network timeout before falling back to GitHub. |
+| `ALLOWED_CORS_ORIGINS` | `https://github-slot-machine.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173` | CSV allowlist of origins that receive an `Access-Control-Allow-Origin` echo (cross-origin embed). |
+| `SLOT_ALLOWED_HOSTS` | `github-slot-machine.vercel.app,github.com` (+ `localhost`,`127.0.0.1`) | CSV allowlist of hosts the `/api/spin` redirect target may point to (open-redirect protection, S1). |
+| `SPIN_COOLDOWN_MS` | `3000` | Per-IP cooldown after a spin (mirrored client-side in `public/_spin-cooldown.js`). |
+| `STATE_SYNC_FAILURE_ALERT_THRESHOLD` | `5` | Consecutive state-sync failures before an alert is raised. |
+| `STATE_SYNC_MAX_RETRIES` | `3` | Retries for a failed state write, with exponential backoff. |
+| `STATE_SYNC_BACKOFF_BASE_MS` | `200` | Base delay (`× 2^n`) for the state-sync backoff. |
+| `SENTRY_DSN` | _(empty)_ | Sentry DSN for error monitoring. |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Tracing sample rate (0 = off). |
+| `SENTRY_PROFILES_SAMPLE_RATE` | `0.0` | Profiling sample rate (0 = off). |
+| `SENTRY_DEBUG` | `false` | Set `true` to enable Sentry debug logging. |
+
+> **Note on `LOG_LEVEL` / `VERCEL_ENV` / `NODE_ENV`:** these are referenced by
+> third-party tooling (Sentry, Vercel) but are **not** read by the slot's own code,
+> so setting them has no effect on slot behaviour. Tracing levels are controlled
+> exclusively via the `SENTRY_*` vars above.
+
+> **Tuning the odds:** the win-engineering probability (`FORCED_WIN_PROB = 0.35`)
+> and the near-miss probability (`0.55`) are **code constants** in
+> `api/_lib/game.js`, not env vars — edit that file (and redeploy) to change them.
 
 ### ⚡ Upstash Redis (optional but recommended)
 
@@ -121,14 +170,19 @@ but every spin does 2–3 GitHub writes (slow on cold starts, clutters git histo
 and can hit rate limits).
 
 To make the slot **instant** (the screen shows the reels in ~10ms instead of
-~300ms per image load), point it at an **Upstash Redis** database:
+~300ms per image load), point it at an **Upstash Redis** database (set either the
+standalone `UPSTASH_REDIS_REST_*` pair **or** the Vercel KV `KV_REST_API_*`
+pair — both enable Redis):
 
-| Env var                    | Purpose                             |
-| -------------------------- | ----------------------------------- |
-| `UPSTASH_REDIS_REST_URL`   | REST URL of your Upstash Redis DB   |
+| Env var | Purpose |
+| --- | --- |
+| `UPSTASH_REDIS_REST_URL` | REST URL of your Upstash Redis DB |
 | `UPSTASH_REDIS_REST_TOKEN` | REST token of your Upstash Redis DB |
+| `KV_REST_API_URL` | Vercel KV REST URL (alternative to the pair above) |
+| `KV_REST_API_TOKEN` | Vercel KV REST token |
+| `KV_REST_API_READ_ONLY_TOKEN` | Optional read-only token (read-path fallback) |
 
-When both are set, the following move to Redis (free tier: 10k commands/day is
+When enabled, the following move to Redis (free tier: 10k commands/day is
 plenty for a profile widget):
 
 - `slot.svg` live image — read by `api/image`, written by `api/spin`
@@ -136,14 +190,14 @@ plenty for a profile widget):
 - the language→repo lookup cache — survives Vercel cold starts, so the **first
   spin no longer stalls for up to 1–3s** fetching `/languages`
 
-> ⚠️ **Region matters — a lot.** Upstash REST calls are plain HTTPS round-trips.
-> If your Upstash database is in a **different region** from your Vercel
-> deployment (e.g. Upstash on `us-east-1`, Vercel on `fra1`/Europe), every KV
-> read/write pays a cross-continent latency tax and the slot gets **slower** than
-> the GitHub-only version. **Create the Upstash DB in the SAME region as your
-> Vercel project** (Vercel → Project → Settings → General shows the region;
-> pick the matching Upstash region at DB creation). A same-region Redis is ~10–20ms
-> per call; cross-region can be 150ms+ and dominate the spin time.
+> ⚠️ **Region is pinned to `fra1` — a lot.** `vercel.json` hard-codes
+> `regions: ["fra1"]`, so your Vercel functions **always run in `fra1` (Frankfurt)**.
+> Upstash REST calls are plain HTTPS round-trips, so the Upstash DB **MUST be
+> created in `fra1`** as well. If it's in a different region (e.g. `us-east-1`),
+> every KV read/write pays a cross-continent latency tax and the slot gets
+> **slower** than the GitHub-only version. Create the Upstash DB **in the same
+> region (`fra1`)** as your Vercel project. A same-region Redis is ~10–20ms per
+> call; cross-region can be 150ms+ and dominate the spin time.
 
 > 🚀 **Non-blocking spin.** Once Redis is configured, `api/spin` no longer waits
 > for every write before redirecting. It writes `slot.svg` + the counters to Redis
@@ -151,16 +205,16 @@ plenty for a profile widget):
 > the background. The redirect target is computed _before_ any slow write, and the
 > language→repo cache refreshes in the background on a cold cache, so the time from
 > _click → page reload_ is bounded only by the fast KV writes, never by a GitHub
-> PUT or a cold `/languages` scan. Every KV call also has a **200ms timeout** with
-> automatic fallback to GitHub, so a slow/down Redis can never make the slot slower
-> than the original.
+> PUT or a cold `/languages` scan. Every KV call also has a **timeout** (`KV_TIMEOUT_MS`,
+> default 500ms) with automatic fallback to GitHub, so a slow/down Redis can never
+> make the slot slower than the original.
 
 If the env vars are **absent**, the code transparently falls back to the original
 GitHub-Contents behaviour, so local `vercel dev` keeps working unchanged. No code
 changes needed to toggle between the two.
 
 > **Get an Upstash DB:** upstash.com → "Redis" → create a free database **in the
-> same region as your Vercel project** → copy the `UPSTASH_REDIS_REST_URL` and
+> `fra1` region** → copy the `UPSTASH_REDIS_REST_URL` and
 > `UPSTASH_REDIS_REST_TOKEN` into Vercel's env vars.
 
 You can also override the redirect target per-request with
