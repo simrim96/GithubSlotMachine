@@ -30,12 +30,13 @@ vi.mock('../api/_lib/kv.js', () => ({
 
 // Mock del modulo github.js: controlliamo ghPut per simulare
 // fallimenti/ripristini del sync verso state.json.
+const ghGetJson = vi.fn();
 const ghPut = vi.fn();
 vi.mock('../api/_lib/github.js', () => ({
-  ghPut,
-  // ghGetContents è usato da readState, ma in questi test non serve:
-  ghGetContents: vi.fn(),
-  ghGet: vi.fn(),
+  ghGetJson: ghGetJson,
+  // ghGetContentsJson è usato da readState, ma in questi test non serve:
+  ghGetContentsJson: vi.fn(),
+  ghPut: ghPut,
 }));
 
 const stateMod = await import('../api/_lib/state.js');
