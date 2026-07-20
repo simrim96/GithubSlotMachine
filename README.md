@@ -119,6 +119,130 @@ embed flow.
 > Neither endpoint writes to your repo or Redis — both are read-only and safe to
 > call. `/api/health` reads the GitHub README only when `GITHUB_PAT` is set.
 
+---
+
+## 📡 API Reference
+
+This section is the **authoritative contract** for the five serverless
+endpoints. The single most important thing to understand: **`/api/spin` never
+returns an SVG body** — it performs the spin (updates `slot.svg`, the community
+counters and your profile README) and then responds with a **`302` redirect**
+to a `Location`. The animated slot image you see is a *separate* resource served
+by `/api/image`, which the README embed references directly (see _Embedding the
+slot_ below).
+
+| Endpoint | Method | Status | Body? | CORS |
+| --- | --- | --- | --- | --- |
+| `GET /api/spin` | GET | `302` | no (empty) | allowlist (`ALLOWED_CORS_ORIGINS`) |
+| `GET /api/image` | GET | `200` `image/svg+xml` | yes (SVG) | wildcard `*` |
+| `GET /api/lever` | GET | `200` `image/svg+xml` | yes (SVG) | wildcard `*` |
+| `GET /api/health` | GET | `200` `application/json` | yes (JSON) | allowlist |
+| `GET /api/ratelimit-status` | GET | `200` `application/json` | yes (JSON) | allowlist |
+
+### `GET /api/spin` — the spin orchestrator
+
+**Request.** Accepts two optional query parameters:
+
+| Param | Type | Validation | Effect |
+| --- | --- | --- | --- |
+| `user` | `string` | must match `^[A-Za-z0-9-]{1,39}$` (`isValidUser`). Invalid → falls back to `SLOT_OWNER`. | Overrides the owner used in the **jackpot** redirect (`?tab=repositories&language=…`). Handy for demos. |
+| `redirect` | `string` (URL) | must pass `isValidRedirectUrl` (https-only, host on `SLOT_ALLOWED_HOSTS`). Invalid → ignored, falls back to computed destination. | Custom post-spin landing URL (open-redirect protected, S1). |
+
+**Response.** Always a `302` with an empty body and a `Location` header. The
+destination is computed *before* any slow write, so the redirect is fast:
+
+| Outcome | `Location` |
+| --- | --- |
+| No `GITHUB_PAT` set | `https://github.com/<OWNER>` (graceful, no repo write) |
+| No win | `https://github.com/<OWNER>` |
+| Win, repo found (≥30% of language) | `<repoMatch.url>` (e.g. `https://github.com/<OWNER>/<repo>`) |
+| Win, no qualifying repo | `https://github.com/<OWNER>` (fallback) |
+| Jackpot (5-in-a-row) | `https://github.com/<targetOwner>?tab=repositories&language=<githubLang>` |
+| Spin cooldown active (S2) | `https://github.com/<OWNER>` + `Retry-After` and `X-Spin-Cooldown: 1` headers |
+| Any internal error | `https://github.com/<OWNER>` (or validated `redirect`) — **never a `500`** |
+
+**Side effects (performed before the redirect, in parallel):** the new
+`slot.svg` is written (KV first, GitHub Contents fallback), the community
+counters in `state.json` are incremented, and — if your profile README contains
+the `SLOT_LAST_WIN_*` markers — it is updated with the last-win block. If KV is
+enabled, the README content is also cached (`gsm:readme:<owner>`, TTL 60s, P1).
+
+**Examples.**
+
+```
+# Plain spin (no PAT configured → graceful redirect to the owner profile)
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin"
+HTTP/2 302
+location: https://github.com/simrim96
+
+# Win → redirect to the matching repo (body is empty; image is at /api/image)
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin"
+HTTP/2 302
+location: https://github.com/simrim96/my-cool-ml-project
+
+# Jackpot → filtered repo list for the language
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin?user=demo"
+HTTP/2 302
+location: https://github.com/demo
+
+# Custom landing (only allowlisted hosts pass; everything else falls back)
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin?redirect=https://github-slot-machine.vercel.app/thanks"
+HTTP/2 302
+location: https://github-slot-machine.vercel.app/thanks
+```
+
+> **Note — no `l=` / `explain` query params.** The current `/api/spin` does
+> **not** accept a `?l=<lang>` language selector nor an `?explain=1` explore
+> mode. Language selection is driven by the reels generated server-side; the
+> live result is always read from `/api/image`. (Earlier design sketches that
+> described a `302` to `/?l=<lang>&v=<svgVersion>` no longer match the code.)
+
+### `GET /api/image` — the live slot SVG
+
+Returns the **current** `slot.svg` (the one produced by the last successful
+spin). This is the image embedded in the README.
+
+- `Content-Type: image/svg+xml`, `Cache-Control: no-store`.
+- Resolution order: **Upstash/Vercel KV** (`gsm:slotSvg`, ~10–20 ms) → fallback
+  to the GitHub Contents API. If both fail, it serves a friendly degradation SVG
+  (still `200`, never a `404`/broken image — ISSUE-24/B4).
+- **CORS is wildcard `*`:** the SVG is embedded cross-origin on `github.com`
+  (and any host) through the Camo proxy (ISSUE-25).
+- The optional `?v=<number>` (or `?cache_buster=<number>`) you see in embed
+  snippets is a **cache-buster consumed only by GitHub Camo** — the handler
+  ignores it and always returns the latest slot. Bump `?v` after a spin so Camo
+  re-fetches the fresh image.
+
+```
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/image"
+HTTP/2 200
+content-type: image/svg+xml
+cache-control: no-store
+
+<svg ...>…animated slot…</svg>
+```
+
+### `GET /api/lever` — the side lever SVG
+
+A **static** SVG of the pull-lever (the spin trigger). Served with aggressive
+no-cache headers (`no-store, no-cache, must-revalidate, max-age=0, s-maxage=0`,
+`Pragma: no-cache`, `Expires: 0`) because it is wrapped in the spin link and
+must never be cached stale. CORS is wildcard `*` (ISSUE-25).
+
+```
+$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/lever"
+HTTP/2 200
+content-type: image/svg+xml
+cache-control: no-store, no-cache, must-revalidate, max-age=0, s-maxage=0
+
+<svg ...>…lever…</svg>
+```
+
+> **Embedding reminder:** only the lever (`/api/lever`) is wrapped in the
+> `/api/spin` link. `/api/image` is a plain `<img>` (read-only), so accidental
+> clicks while reading the result are prevented. See _Embedding the slot in a
+> README_ for the markdown table.
+
 ### Configuration
 
 This project is configured for the `simrim96` profile. Every value is **optional**
