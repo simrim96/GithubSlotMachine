@@ -16,7 +16,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-| R4  | Affidabilità    | P2      | `ghGetContents` senza timeout esplicito (possibile hang) |
+| R2  | Affidabilità    | P2      | Sync `state.json` su GitHub senza retry (possibile perdita spin) |
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 | P1  | Performance     | P2      | README GitHub letta a ogni spin (+150–400ms) non cacheata in KV |
@@ -31,14 +31,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 
 ## 3. Affidabilità / Resilienza
-
-### R4 — `ghGetContents` senza timeout esplicito  · P2
-`api/_lib/state.js` → `loadState()` legge da KV (timeout 500ms via `kvGet`) ma, se
-KV è disabilitato, legge `state.json` dal repo remoto tramite `ghGet`/`ghGetContents`
-**senza AbortController**. Se GitHub è lento, lo spin si blocca in attesa della
-risposta GitHub (nessun tetto).
-**Fix:** avvolgere `ghGetContents` in un `AbortController` con timeout (es. 800ms),
-coerente con `repos.js`.
 
 ### R2 — Sync `state.json` su GitHub senza retry  · P2
 `api/_lib/state.js` → `syncStateToGitHub` è fire-and-forget e, dopo 5 fallimenti
@@ -187,7 +179,6 @@ JSON, usato ovunque al posto di `console.*`.
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
 3. **Cache README in KV (P1)** — evita il GET GitHub a ogni spin.
-4. **Timeout su `ghGetContents` (R4)** — AbortController 800ms coerente con repos.
 5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
@@ -225,8 +216,6 @@ JSON, usato ovunque al posto di `console.*`.
   `push(write)=True` su `simrim96/simrim96` e `simrim96/GithubSlotMachine`.
   Verificato da `tests/s4-token.test.js` (8 test verdi) e suite intera
   (264 test). Docs aggiornate in `.env.example` e `README.md`.
-  
-  Cold start
 
 Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
