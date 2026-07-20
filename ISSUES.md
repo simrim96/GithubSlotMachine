@@ -18,23 +18,18 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue` in root (clutter) |
-| D3  | Documentazione | P2      | README non ha registro ISSUE-N centralizzato (CHIUSO) |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
 
 ## 6. Documentazione
 
-### D3 — Nessun registro centralizzato degli ISSUE-N  · P2
-Il codice referenzia decine di `ISSUE-N` (ISSUE-1 … ISSUE-31) nei commenti, ma non
-c'è un indice che colleghi ogni numero alla descrizione. Questo file (`ISSUES.md`)
-è il candidato naturale, ma va tenuto allineato: ogni nuovo `ISSUE-N` nel codice
-dovrebbe avere qui una voce corrispondente.
-**Fix (CHIUSO 2026-07-20):** adottata la convenzione "ogni `ISSUE-N` nel codice
-→ voce in ISSUES.md". Qui sotto il registro centralizzato che mappa tutti i
-numeri referenziati dal codice alla relativa descrizione.
-
 ### Registro centralizzato ISSUE-N
+
+Il codice referenzia decine di `ISSUE-N` (ISSUE-1 … ISSUE-31) nei commenti.
+Per tenere traccia di ogni numero, in questa sezione è mantenuto il registro
+che mappa ogni `ISSUE-N` referenziato dal codice alla relativa descrizione
+(convenzione: "ogni `ISSUE-N` nel codice → voce qui").
 
 | ISSUE   | Area / Tema        | Stato  | Descrizione breve |
 |---------|--------------------|--------|-------------------|
@@ -116,7 +111,6 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-6. **Riscrivi README (D3)** — D1 e D2 già fatti; D3 (registro ISSUE-N centralizzato) **CHIUSO** il 2026-07-20: tabella "Registro centralizzato ISSUE-N" in ISSUES.md.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
@@ -184,16 +178,6 @@ JSON, usato ovunque al posto di `console.*`.
   `LOG_LEVEL` NON è letto dal codice della slot (solo da tooling terzo), quindi
   non è documentato come env var reale. Il vincolo di regione `fra1` è ora
   documentato come hardcoded in `vercel.json`.
-
-  **D3 — CHIUSO (2026-07-20):** registro ISSUE-N centralizzato aggiunto in
-  ISSUES.md (sezione 6, "Registro centralizzato ISSUE-N"). Mappa tutti i numeri
-  effettivamente referenziati dal codice (grep su `ISSUE-[0-9]+` → 18 numeri
-  univoci: 1, 3, 7, 8, 11, 12, 16, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-  31) alla relativa descrizione/area/stato. Rispettata la convenzione "ogni
-  ISSUE-N nel codice → voce in ISSUES.md"; Indice priorità e Roadmap aggiornati
-  a CHIUSO. Nota: il testo originale di D3 citava ISSUE-22/23/26/31 come
-  "voci mancanti", ma erano già presenti nel codice — ora hanno tutti la loro
-  riga nel registro.
 
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
