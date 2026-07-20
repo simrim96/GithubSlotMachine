@@ -7,6 +7,27 @@ import { escapeXml } from './svg/utils.js';
 // Re-export escapeXml for backward compatibility
 export { escapeXml };
 
+// ─── SVG Sanitization (hardening difensivo, ISSUE-25 / S3) ────────────────────
+// Oggi l'SVG è generato internamente (nessun input utente) quindi il rischio è
+// BASSO, ma poiché gli endpoint /api/image e /api/lever servono SVG con CORS
+// wildcard `*` in contesti cross-origin (embed su github.com), sanifichiamo in
+// uscita per evitare che eventuali injection future diventino eseguibili.
+// La funzione rimuove: tag <script>, tag <foreignObject>, attributi di evento
+// on* e URI javascript: negli href/xlink:href.
+export function sanitizeSvg(svg) {
+  if (typeof svg !== 'string') return svg;
+  let out = svg;
+  // 1) Rimuovi tag <script>...</script> (case-insensitive, multiline)
+  out = out.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  // 2) Rimuovi tag <foreignObject>...</foreignObject>
+  out = out.replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi, '');
+  // 3) Rimuovi attributi di evento on* (onload, onclick, onerror, ...)
+  out = out.replace(/\son[a-z]+\s*=\s*("([^"]*)"|'([^']*)'|[^\s>]+)/gi, '');
+  // 4) Rimuovi URI javascript: negli href/xlink:href
+  out = out.replace(/(?:xlink:href|href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
+  return out;
+}
+
 // Importa tutti i moduli
 import { analyzeResult } from './svg/analysis.js';
 import { generateCSS } from './svg/css.js';
@@ -76,7 +97,7 @@ export function buildSVG({
 
   // Assemble SVG
 
-  return `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530">
+  const rawSvg = `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530">
 <defs>
 <style>${css}</style>
 ${defs}
@@ -100,6 +121,10 @@ ${paytableSvg}
 </g>
 ${panelSvg}
 </svg>`;
+
+  // Sanitizzazione in uscita (ISSUE-25 / S3): l'SVG è servito con CORS
+  // wildcard `*` su /api/image e /api/lever in contesti cross-origin.
+  return sanitizeSvg(rawSvg);
 }
 
 // ─── Error SVG Generator (canonical source) ───────────────────────────────────
@@ -131,7 +156,7 @@ function errorSvgMarkup({ owner = 'simrim96', message = 'Ops, riprova un attimo!
         })[c]
     );
 
-  return `<?xml version="1.0" encoding="utf-8"?>
+  const rawSvg = `<?xml version="1.0" encoding="utf-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530" role="img" aria-label="Errore della slot machine. ${safeMsg} Riprova.">
   <title>Errore slot machine</title>
   <rect width="${SVG_W}" height="${SVG_H}" fill="#171530"/>
@@ -140,6 +165,9 @@ function errorSvgMarkup({ owner = 'simrim96', message = 'Ops, riprova un attimo!
   <text x="${SVG_W / 2}" y="${SVG_H / 2 + 30}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf"><a href="https://github.com/${owner}">github.com/${owner}</a></text>
   <text x="${SVG_W / 2}" y="${SVG_H / 2 + 50}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="14" fill="#8b8baf">Tenta di nuovo!</text>
 </svg>`;
+
+  // Sanitizzazione in uscita (ISSUE-25 / S3) — stessa difesa di buildSVG.
+  return sanitizeSvg(rawSvg);
 }
 
 // SVG grezzo (salvabile su slot.svg / embeddabile in <img>)

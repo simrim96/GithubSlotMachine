@@ -20,7 +20,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 | P1  | Performance     | P2      | README GitHub letta a ogni spin (+150–400ms) non cacheata in KV |
-| S3  | Sicurezza       | P2      | Wildcard CORS su `/api/image` e `/api/lever` (tradeoff noto, da sanitizzare) |
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
@@ -33,17 +32,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 ---
 
 ## 2. Sicurezza
-
-### S3 — Wildcard CORS su `/api/image` e `/api/lever`  · P2  (ISSUE-25)
-`applyCorsWildcard('*')` su entrambi gli endpoint. È INTENZIONALE (l'SVG è
-embeddato cross-origin su `github.com` e domini non deterministici) e documentato
-nel codice, quindi è un tradeoff accettabile — ma l'SVG servito come
-`image/svg+xml` con origine `*` dovrebbe essere sanificato in uscita per evitare
-che eventuali injection future (oggi l'SVG è generato internamente, non da input
-utente) diventino eseguibili. Rischio attuale: BASSO.
-**Fix:** mantenere il wildcard solo se necessario, ma introdurre una funzione di
-sanitizzazione SVG (strip di `<script>`/`on*`/`<foreignObject>`) applicata a
-`buildSVG`/`errorSVGString`.
 
 ### S4 — `GITHUB_PAT` con scope ampio  · P3  (hardening)
 Il token è usato per leggere la README (`contents:read`) e scrivere `state.json`
@@ -168,7 +156,7 @@ c'è un indice che colleghi ogni numero alla descrizione. Questo file (`ISSUES.m
 dovrebbe avere qui una voce corrispondente.
 **Fix:** adottare la convenzione "ogni `ISSUE-N` nel codice → voce in ISSUES.md"
 e aggiungere qui le voci mancanti (es. ISSUE-22 header centralizzati, ISSUE-23
-read-only KV, ISSUE-25 wildcard CORS, ISSUE-26 lint gate, ISSUE-31 Sentry debug).
+read-only KV, ISSUE-26 lint gate, ISSUE-31 Sentry debug).
 
 ---
 
@@ -231,7 +219,6 @@ JSON, usato ovunque al posto di `console.*`.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
-9. **Sanitizza SVG in uscita (S3)** — strip `<script>`/`on*`/`foreignObject`.
 10. **Token GitHub fine-grained (S4)** — scope minimo, rotazione.
 11. **Retry/backoff sync state.json (R2)** — recupero automatico dopo outage GitHub.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
