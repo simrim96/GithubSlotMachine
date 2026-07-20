@@ -13,7 +13,7 @@
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { ghGetContents, ghPut } from './github.js';
-import { promises as fs } from 'fs';
+import { promises as fsp } from 'fs';
 import * as Sentry from '../../sentry.config.js';
 
 // ── Monitoring del sync Redis→GitHub (Miglioramento M4, ISSUES.md) ───────────
@@ -79,7 +79,7 @@ async function loadStaleFlag() {
     /* KV non disponibile: prosegui col fallback /tmp */
   }
   try {
-    await fs.access(STATE_STALE_MARKER_LOCAL);
+    await fsp.access(STATE_STALE_MARKER_LOCAL);
     _stateStale = true;
   } catch {
     /* nessun marker: stato non stale */
@@ -98,9 +98,9 @@ async function persistStaleFlag(value) {
   }
   try {
     if (value) {
-      await fs.writeFile(STATE_STALE_MARKER_LOCAL, String(Date.now()));
+      await fsp.writeFile(STATE_STALE_MARKER_LOCAL, String(Date.now()));
     } else {
-      await fs.rm(STATE_STALE_MARKER_LOCAL, { force: true });
+      await fsp.rm(STATE_STALE_MARKER_LOCAL, { force: true });
     }
   } catch {
     /* /tmp non scrivibile: il flag in memoria resta valido per il processo */
@@ -295,7 +295,7 @@ export function migrateState(state, fromVersion) {
 // Scriviamo su /tmp/... che non viene committato.
 async function readStateLocal() {
   try {
-    const raw = await fs.promises.readFile(TMP_STATE_PATH, 'utf8');
+    const raw = await fsp.readFile(TMP_STATE_PATH, 'utf8');
     const parsed = JSON.parse(raw);
     return { state: { ...DEFAULTS, ...parsed }, sha: null };
   } catch {
@@ -306,7 +306,7 @@ async function readStateLocal() {
 async function writeStateLocal(state) {
   try {
     const encoded = JSON.stringify(state, null, 2);
-    await fs.promises.writeFile(TMP_STATE_PATH, encoded);
+    await fsp.writeFile(TMP_STATE_PATH, encoded);
   } catch {
     // ignora: non possiamo salvare, ma lo spin continua lo stesso
   }
