@@ -62,7 +62,7 @@ treated as private libs.
 This is a **Vercel serverless** project. Zero config needed beyond the files
 already in the repo (`vercel.json` + `package.json` declare the runtime).
 
-1. **Import the repo** into Vercel (New Project → Git → your fork).
+1. **Import the repo** into Vercel (New Project → Git → `simrim96/GithubSlotMachine`).
 2. **Set the environment variable** `GITHUB_PAT`:
    - A fine-grained PAT with `Contents: read & write` on **this** repo
      (`GithubSlotMachine`) **and** on your profile repo (`<your-user>`), plus
@@ -90,16 +90,16 @@ embed flow.
 > Neither endpoint writes to your repo or Redis — both are read-only and safe to
 > call. `/api/health` reads the GitHub README only when `GITHUB_PAT` is set.
 
-### Fork-ready configuration
+### Configuration
 
-Hardcoded defaults point at the original owner (`simrim96`), but you can point
-the slot at **your** profile **without editing code** via Vercel env vars:
+This project is configured for the `simrim96` profile. The relevant env vars
+have the following defaults:
 
 | Env var        | Default             | Purpose                                          |
 | -------------- | ------------------- | ------------------------------------------------ |
 | `SLOT_OWNER`   | `simrim96`          | Owner of the slot repo + whose repos are scanned |
 | `SLOT_REPO`    | `GithubSlotMachine` | The repo that hosts `slot.svg` / `state.json`    |
-| `PROFILE_REPO` | `= SLOT_OWNER`      | Your profile README repo (`<user>/<user>`)       |
+| `PROFILE_REPO` | `= SLOT_OWNER`      | The profile README repo (`<user>/<user>`)       |
 | `GITHUB_PAT`   | _(required)_        | Token used for both reads and writes             |
 
 ### ⚡ Upstash Redis (optional but recommended)
@@ -145,8 +145,8 @@ plenty for a profile widget):
 > than the original.
 
 If the env vars are **absent**, the code transparently falls back to the original
-GitHub-Contents behaviour, so local `vercel dev` and forks without Redis keep
-working unchanged. No code changes needed to toggle between the two.
+GitHub-Contents behaviour, so local `vercel dev` keeps working unchanged. No code
+changes needed to toggle between the two.
 
 > **Get an Upstash DB:** upstash.com → "Redis" → create a free database **in the
 > same region as your Vercel project** → copy the `UPSTASH_REDIS_REST_URL` and
@@ -285,4 +285,4 @@ a GitHub topic on the repo (e.g. `'react'`).
 
 ## 📄 License
 
-[MIT](./LICENSE) — free to fork, remix, and put on your own profile.
+[MIT](./LICENSE) — see the file for details.

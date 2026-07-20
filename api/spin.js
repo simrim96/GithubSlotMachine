@@ -48,10 +48,9 @@ const ALLOWED_ORIGINS = [
 // ─── Security: CORS policy ──────────────────────────────────────────────────
 // La policy CORS è ora centralizzata in api/_lib/cors.js (Miglioramento #4,
 // ISSUES.md): applyCors(req, res) è importata da lì. /api/spin resta
-// raggiungibile in cross-origin (es. embed su github.com o fork su altri
-// domini) con una policy esplicita (no wildcard '*'). Gli origin ammessi sono
-// configurabili via env ALLOWED_CORS_ORIGINS (CSV), con fallback ai domini
-// noti dell'app.
+// raggiungibile in cross-origin (es. embed su github.com) con una policy
+// esplicita (no wildcard '*'). Gli origin ammessi sono configurabili via env
+// ALLOWED_CORS_ORIGINS (CSV), con fallback ai domini noti dell'app.
 
 // ─── Security: Validate Redirect URL to Prevent Open Redirect ─────────────────
 function isValidRedirectUrl(urlString) {
@@ -105,10 +104,8 @@ function resolveRedirectUrl(rawRedirect, defaultUrl) {
   }
   return defaultUrl;
 }
-// Fork-ready: every value falls back to the original owner's repos, but you can
-// override them with environment variables on Vercel (or in vercel.json) so the
-// slot points at YOUR profile and repo without editing the code. Optionally a
-// `?user=OTHERNAME` query string overrides OWNER for the redirect target.
+// Configurazione: i valori di default puntano al profilo dell'autore
+// (simrim96). Overridabili via env var su Vercel.
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
 const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 const PROFILE_REPO = process.env.PROFILE_REPO || OWNER;
