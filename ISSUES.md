@@ -26,7 +26,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| B5  | Bug             | P3      | `cacheTtl` in `spin.js` calcolato ma mai usato |
+| B5  | Bug             | P3      | `cacheTtl` in `spin.js` calcolato ma mai usato — **CHIUSO** (commit 1ffddb1) |
 | M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
 | M4  | Manutenibilità  | P3      | Nomi confusionari minori |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
@@ -36,11 +36,16 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 ## 1. Bug / Correttezza
 
-### B5 — `cacheTtl` calcolato ma mai usato in `spin.js`  · P3
-`api/spin.js` calcola `const cacheTtl = parseLocationHeader(...)` ma la variabile
-non viene mai utilizzata (solo `cacheHeader`/`ageHeader` servono per il log).
-Variabile morta; segnalata anche da lint in modalità `error`.
-**Fix:** rimuovere `cacheTtl` (e `parseLocationHeader` se non usato altrove).
+### B5 — `cacheTtl` calcolato ma mai usato in `spin.js`  · P3 — **CHIUSO (2026-07-20)**
+Il codice morto `const cacheTtl = parseLocationHeader(...)` (e la relativa
+funzione `parseLocationHeader`) è stato **già rimosso** nel commit `1ffddb1`
+("Rimuove filosofia fork-ready del progetto e bug B3"). Verifica corrente:
+- `grep -rnE "cacheTtl|parseLocationHeader"` su tutto il repo (escluso
+  `node_modules`) → 0 occorrenze nel codice (solo questo file).
+- `npx eslint .` → 0 errori (l'unico warning residuo è in un test, non in
+  `spin.js` e non relativo a B5).
+**Fix applicato:** rimosso `cacheTtl` e `parseLocationHeader` (non usato altrove).
+Nessuna azione ulteriore richiesta.
 
 ---
 
