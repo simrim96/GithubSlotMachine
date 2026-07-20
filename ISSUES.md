@@ -66,14 +66,6 @@ committati e di confondere).
 **Fix:** spostarli in `tests/` (o `scripts/`) oppure eliminarli se i corrispondenti
 `*.test.js` li coprono già.
 
-### T2 — CI OK ma senza integrazione  · P3
-`ci.yml` esegue import-smoke + `npm test` + `npm run lint` su Node 18/20/22.
-Nessun build/preview Vercel né test contro API reali (giustificabile). La copertura
-è buona ma concentrata sulla generazione SVG; mancano test sui percorsi GitHub/KV
-(vedi T1).
-**Fix:** nessun blocco, ma aggiungere i test di T1 per alzare la copertura dei
-percorsi di rete.
-
 ---
 
 ## 8. Operatività / Deploy
@@ -163,6 +155,17 @@ JSON, usato ovunque al posto di `console.*`.
   profilo owner, con accettazione speculare di un host in allowlist. Così il
   bug S1 è ora intercettato. Verificato dalla suite intera (285 test) e
   `npm run lint` (0 errori).
+
+  **T2 — CHIUSO (2026-07-20):** la carenza di copertura sui percorsi di rete
+  (GitHub/KV) segnalata in T2 è stata colmata dai test end-to-end di T1 in
+  `tests/spin-handler-e2e.test.js`. T2 prescriveva esplicitamente "aggiungere i
+  test di T1 per alzare la copertura dei percorsi di rete", e quei 5 test
+  invocano il vero `handler(req, res)` di `api/spin.js` con `github.js` e
+  `kv.js` mockati, esercitando i percorsi prima assenti: redirect 302 con
+  scritture reali (slot.svg, state, README GET+PUT, cache KV), degradazione
+  graceful senza `GITHUB_PAT`, e validazione open-redirect. La suite è salita
+  da 227 a 285 test; `npm run lint` 0 errori. T2 risolto come conseguenza
+  diretta di T1.
 
   **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
   reale. La sezione "Architettura" ora elenca tutti gli handler `api/*.js`
