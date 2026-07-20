@@ -16,7 +16,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
-| T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue` in root (clutter) |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
@@ -59,14 +58,6 @@ che mappa ogni `ISSUE-N` referenziato dal codice alla relativa descrizione
 ---
 
 ## 7. Testing / CI
-
-### T1 — Mancano test end-to-end di `spin.js`  · P2
-La suite copre SVG, KV, state, repos, cors, ratelimit — ma NON `spin.js` come
-handler (redirect, graceful fallback senza PAT, validazione `explain`). Il bug S1
-non sarebbe intercettato da alcun test.
-**Fix:** aggiungere `tests/spin.test.js` con `fetch` mockato (GitHub + KV), che
-verifichino: redirect 302 con `Location` valido, fallback SVG quando PAT assente,
-rifiuto di `url` in blocklist.
 
 ### T3 — Script one-off `verify-issue*.mjs` in root  · P2
 `verify-issue20.mjs` e `verify-issue21.mjs` sono script di verifica una-tantum,
@@ -111,7 +102,6 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
@@ -159,6 +149,20 @@ JSON, usato ovunque al posto di `console.*`.
  preserva il comportamento esterno (CORS, rate-limit, redirect 302). Verificato da
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
+
+  **T1 — CHIUSO (2026-07-20):** test end-to-end di `api/spin.js` come
+  handler Vercel aggiunti in `tests/spin-handler-e2e.test.js` (5 test verdi).
+  Il test invoca il VERO `handler(req, res)` con GitHub (`_lib/github.js`) e
+  KV (`_lib/kv.js`, store in-memory) mockati, e copre i tre comportamenti
+  richiesti da T1: (1) redirect 302 con `Location` valido verso il profilo
+  owner su spin senza vincita e, in caso di vincita reale, verso il repo del
+  linguaggio vincente, verificando che le scritture (slot.svg, state, README
+  GET+PUT, cache KV) avvengano davvero; (2) degradazione graceful SENZA
+  `GITHUB_PAT` → 302 verso il profilo owner (mai un 500 nudo); (3) rifiuto
+  di un `?redirect=` ostile (open-redirect / blocklist T1) che cade sul
+  profilo owner, con accettazione speculare di un host in allowlist. Così il
+  bug S1 è ora intercettato. Verificato dalla suite intera (285 test) e
+  `npm run lint` (0 errori).
 
   **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
   reale. La sezione "Architettura" ora elenca tutti gli handler `api/*.js`
