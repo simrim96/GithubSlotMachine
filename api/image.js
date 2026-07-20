@@ -7,7 +7,7 @@
 //      (per dev locale / Redis non configurato). Non legge dal filesystem
 //      locale (vedi ISSUE-7 — la copia locale è solo un artefatto ignorato).
 //
-// Fork-aware: legge SLOT_OWNER / SLOT_REPO dalle env var come fa spin.js
+// Legge SLOT_OWNER / SLOT_REPO dalle env var come fa spin.js
 // (default: simrim96 / GithubSlotMachine se le env non sono impostate).
 
 import { kvGet, kvEnabled } from './_lib/kv.js';

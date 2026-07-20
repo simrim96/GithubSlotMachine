@@ -4,7 +4,7 @@
 //   • corsHeaders(origin)        → policy esplicita (allowlist), formato Response
 //                                  per ratelimit-status
 //   • applyCorsWildcard(req, res)→ policy wildcard `*` per i contenuti embeddati
-//                                  (image/lever, visti su github.com e fork)
+//                                  (image/lever, visti su github.com)
 //
 // Qui asseriamo che:
 //   1. OGNI endpoint emetta la stessa superficie di header di sicurezza CORS

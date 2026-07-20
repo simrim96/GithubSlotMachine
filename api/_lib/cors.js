@@ -5,7 +5,7 @@
 // della sorgente unica ghHeaders — ISSUE-16).
 //
 // /api/spin (e gli altri endpoint) sono raggiungibili anche in cross-origin
-// (es. embed su github.com o fork su altri domini). Specifichiamo una policy
+// (es. embed su github.com). Specifichiamo una policy
 // esplicita anziché il wildcard '*' (che sarebbe insicuro su redirect/state
 // con credenziali). Gli origin ammessi sono configurabili via env
 // ALLOWED_CORS_ORIGINS (CSV), con fallback ai domini noti dell'app. Se
@@ -45,7 +45,7 @@ function applyCors(req, res) {
 // ── Policy WILDCARD `*` (ISSUE-25) ─────────────────────────────────────────
 // Gli endpoint che servono SVG/immagini (api/image.js, api/lever.js) vengono
 // embeddati in contesti cross-origin non deterministici (es. una README su
-// github.com, o fork su domini qualsiasi). In quei casi l'Origin non è noto a
+// github.com). In quei casi l'Origin non è noto a
 // priori e non può stare in una allowlist: rifletterlo negherebbe richieste
 // valide (immagini che non si caricano, leva che non risponde). Per questi
 // endpoint serviamo `Access-Control-Allow-Origin: *`, che è sicuro perché la
