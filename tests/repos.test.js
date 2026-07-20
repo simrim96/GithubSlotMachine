@@ -249,3 +249,130 @@ describe('repos.js — ISSUE-28 (cold-start non-bloccante ma popolato)', () => {
     expect(Date.now() - t0).toBeLessThan(1000);
   });
 });
+
+// ─── R5: cache KV tiered (lastgood) resiliente a Upstash cross-region ────────
+// Quando Upstash è in una regione diversa da Vercel (fra1), il round-trip KV
+// supera i timeout e kvGet ritorna null. Il tier "lastgood" deve comunque
+// fornire i repo recenti allo spin, SENZA attendere la rete GitHub.
+describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () => {
+  it('serve i repo dal tier lastgood in memoria senza attendere la rete', async () => {
+    // KV "lento/cross-region": kvGet ritorna sempre null (simula timeout),
+    // kvSet è un no-op. Lo spin NON deve bloccarsi.
+    const slowKv = {
+      kvGet: vi.fn(async () => null),
+      kvSet: vi.fn(async () => false),
+      kvEnabled: true,
+    };
+    vi.doMock('../api/_lib/kv.js', () => slowKv);
+    vi.resetModules();
+    const repos = await import('../api/_lib/repos.js');
+
+    // Pre-popola il tier lastgood in KV prima del cold start.
+    slowKv.kvGet.mockImplementation(async (key) => {
+      if (key === 'gsm:repoCache:lastgood') {
+        return {
+          ts: Date.now() - 1000 * 60 * 60, // 1h fa → stale, ma servibile
+          byLangId: { python: { name: 'pyapp', url: 'https://github.com/owner/pyapp' } },
+        };
+      }
+      return null;
+    });
+
+    const t0 = Date.now();
+    const match = await repos.getRepoForLanguage(
+      'tok',
+      'owner',
+      LANGUAGES[0],
+      LANGUAGES
+    );
+    const elapsed = Date.now() - t0;
+    // Nessun dato fresh in memoria → legge il lastgood da KV e lo serve
+    // SUBITO, senza il blocco cold-start di 800ms su GitHub.
+    expect(match).not.toBeNull();
+    expect(match.name).toBe('pyapp');
+    expect(elapsed).toBeLessThan(800);
+    // La refresh gira in background (non deve aver bloccato il return).
+    vi.doUnmock('../api/_lib/kv.js');
+  });
+
+  it('il tier fresh (TTL valido) prevale sul lastgood', async () => {
+    const kvStore = {
+      kvGet: vi.fn(async (key) => {
+        if (key === 'gsm:repoCache') {
+          return {
+            ts: Date.now(), // fresh
+            byLangId: { python: { name: 'freshRepo', url: 'https://github.com/owner/freshRepo' } },
+          };
+        }
+        if (key === 'gsm:repoCache:lastgood') {
+          return {
+            ts: Date.now() - 1000 * 60 * 60,
+            byLangId: { python: { name: 'staleRepo', url: 'https://github.com/owner/staleRepo' } },
+          };
+        }
+        return null;
+      }),
+      kvSet: vi.fn(async () => true),
+      kvEnabled: true,
+    };
+    vi.doMock('../api/_lib/kv.js', () => kvStore);
+    vi.resetModules();
+    const repos = await import('../api/_lib/repos.js');
+
+    const match = await repos.getRepoForLanguage(
+      'tok',
+      'owner',
+      LANGUAGES[0],
+      LANGUAGES
+    );
+    expect(match).not.toBeNull();
+    expect(match.name).toBe('freshRepo'); // il fresh batte il lastgood
+    vi.doUnmock('../api/_lib/kv.js');
+  });
+
+  it('salva entrambi i tier (fresh + lastgood) dopo una refresh riuscita', async () => {
+    const kvStore = {
+      kvGet: vi.fn(async () => null),
+      kvSet: vi.fn(async () => true),
+      kvEnabled: true,
+    };
+    vi.doMock('../api/_lib/kv.js', () => kvStore);
+    vi.resetModules();
+    const repos = await import('../api/_lib/repos.js');
+
+    const reposList = [makeRepo('pyapp', { Python: 90, JavaScript: 10 })];
+    global.fetch = buildFetch(reposList);
+    await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
+    await new Promise((r) => setTimeout(r, 80));
+
+    const savedKeys = kvStore.kvSet.mock.calls.map((c) => c[0]);
+    expect(savedKeys).toContain('gsm:repoCache');
+    expect(savedKeys).toContain('gsm:repoCache:lastgood');
+    vi.doUnmock('../api/_lib/kv.js');
+  });
+
+  it('Upstash totalmente down (kvGet throw) non rompe lo spin', async () => {
+    // Simula Upstash che lancia (es. errore di rete) invece di ritornare null.
+    const brokenKv = {
+      kvGet: vi.fn(async () => {
+        throw new Error('kv connection refused');
+      }),
+      kvSet: vi.fn(async () => false),
+      kvEnabled: true,
+    };
+    vi.doMock('../api/_lib/kv.js', () => brokenKv);
+    vi.resetModules();
+    const repos = await import('../api/_lib/repos.js');
+
+    // Nessun dato in memoria e KV rotto → cold start: attende SOLO GitHub
+    // (che risponde), non deve crashare per l'errore KV.
+    const reposList = [makeRepo('pyapp', { Python: 90, JavaScript: 10 })];
+    global.fetch = buildFetch(reposList);
+    const t0 = Date.now();
+    const match = await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
+    expect(match).not.toBeNull();
+    expect(match.name).toBe('pyapp');
+    expect(Date.now() - t0).toBeLessThan(800);
+    vi.doUnmock('../api/_lib/kv.js');
+  });
+});
