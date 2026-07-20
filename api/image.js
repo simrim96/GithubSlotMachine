@@ -50,7 +50,18 @@ export default async function handler(req, res) {
     `https://api.github.com/repos/${user}/${repo}/contents/${SVG_PATH}`,
     { headers: ghHeaders(token) }
   );
-  if (!r.ok) return res.status(r.status).send('Slot image not found');
+  if (!r.ok) {
+    // ISSUE-24/B4: in caso di errore GitHub il client riceveva testo senza
+    // Content-Type e l'evento non finiva in Sentry. Catturiamo l'errore e
+    // serviamo l'SVG di degrado come negli altri path (vedi sotto), così
+    // l'embed resta valido invece di rompersi su un 404 in chiaro.
+    const err = new Error(`GitHub image fetch failed: ${r.status} ${r.statusText || ''}`);
+    Sentry.captureException(err);
+    console.warn('github image fetch failed, serving degradation SVG:', r.status);
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(errorSVGString({ owner: user, message: 'Slot image unavailable' }));
+  }
   const data = await r.json();
   // ISSUE-24: se `r.ok` è true ma `data.content` è assente (repo esistente ma
   // slot.svg vuoto / risposta inattesa), `Buffer.from(undefined)` lancia.

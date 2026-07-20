@@ -6,6 +6,12 @@
 // Ora deve servire un errorSVG con status 200 invece di crashare.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Evita l'invio di eventi Sentry reali durante i test.
+vi.mock('@sentry/node', () => ({
+  captureException: vi.fn(),
+  init: vi.fn(),
+}));
+
 // Niente Redis in test: forza il ramo GitHub.
 vi.mock('../api/_lib/kv.js', () => ({
   kvGet: vi.fn(),
@@ -131,5 +137,82 @@ describe('ISSUE-24 · /api/image fallback con content assente', () => {
     await handler({ method: 'GET', query: {} }, res);
     expect(res.statusCode).toBe(200);
     expect(res.body).toBe(svg);
+  });
+});
+
+describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () => {
+  let realFetch;
+  beforeEach(() => {
+    realFetch = global.fetch;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+    delete process.env.GITHUB_PAT;
+  });
+
+  it('404 GitHub → 200 con SVG di degrado + Content-Type image/svg+xml + Sentry', async () => {
+    global.fetch = vi.fn(async () =>
+      makeResponse(false, 404, { message: 'Not Found' })
+    );
+    const { default: handler } = await import('../api/image.js');
+    const Sentry = await import('@sentry/node');
+    const res = {
+      statusCode: null,
+      body: null,
+      headers: {},
+      setHeader(k, v) {
+        this.headers[k] = v;
+      },
+      status(c) {
+        this.statusCode = c;
+        return this;
+      },
+      send(b) {
+        this.body = b;
+        return this;
+      },
+    };
+    process.env.GITHUB_PAT = 'tok-24';
+    await handler({ method: 'GET', query: {} }, res);
+
+    // Niente più 404 in chiaro: degradazione graceful a 200.
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<svg');
+    expect(res.body).toContain('Slot image unavailable');
+    // Content-Type esplicito (ISSUE-B4).
+    expect(res.headers['Content-Type']).toBe('image/svg+xml');
+    // L'errore finisce in Sentry (ISSUE-B4).
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('500 GitHub → 200 con SVG di degrado + Sentry (nessun crash)', async () => {
+    global.fetch = vi.fn(async () =>
+      makeResponse(false, 500, { message: 'Internal Server Error' })
+    );
+    const { default: handler } = await import('../api/image.js');
+    const Sentry = await import('@sentry/node');
+    const res = {
+      statusCode: null,
+      body: null,
+      headers: {},
+      setHeader(k, v) {
+        this.headers[k] = v;
+      },
+      status(c) {
+        this.statusCode = c;
+        return this;
+      },
+      send(b) {
+        this.body = b;
+        return this;
+      },
+    };
+    process.env.GITHUB_PAT = 'tok-24';
+    await handler({ method: 'GET', query: {} }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('<svg');
+    expect(res.headers['Content-Type']).toBe('image/svg+xml');
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
   });
 });
