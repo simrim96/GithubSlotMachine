@@ -173,16 +173,6 @@ JSON, usato ovunque al posto di `console.*`.
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
 
- **M2 — CHIUSO (2026-07-20):** nomina ingannevole in `api/_lib/state.js`
- risolta. La variabile importata come `import { promises as fs } from 'fs'`
- è stata rinominata in `fsp` per evidenziarne la natura async. Nel farlo è
- stato corretto anche un bug latente: i fallback locali `readStateLocal`/
- `writeStateLocal` invocavano `fs.promises.readFile`/`fs.promises.writeFile`,
- ovvero `fs.promises.promises.*` (undefined) — si attivavano solo quando
- `GITHUB_PAT` è assente e fallivano silenziosamente. Ora usano
- `fsp.readFile`/`fsp.writeFile` corretti. Verificato da `tests/state-local.test.js`
- (5 test) e suite intera (280 test).
-
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
