@@ -14,6 +14,7 @@
 // "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
 
 import { applyCorsWildcard } from './_lib/cors.js';
+import { sendResponse } from './_lib/response-bridge.js';
 
 const W = 52;
 const H = 150;
@@ -154,16 +155,18 @@ export default function handler(req, res) {
   //    su github.com e altri domini non deterministici) ──
   applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
+    sendResponse(res, { status: 204 });
     return;
   }
 
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader(
-    'Cache-Control',
-    'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0'
-  );
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.send(LEVER_SVG);
+  sendResponse(res, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
+    body: LEVER_SVG,
+  });
 }

@@ -33,15 +33,15 @@ import {
 } from './_lib/ratelimit-tracker.js';
 import { ghHeaders } from './_lib/github.js';
 import { corsHeaders } from './_lib/cors.js';
+import { buildResponse } from './_lib/response-bridge.js';
 
 export default async function handler(req) {
   const origin = req.headers?.get?.('origin') ?? req.headers?.origin;
 
   // Supporta solo GET
   if (req.method !== 'GET') {
-    return new Response(null, {
+    return buildResponse({
       status: 405,
-      statusText: 'Method Not Allowed',
       headers: { ...corsHeaders(origin) },
     });
   }
@@ -50,7 +50,7 @@ export default async function handler(req) {
   // dell'utente autenticato (5000/h) anziché quello anonimo (60/h).
   const token = process.env.GITHUB_PAT;
   // Header centralizzati su ghHeaders (unica sorgente condivisa, ISSUE-22 / M3):
-  // garantisce Accept + User-Agent + Authorization: Bearer <token> coerenti
+  // garantisce Accept + User-Agent + Authorization: Bearer *** coerenti
   // con gli altri endpoint GitHub del repo, evitando header inline divergenti.
   const headers = ghHeaders(token);
 
@@ -59,17 +59,15 @@ export default async function handler(req) {
     response = await fetch('https://api.github.com/rate_limit', { headers });
   } catch (error) {
     console.warn('[ratelimit-status] fetch /rate_limit fallita:', error?.message);
-    return new Response(
-      JSON.stringify({ status: 'unknown', remaining: null, reset: null }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          ...corsHeaders(origin),
-        },
-      }
-    );
+    return buildResponse({
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        ...corsHeaders(origin),
+      },
+      body: JSON.stringify({ status: 'unknown', remaining: null, reset: null }),
+    });
   }
 
   const remainingRaw = safeGetHeader(response, GITHUB_RATE_LIMIT_HEADER_REMAINING);
@@ -122,7 +120,7 @@ export default async function handler(req) {
       remaining !== null && remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
   };
 
-  return new Response(JSON.stringify(body), {
+  return buildResponse({
     status: 200,
     headers: {
       'Content-Type': 'application/json',
@@ -131,5 +129,6 @@ export default async function handler(req) {
       Expires: '0',
       ...corsHeaders(origin),
     },
+    body: JSON.stringify(body),
   });
 }

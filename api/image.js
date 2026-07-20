@@ -13,6 +13,7 @@
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCorsWildcard } from './_lib/cors.js';
+import { sendResponse } from './_lib/response-bridge.js';
 import { errorSVGString } from './_lib/svg-builder.js';
 import * as Sentry from '@sentry/node';
 
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
   //    cross-origin su github.com e altri domini non deterministici) ──
   applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
+    sendResponse(res, { status: 204 });
     return;
   }
 
@@ -35,9 +36,15 @@ export default async function handler(req, res) {
     try {
       const svg = await kvGet('gsm:slotSvg');
       if (svg) {
-        res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Cache-Control', 'no-store');
-        return res.status(200).send(svg);
+        sendResponse(res, {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'no-store',
+          },
+          body: svg,
+        });
+        return;
       }
     } catch (e) {
       Sentry.captureException(e);
@@ -58,21 +65,38 @@ export default async function handler(req, res) {
     const err = new Error(`GitHub image fetch failed: ${r.status} ${r.statusText || ''}`);
     Sentry.captureException(err);
     console.warn('github image fetch failed, serving degradation SVG:', r.status);
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).send(errorSVGString({ owner: user, message: 'Slot image unavailable' }));
+    sendResponse(res, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'no-store',
+      },
+      body: errorSVGString({ owner: user, message: 'Slot image unavailable' }),
+    });
+    return;
   }
   const data = await r.json();
   // ISSUE-24: se `r.ok` è true ma `data.content` è assente (repo esistente ma
   // slot.svg vuoto / risposta inattesa), `Buffer.from(undefined)` lancia.
   // In tal caso servi un SVG di degrado invece di crashare.
   if (!data || !data.content) {
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).send(errorSVGString({ owner: user, message: 'Slot image unavailable' }));
+    sendResponse(res, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'no-store',
+      },
+      body: errorSVGString({ owner: user, message: 'Slot image unavailable' }),
+    });
+    return;
   }
   const svg = Buffer.from(data.content, 'base64').toString('utf-8');
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).send(svg);
+  sendResponse(res, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'no-store',
+    },
+    body: svg,
+  });
 }

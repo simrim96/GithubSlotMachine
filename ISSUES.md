@@ -16,7 +16,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-| M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
@@ -28,26 +27,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
 
-## 3. Affidabilità / Resilienza
-
-### R3 — Scritture KV silenziose in read-only mode  · P3
-Se è presente solo `KV_REST_API_READ_ONLY_TOKEN` (`kvWritable === false`), le
-scritture falliscono silenziosamente (solo `console.warn` in `kv.js`). Comportamento
-accettabile, ma va documentato nel deploy (già fatto in `health.js`). Nessun
-cambiamento richiesto, solo consapevolezza operativa.
-
----
-
 ## 5. Manutenibilità
-
-### M1 — Stile handler misto  · P2
-`spin.js`, `health.js`, `image.js`, `lever.js` usano la firma Node/Vercel
-`(req, res)`; `ratelimit-status.js` usa invece `new Response(...)` (Web API). Su
-Vercel entrambi funzionano, ma il misto complica refactoring, middleware condivisi
-e testing (i test devono mockare due API diverse).
-**Fix:** standardizzare TUTTI gli handler su `export default async (req) =>
-new Response(...)` (Web API, direzione futura di Vercel). Spostare la gestione
-CORS/status in un wrapper comune.
 
 ### M5 — Costanti duplicate in `repos.js`  · P2
 `api/_lib/repos.js` definisce `REPO_LANG_BATCH_SIZE` (non usata da nessuna parte) e
@@ -156,7 +136,6 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
@@ -200,7 +179,15 @@ JSON, usato ovunque al posto di `console.*`.
   graceful se KV non è abilitato. Verificato da `tests/readme-cache-p1.test.js`
   (2 test verdi) e suite intera (280 test).
 
-Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
+ **M1 — CHIUSO (2026-07-20):** stile handler standardizzato su `new Response(...)`
+ via bridge condiviso `api/_lib/response-bridge.js` (`buildResponse`/`sendResponse`);
+ tutti e 5 gli handler API (`spin.js`, `health.js`, `image.js`, `lever.js`,
+ `ratelimit-status.js`) usano ora la primitiva unica. Il flush su `res` di Vercel
+ preserva il comportamento esterno (CORS, rate-limit, redirect 302). Verificato da
+ `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
+ `tests/cors-wildcard.test.js` e suite intera (280 test).
+
+ Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
 
 Cache
