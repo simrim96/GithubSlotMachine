@@ -16,57 +16,8 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
-| T3  | Testing         | P2      | Script one-off `verify-issue` in root (clutter) |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
-
-
-## 6. Documentazione
-
-### Registro centralizzato ISSUE-N
-
-Il codice referenzia decine di `ISSUE-N` (ISSUE-1 … ISSUE-31) nei commenti.
-Per tenere traccia di ogni numero, in questa sezione è mantenuto il registro
-che mappa ogni `ISSUE-N` referenziato dal codice alla relativa descrizione
-(convenzione: "ogni `ISSUE-N` nel codice → voce qui").
-
-| ISSUE   | Area / Tema        | Stato  | Descrizione breve |
-|---------|--------------------|--------|-------------------|
-| ISSUE-1  | State / migrations | chiuso | Indice di versione esplicito `v` nello state; tutte le chiamate GitHub centralizzate in `github.js` (`ghGetJson`/`ghPut`); sistema di migrazione stato (`MIGRATIONS`). |
-| ISSUE-3  | Telemetria / repos | chiuso | Rimosso tracking server-side verso endpoint non documentato; `repos.js` gestisce timeout + concorrenza; analytics spostato lato client (Vercel Web Analytics in `index.html`). |
-| ISSUE-7  | State / artifact   | chiuso | La copia locale del README nel repo è un artefatto ignorato: lo stato è tracciato su KV/GitHub, non su file locale. |
-| ISSUE-8  | State / migrations | chiuso | `MIGRATIONS[2]` placeholder portava a `version: 3` (bug corretto). |
-| ISSUE-11 | Rate-limit         | chiuso | La protezione contro l'abuso resta demandata al rate-limit (fix 2 in `ratelimit.js`). |
-| ISSUE-12 | Rate-limit         | chiuso | Classe osservazionale `RateLimitTracker` rimossa; sostituita da `logRateLimit()` in `github.js`; stato letto LIVE in `ratelimit-status.js`. |
-| ISSUE-16 | CORS / headers     | chiuso | Sorgente unica `ghHeaders` per evitare duplicazioni divergenti e header duplicati / placeholder nei test. |
-| ISSUE-20 | SVG accessibile    | chiuso | `buildAccessibleSVG` riceve i flag di vittoria e l'`aria-label` corretti. |
-| ISSUE-21 | SVG accessibile    | chiuso | Percorso reale accessibile dello spin (`api/spin.js` chiama `buildAccessibleSVG`); gli screen reader ricevono davvero il risultato (M1). |
-| ISSUE-22 | Headers            | chiuso | Header centralizzati su `ghHeaders` (unica sorgente condivisa, M3). |
-| ISSUE-23 | KV read-only       | chiuso | Separazione token read-only KV; le scritture silenziose in read-only mode vengono segnalate invece di fallire; stato community/cache repo non persistite. |
-| ISSUE-24 | `/api/image`       | chiuso | Fallback quando `content` è assente (repo esistente ma senza README); in caso di errore GitHub il client non riceve più testo senza SVG (B4). |
-| ISSUE-25 | CORS / SVG sanitize| chiuso | Policy CORS `*` (wildcard) su endpoint SVG/immagine/leva; hardening difensivo di sanitizzazione SVG in uscita (S3). |
-| ISSUE-26 | CI                 | chiuso | Lint gate: ESLint fallisce sugli errori e blocca il merge. |
-| ISSUE-27 | Docs / CI          | chiuso | Guida `CI-CD-GUIDE.md` riscritta (19/07/2026) per descrivere il flusso reale. |
-| ISSUE-28 | repos cold-start   | chiuso | `repos.js` fa un breve `await` invece di appendersi all'infinito sullo stall GitHub: cold-start non-bloccante ma popolato. |
-| ISSUE-29 | SVG error          | chiuso | `svg-builder.js` è l'unica fonte canonica di `errorSVG`/`errorSVGString`; re-import per retrocompatibilità in `svg-builder-accessible.js`. |
-| ISSUE-31 | Sentry             | chiuso | Flag debug Sentry: `debug` è `true` SOLO se `SENTRY_DEBUG==='true'`. |
-
-> I numeri non elencati sopra (es. ISSUE-2, ISSUE-4…ISSUE-19, ISSUE-30) non sono
-> referenziati dal codice attuale e quindi non hanno voce; se ricompaiono nei
-> commenti va aggiunta qui la relativa riga, per rispettare la convenzione.
-
----
-
-## 7. Testing / CI
-
-### T3 — Script one-off `verify-issue*.mjs` in root  · P2
-`verify-issue20.mjs` e `verify-issue21.mjs` sono script di verifica una-tantum,
-non test automatizzati, e vivono nella root del repo (clutter, rischiano di essere
-committati e di confondere).
-**Fix:** spostarli in `tests/` (o `scripts/`) oppure eliminarli se i corrispondenti
-`*.test.js` li coprono già.
-
----
 
 ## 8. Operatività / Deploy
 
