@@ -17,21 +17,13 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
-| T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
-| D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
+| T3  | Testing         | P2      | Script one-off `verify-issue` in root (clutter) |
+| D3  | Documentazione | P2      | README non ha registro ISSUE-N centralizzato |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
 
 ## 6. Documentazione
-
-### D2 — Contratto API non documentato  · P2
-Il README non spiega che:
-- `/api/spin?l=<lingua>` ritorna un **redirect 302** a `/?l=<lang>&v=<svgVersion>`
-  (non un body), e che l'SVG "vivo" si ottiene da `/api/image`.
-- Il parametro `explain` abilita la modalità esplora (redirect a `?explain=1`).
-- `/api/lever` e `/api/image` servono SVG statici/dinamici.
-**Fix:** aggiungere una sezione "API Reference" con esempi di chiamata/risposta.
 
 ### D3 — Nessun registro centralizzato degli ISSUE-N  · P2
 Il codice referenzia decine di `ISSUE-N` (ISSUE-1 … ISSUE-31) nei commenti, ma non
@@ -97,7 +89,7 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-6. **Riscrivi README (D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
+6. **Riscrivi README (D3)** — D1 e D2 già fatti; resta D3 (registro ISSUE-N centralizzato).
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
