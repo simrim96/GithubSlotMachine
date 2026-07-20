@@ -12,7 +12,7 @@
 // lento/cross-region non blocca mai lo spin.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
-import { ghGet, ghPut } from './github.js';
+import { ghGetContents, ghPut } from './github.js';
 import { promises as fs } from 'fs';
 import * as Sentry from '../../sentry.config.js';
 
@@ -197,8 +197,12 @@ async function writeStateLocal(state) {
 // ISSUE-1: tutte le chiamate GitHub sono centralizzate in github.js (ghGet/ghPut)
 // che applica già AbortController (timeout) e retry su 409.
 // Niente più fetch diretti non protetti qui.
+// ISSUE/R4: la lettura di state.json (percorso critico quando KV è disabilitato)
+// usa ghGetContents() con timeout STRETTO (800ms, GH_CONTENTS_TIMEOUT_MS) così
+// lo spin NON si appoggia per secondi interi se GitHub è lento: scaduto il
+// timeout, readState() applica il fallback ai default e lo spin prosegue.
 async function readStateGitHub(token, owner, repo) {
-  const data = await ghGet(token, owner, repo, STATE_PATH);
+  const data = await ghGetContents(token, owner, repo, STATE_PATH);
   if (!data) return { state: { ...DEFAULTS }, sha: null };
   let parsed;
   try {

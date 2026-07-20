@@ -9,6 +9,14 @@ import * as Sentry from '@sentry/node';
 export const GITHUB_API_TIMEOUT_MS =
   parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 5000;
 
+// Timeout STRETTO per le letture di *contenuto* nel percorso critico dello
+// spin (state.json quando KV è disabilitato, config della slot, ecc.).
+// 800ms coerente con il cold-start wait di repos.js (COLD_START_WAIT_MS) così
+// lo spin non si appoggia per secondi interi se GitHub è lento (ISSUE/R4).
+// Overridabile via env per test/ambienti particolari.
+export const GH_CONTENTS_TIMEOUT_MS =
+  parseInt(process.env.GH_CONTENTS_TIMEOUT_MS) || 800;
+
 // ── S4 hardening: token type detection (ISSUES.md §2) ───────────────────────
 // Un PAT classico (prefisso `ghp_`) con scope `repo` può leggere/scrivere
 // TUTTI i repo dell'utente se viene leakato. S4 richiede un PAT
@@ -90,13 +98,15 @@ export function escapeMarkdown(s) {
 // Chiamata diretta con timeout (AbortController): niente coda di rate limiting. Per una slot
 // personale il limite di 5000 req/h non è mai un vincolo reale, e la coda
 // aggiungeva solo latenza e log fuorvianti sugli AbortError di timeout.
-export async function ghGet(token, owner, repo, path) {
+// `timeoutMs` è opzionale: default GITHUB_API_TIMEOUT_MS (5s). Nel percorso
+// critico dello spin usa ghGetContents() che passa il timeout stretto di 800ms.
+export async function ghGet(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
   try {
       // Applica timeout alla chiamata
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(),
-        GITHUB_API_TIMEOUT_MS
+        timeoutMs
       );
 
       const response = await fetch(
@@ -133,6 +143,16 @@ export async function ghGet(token, owner, repo, path) {
   }
 }
 
+// ghGetContents: lettura di un file da GitHub Contents API con timeout STRETTO
+// (800ms, GH_CONTENTS_TIMEOUT_MS) pensato per il percorso critico dello spin —
+// ovvero quando KV è disabilitato e leggiamo state.json dal repo remoto
+// (ISSUE/R4). Se GitHub è lento, lo spin NON si appoggia per secondi: il
+// timeout scade e il chiamante applica il fallback (default di readState).
+// Ritorna lo stesso oggetto di ghGet (json o null su 404/timeout/errore).
+export async function ghGetContents(token, owner, repo, path) {
+  return ghGet(token, owner, repo, path, GH_CONTENTS_TIMEOUT_MS);
+}
+
 export async function ghPut(
   token,
   owner,
@@ -141,7 +161,8 @@ export async function ghPut(
   content,
   sha,
   message,
-  _retry = false
+  _retry = false,
+  timeoutMs = GITHUB_API_TIMEOUT_MS
 ) {
   try {
         const encoded = Buffer.from(content).toString('base64');
@@ -152,7 +173,7 @@ export async function ghPut(
         const controller = new AbortController();
         const timeoutId = setTimeout(
           () => controller.abort(),
-          GITHUB_API_TIMEOUT_MS
+          timeoutMs
         );
 
         const response = await fetch(
