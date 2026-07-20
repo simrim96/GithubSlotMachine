@@ -59,7 +59,7 @@ describe('state locale — no git spam', () => {
   });
 
   it('writeState con token presente usa GitHub (no-op test: solo verifica flusso)', async () => {
-    // In test, ghGet/ghPut non sono mockati, ma verifichiamo che il token
+    // In test, ghGetJson/ghPut non sono mockati, ma verifichiamo che il token
     // passato sia usato. Qui testiamo solo che con token presente,
     // non vengano chiamate le funzioni locali.
     // Poiché non possiamo chiamare GitHub reali, ci limitiamo a:

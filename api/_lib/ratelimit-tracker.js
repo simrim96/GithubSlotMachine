@@ -19,7 +19,7 @@ export const GITHUB_RATE_LIMIT_WARNING_THRESHOLD = 10; // Stampa warning quando 
 // Legge un header in modo difensivo: supporta sia l'oggetto Headers standard
 // (con .get), sia un oggetto plain (accesso diretto), sia undefined. Su Vercel
 // l'oggetto response.headers a volte NON è un Headers standard → .get non
-// esiste → TypeError. Questo evita il crash che rompeva la ghGet per la README.
+// esiste → TypeError. Questo evita il crash che rompeva la ghGetJson per la README.
 export function safeGetHeader(headers, name) {
   if (!headers) return null;
   // Headers standard (Web API / undici-fetch)

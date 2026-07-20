@@ -1,7 +1,7 @@
 // Test su api/_lib/github.js — solo le parti PURE (no rete):
 //   • escapeRegex / escapeMarkdown (anti-injection nei marker README)
 //   • updateReadmeMarkers (il parsing/riscrittura dei marker nel profilo)
-// ghGet/ghPut/saveSlotSvg/loadSlotSvg non sono testati qui (richiedono fetch/GitHub).
+// ghGetJson/ghPut/saveSlotSvg/loadSlotSvg non sono testati qui (richiedono fetch/GitHub).
 import { describe, it, expect } from 'vitest';
 import {
   escapeRegex,
@@ -169,7 +169,7 @@ describe('updateReadmeMarkers', () => {
 });
 
 describe('github.test.js', () => {
-  it('test placeholder per future test su ghGet/ghPut', () => {
+  it('test placeholder per future test su ghGetJson/ghPut', () => {
     expect(true).toBe(true);
   });
 });

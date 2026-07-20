@@ -2,7 +2,7 @@
 //
 // Verifica che la lettura di contenuto dal repo remoto (percorso critico dello
 // spin quando KV è disabilitato) NON possa appendersi per secondi interi se
-// GitHub è lento: ghGetContents() deve abortire allo scadere di
+// GitHub è lento: ghGetContentsJson() deve abortire allo scadere di
 // GH_CONTENTS_TIMEOUT_MS (800ms default) e lanciare, così il chiamante
 // (readState) applica il fallback ai default e lo spin prosegue.
 //
@@ -41,7 +41,7 @@ function makeSignalAwareFetch() {
   });
 }
 
-describe('R4: ghGetContents ha un timeout stretto e non si appoggia all\'infinito', () => {
+describe('R4: ghGetContentsJson ha un timeout stretto e non si appoggia all\'infinito', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', makeSignalAwareFetch());
