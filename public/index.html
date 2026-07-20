@@ -439,65 +439,14 @@
           spinBtn.focus();
         }
 
-        // Gestione click del pulsante spin
-        //
-        // Rate-limit client-side (fix S2, speculare al backend): la finestra
-        // di rotazione è identica a SPIN_COOLDOWN_MS in api/_lib/spin-cooldown.js.
-        // Disabilitiamo la leva SUBITO al click e la riabilitiamo solo allo
-        // scadere della finestra, così un doppio click accidentale non può
-        // richiedere spin più veloci dei rulli. È solo defense-in-depth: il
-        // blocco vero è per-IP sul server (un curl la aggira).
-        const SPIN_COOLDOWN_MS = 3000;
-        let cooldownTimer = null;
-
-        function enableSpinBtn() {
-          spinBtn.disabled = false;
-          spinBtn.textContent = 'GIRA ORA';
-          isSpinning = false;
-        }
-
-        spinBtn.addEventListener('click', function () {
-          // Rotazione in corso: ignora il click, niente spin consecutivi
-          // più veloci della rotazione dei rulli.
-          if (spinBtn.disabled) return;
-
-          // Blocca subito il click della leva.
-          spinBtn.disabled = true;
-          isSpinning = true;
-          spinBtn.textContent = '⏳ Girando...';
-
-          // Annuncia l'inizio della girata
-          announce('Giro in corso...', 'polite');
-
-          // Avvia uno spin reale: /api/spin genera una griglia nuova,
-          // riscrive slot.svg (via saveSlotSvg → GitHub) e poi fa il redirect.
-          // Prima il pulsante ricaricava SOLO l'immagine esistente
-          // (api/image?v=Date.now()) mostrando sempre la stessa schermata
-          // dei rulli — di fatto nessuno spin. Ora si comporta come la leva.
-          //
-          // ISSUE-3 fix: traccia lo spin via Vercel Web Analytics (lato client).
-          // Sostituisce il tracking server-side rimosso da api/spin.js. Al
-          // momento del click il risultato (win/lang) non è ancora noto lato
-          // client, quindi registriamo l'evento `spin` generico; i dettagli
-          // di vittoria restano visibili nei contatori del profilo.
-          if (typeof window.va === 'function') {
-            window.va('track', 'spin', {});
-          }
-
-          window.location.assign('/api/spin');
-
-          // La pagina navigherà via (redirect a GitHub), ma se per qualche
-          // motivo restiamo qui, riabilitiamo la leva alla fine della
-          // finestra di rotazione.
-          if (cooldownTimer) clearTimeout(cooldownTimer);
-          cooldownTimer = setTimeout(enableSpinBtn, SPIN_COOLDOWN_MS);
-        });
-
-        // Se la pagina viene ricaricata (dopo il redirect) ripartiamo dallo
-        // stato abilitato: nessun cooldown persistente lato client.
-        window.addEventListener('beforeunload', function () {
-          if (cooldownTimer) clearTimeout(cooldownTimer);
-        });
+        // Rate-limit client-side (fix S2, speculare al backend): finestra
+        // identica a SPIN_COOLDOWN_MS in api/_lib/spin-cooldown.js.
+        // Lo spin fa un redirect a GitHub che RICARICA la pagina, azzerando
+        // lo stato in-memory: per sopravvivere alla navigazione persistiamo
+        // l'istante dello spin in localStorage (vedi public/_spin-cooldown.js).
+        import('./_spin-cooldown.js').then((m) => m.initSpinCooldown({
+          spinBtn, isSpinningRef: () => isSpinning, setSpinning: (v) => { isSpinning = v; }, announce,
+        }));
 
         // Keyboard navigation: Enter e Space già funzionanti per default
         // Aggiungiamo supporto per T (tira) come scorciatoia
