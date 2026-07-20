@@ -113,7 +113,7 @@ describe('Miglioramento #3 — gestione errore globale (no 500 nudo)', () => {
   it('un errore imprevisto degrada a redirect 302 (mai 500)', async () => {
     const req = {
       method: 'GET',
-      headers: { 'x-forwarded-for': '198.51.100.99' },
+      headers: { 'x-forwarded-for': '198.51.100.91' },
       query: {},
     };
     const res = makeRes();
@@ -130,7 +130,7 @@ describe('Miglioramento #3 — gestione errore globale (no 500 nudo)', () => {
   it('il redirect di errore non è un open-redirect verso host estranei', async () => {
     const req = {
       method: 'GET',
-      headers: { 'x-forwarded-for': '198.51.100.99' },
+      headers: { 'x-forwarded-for': '198.51.100.92' },
       query: { redirect: 'https://evil.example.com/phish' },
     };
     const res = makeRes();
@@ -147,7 +147,7 @@ describe('Miglioramento #3 — gestione errore globale (no 500 nudo)', () => {
   it('in extremis (redirect fallito) risponde con SVG di errore, non 500', async () => {
     const req = {
       method: 'GET',
-      headers: { 'x-forwarded-for': '198.51.100.99' },
+      headers: { 'x-forwarded-for': '198.51.100.93' },
       query: {},
     };
     // Mock res che fa fallire redirect() per simulare headers già inviati.

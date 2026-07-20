@@ -1,20 +1,24 @@
-// Behavioral test for the per-IP rate-limit removal (ISSUE-1) and the CORS
-// policy on /api/spin.
+// Behavioral test for the per-IP spin cooldown (fix S2, ISSUES.md).
 //
-// The per-IP rate-limit (token-bucket 1 spin / 3s) was REMOVED: the user must
-// be able to spin as many times as they want, even back-to-back, without ever
-// receiving a "429 Troppe richieste". Here we verify that consecutive spins
-// from the SAME IP are NOT throttled (they reach the token check / 302 graceful
-// redirect when GITHUB_PAT is absent — ISSUE-3, never a bare 500), and that the
-// explicit CORS policy is still emitted.
-//
-// The pure rateLimit()/clientIp() functions are no longer exported from
-// ratelimit.js (only isValidUser remains, covered by ratelimit.test.js). We
-// drive the real default handler from api/spin.js with a mock `res`, no
-// network. Even with no UPSTASH env, NO spin is ever blocked.
+// S2 prevedeva un rate-limit per-IP basato sul tempo di rotazione dei rulli.
+// Ora /api/spin blocca (con un REDIRECT GRACEFUL 302 verso il profilo owner,
+// ZERO chiamate a GitHub, mai una pagina di errore 429) un secondo spin dello
+// stesso IP se arriva prima che la finestra di rotazione (SPIN_COOLDOWN_MS)
+// sia trascorsa. Qui verifichiamo che:
+//   1. il primo spin passi (raggiunge il check del token → 302 redirect);
+//   2. un secondo spin IMMEDIATO dello stesso IP venga rifiutato con 302
+//      redirect verso github.com (graceful), portando Retry-After, e NON
+//      consumi il budget GitHub (niente chiamate di scrittura bloccate);
+//   3. IP DIVERSI non si influenzano (limite per-IP, non globale);
+//   4. la policy CORS esplicita resti emessa anche sul redirect di cooldown.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import handler from '../api/spin.js';
+
+// SPIN_COOLDOWN_MS basso per il test: 50ms, così il secondo spin nello stesso
+// test cade ancora dentro la finestra senza aspettare 3s.
+process.env.SPIN_COOLDOWN_MS = '50';
+
+const handler = (await import('../api/spin.js')).default;
 
 // ── Mock response ────────────────────────────────────────────────────────────
 function makeRes() {
@@ -65,7 +69,7 @@ beforeEach(() => {
   delete process.env.GITHUB_PAT; // forza il branch "no token" dopo il rate-limit
 });
 
-describe('CORS policy su /api/spin', () => {
+describe('CORS policy su /api/spin (invariata)', () => {
   it('preflight OPTIONS 204 con header CORS per origin consentito', async () => {
     const req = {
       method: 'OPTIONS',
@@ -104,12 +108,11 @@ describe('CORS policy su /api/spin', () => {
     const res = makeRes();
     await handler(req, res);
 
-    // Nessun token → 302 redirect graceful (non più 500 nudo, vedi ISSUE-3).
     expect(res.headers['Access-Control-Allow-Origin']).toBe(ALLOWED);
   });
 });
 
-describe('Nessun rate-limit per-IP su /api/spin (ISSUE-1)', () => {
+describe('Rate-limit per-IP basato sulla rotazione (S2)', () => {
   it('il primo spin dello stesso IP passa (raggiunge il check del token)', async () => {
     const req = {
       method: 'GET',
@@ -119,12 +122,11 @@ describe('Nessun rate-limit per-IP su /api/spin (ISSUE-1)', () => {
     const res = makeRes();
     await handler(req, res);
 
-    // Passa qualsiasi rate-limit, poi 302 redirect graceful (token assente
-    // → degradation, non più 500 nudo, vedi ISSUE-3).
+    // Passa il cooldown, poi 302 redirect graceful (token assente → degradation).
     expect(res.statusCode).toBe(302);
   });
 
-  it('UN SECONDO spin immediato dello STESSO IP NON è bloccato (niente 429)', async () => {
+  it('UN SECONDO spin immediato dello STESSO IP è rifiutato con 302 graceful (retry)', async () => {
     const ip = '198.51.100.2';
     const req = () => ({
       method: 'GET',
@@ -134,13 +136,17 @@ describe('Nessun rate-limit per-IP su /api/spin (ISSUE-1)', () => {
 
     const first = makeRes();
     await handler(req(), first);
-    expect(first.statusCode).toBe(302); // ha superato il percorso
+    expect(first.statusCode).toBe(302); // primo spin passa
 
     const second = makeRes();
     await handler(req(), second);
-    // Nessun rate-limit: anche di fila, mai 429. Raggiunge il token check (302).
+    // Bloccato dalla cooldown ma in modo GRACEFUL: 302 redirect verso il
+    // profilo owner, NON una pagina di errore. Nessuna chiamata GitHub.
     expect(second.statusCode).toBe(302);
-    expect(second.headers['Retry-After']).toBeUndefined();
+    expect(second.headers.Location).toContain('github.com');
+    // Segnala quanto aspettare (Retry-After), senza pagination/error page.
+    expect(second.headers['Retry-After']).toBeDefined();
+    expect(second.headers['X-Spin-Cooldown']).toBe('1');
   });
 
   it('IP DIVERSI non si influenzano (limite per-IP, non globale)', async () => {
@@ -167,19 +173,24 @@ describe('Nessun rate-limit per-IP su /api/spin (ISSUE-1)', () => {
     expect(b.statusCode).toBe(302); // B non è stato throttlato da A
   });
 
-  it('spin ripetuti dello stesso IP non producono MAI 429', async () => {
-    const ip = '198.51.100.5';
+  it('dopo la finestra di rotazione lo stesso IP può spinare di nuovo', async () => {
+    const ip = '198.51.100.6';
     const req = {
       method: 'GET',
       headers: { 'x-forwarded-for': ip },
       query: {},
     };
-    for (let i = 0; i < 5; i++) {
-      const res = makeRes();
-      await handler(req, res);
-      // Mai 429: ogni spin arriva al check del token (302 redirect graceful).
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['Retry-After']).toBeUndefined();
-    }
+    const first = makeRes();
+    await handler(req, first);
+    expect(first.statusCode).toBe(302); // primo spin passa
+
+    // Aspetta che la finestra di cooldown (50ms in test) scada.
+    await new Promise((r) => setTimeout(r, 80));
+
+    const second = makeRes();
+    await handler(req, second);
+    // Ora lo spin è di nuovo consentito (302, non bloccato).
+    expect(second.statusCode).toBe(302);
+    expect(second.headers['Retry-After']).toBeUndefined();
   });
 });

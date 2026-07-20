@@ -14,7 +14,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 | ID  | Area            | Gravità | Titolo breve |
 |-----|-----------------|---------|--------------|
-| S2  | Sicurezza       | P1      | Nessun rate-limit per-IP su `/api/spin` (esaurimento budget GitHub) |
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 | S1  | Sicurezza       | P2      | Redirect `explain` con blocklist di host arbitraria (non allowlist) |
@@ -57,16 +56,6 @@ Variabile morta; segnalata anche da lint in modalità `error`.
 ---
 
 ## 2. Sicurezza
-
-### S2 — Nessun rate-limit per-IP su `/api/spin`  · P1  (ISSUE-1)
-Lo spin legge la README GitHub e (se PAT presente) sincronizza `state.json`. Non
-esiste alcun throttle per IP. Un attaccante può inviare centinaia di richieste al
-secondo ed esaurire il budget GitHub API autenticato (5000/h) → la slot smette di
-funzionare per TUTTI gli utenti. La suite `tests/cors-ratelimit.test.js` lo
-conferma esplicitamente: spin ripetuti dello stesso IP non producono MAI 429.
-**Fix:** token-bucket per IP in KV (`gsm:ratelimit:<ip_hash>`) con finestra es.
-10 req/min/IP; rispondere `429` con `Retry-After` oltre soglia. Il rate-limit va
-applicato PRIMA della chiamata GitHub.
 
 ### S1 — Redirect `explain` con blocklist di host arbitraria  · P2
 `api/spin.js` valida il parametro `url` dell'`explain` solo contro `BLOCKED_HOSTS`
@@ -269,8 +258,7 @@ JSON, usato ovunque al posto di `console.*`.
 
 ## 9. Miglioramenti proposti (roadmap)
 
-1. **Rate-limit per-IP (S2)** — token-bucket in KV, P0 funzionale.
-2. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
+1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
 3. **Cache README in KV (P1)** — evita il GET GitHub a ogni spin.
 4. **Timeout su `ghGetContents` (R4)** — AbortController 800ms coerente con repos.
 5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
@@ -297,7 +285,12 @@ JSON, usato ovunque al posto di `console.*`.
 - `grep` su `README.md` → riferimenti a `languages.js` come renderer simboli (D1).
 - `.gitignore` ignora `state.json`/`slot.svg`; hook pre-commit in `.githooks/`
   rafforza (ISSUE-7, già gestito).
-  
+- **S2 — CHIUSO (2026-07-20):** rate-limit per-IP basato sul tempo di rotazione
+  implementato in `api/_lib/spin-cooldown.js` + integrato in `api/spin.js`
+  (redirect 302 graceful verso il profilo owner, zero chiamate GitHub, nessuna
+  pagina di errore). Blocco speculare lato client in `public/index.html`
+  (`SPIN_COOLDOWN_MS = 3000`). Verificato da `tests/cors-ratelimit.test.js`
+  (7 test verdi) e suite intera (227 test).
   
   Cold start
 

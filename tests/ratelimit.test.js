@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { isValidUser } from '../api/_lib/ratelimit.js';
 
-// NOTA: il rate-limit per-IP (token-bucket 1 spin / 3s, ex rateLimit() /
-// RL_WINDOW_SEC / getMemBucket()) è stato RIMOSSO (ISSUE-1): l'utente può
-// effettuare tutti gli spin che vuole senza ricevere "429 Troppe richieste".
-// ratelimit.js espone ora SOLO isValidUser (validazione ?user= per
-// l'open-redirect). I test sul bucket sono stati eliminati; la rimozione del
-// blocco 429 è verificata in tests/cors-ratelimit.test.js.
+// NOTA: la validazione ?user= (isValidUser, chiusura open-redirect) vive in
+// ratelimit.js. Il rate-limit per-IP VERIE è stato reintrodotto come fix S2
+// in api/_lib/spin-cooldown.js (finestra = tempo di rotazione dei rulli),
+// con risposta GRACEFUL 302 (mai 429): lo spin troppo ravvicinato dello
+// stesso IP viene rediretto al profilo owner senza consumare budget GitHub.
+// I test sul comportamento del rate-limit vivono in tests/cors-ratelimit.test.js.
 
 describe("isValidUser (?user= validation, chiude l'open-redirect)", () => {
   it('accetta login GitHub validi', () => {
