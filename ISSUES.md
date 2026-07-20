@@ -18,7 +18,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue` in root (clutter) |
-| D3  | Documentazione | P2      | README non ha registro ISSUE-N centralizzato |
+| D3  | Documentazione | P2      | README non ha registro ISSUE-N centralizzato (CHIUSO) |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
@@ -30,9 +30,36 @@ Il codice referenzia decine di `ISSUE-N` (ISSUE-1 … ISSUE-31) nei commenti, ma
 c'è un indice che colleghi ogni numero alla descrizione. Questo file (`ISSUES.md`)
 è il candidato naturale, ma va tenuto allineato: ogni nuovo `ISSUE-N` nel codice
 dovrebbe avere qui una voce corrispondente.
-**Fix:** adottare la convenzione "ogni `ISSUE-N` nel codice → voce in ISSUES.md"
-e aggiungere qui le voci mancanti (es. ISSUE-22 header centralizzati, ISSUE-23
-read-only KV, ISSUE-26 lint gate, ISSUE-31 Sentry debug).
+**Fix (CHIUSO 2026-07-20):** adottata la convenzione "ogni `ISSUE-N` nel codice
+→ voce in ISSUES.md". Qui sotto il registro centralizzato che mappa tutti i
+numeri referenziati dal codice alla relativa descrizione.
+
+### Registro centralizzato ISSUE-N
+
+| ISSUE   | Area / Tema        | Stato  | Descrizione breve |
+|---------|--------------------|--------|-------------------|
+| ISSUE-1  | State / migrations | chiuso | Indice di versione esplicito `v` nello state; tutte le chiamate GitHub centralizzate in `github.js` (`ghGetJson`/`ghPut`); sistema di migrazione stato (`MIGRATIONS`). |
+| ISSUE-3  | Telemetria / repos | chiuso | Rimosso tracking server-side verso endpoint non documentato; `repos.js` gestisce timeout + concorrenza; analytics spostato lato client (Vercel Web Analytics in `index.html`). |
+| ISSUE-7  | State / artifact   | chiuso | La copia locale del README nel repo è un artefatto ignorato: lo stato è tracciato su KV/GitHub, non su file locale. |
+| ISSUE-8  | State / migrations | chiuso | `MIGRATIONS[2]` placeholder portava a `version: 3` (bug corretto). |
+| ISSUE-11 | Rate-limit         | chiuso | La protezione contro l'abuso resta demandata al rate-limit (fix 2 in `ratelimit.js`). |
+| ISSUE-12 | Rate-limit         | chiuso | Classe osservazionale `RateLimitTracker` rimossa; sostituita da `logRateLimit()` in `github.js`; stato letto LIVE in `ratelimit-status.js`. |
+| ISSUE-16 | CORS / headers     | chiuso | Sorgente unica `ghHeaders` per evitare duplicazioni divergenti e header duplicati / placeholder nei test. |
+| ISSUE-20 | SVG accessibile    | chiuso | `buildAccessibleSVG` riceve i flag di vittoria e l'`aria-label` corretti. |
+| ISSUE-21 | SVG accessibile    | chiuso | Percorso reale accessibile dello spin (`api/spin.js` chiama `buildAccessibleSVG`); gli screen reader ricevono davvero il risultato (M1). |
+| ISSUE-22 | Headers            | chiuso | Header centralizzati su `ghHeaders` (unica sorgente condivisa, M3). |
+| ISSUE-23 | KV read-only       | chiuso | Separazione token read-only KV; le scritture silenziose in read-only mode vengono segnalate invece di fallire; stato community/cache repo non persistite. |
+| ISSUE-24 | `/api/image`       | chiuso | Fallback quando `content` è assente (repo esistente ma senza README); in caso di errore GitHub il client non riceve più testo senza SVG (B4). |
+| ISSUE-25 | CORS / SVG sanitize| chiuso | Policy CORS `*` (wildcard) su endpoint SVG/immagine/leva; hardening difensivo di sanitizzazione SVG in uscita (S3). |
+| ISSUE-26 | CI                 | chiuso | Lint gate: ESLint fallisce sugli errori e blocca il merge. |
+| ISSUE-27 | Docs / CI          | chiuso | Guida `CI-CD-GUIDE.md` riscritta (19/07/2026) per descrivere il flusso reale. |
+| ISSUE-28 | repos cold-start   | chiuso | `repos.js` fa un breve `await` invece di appendersi all'infinito sullo stall GitHub: cold-start non-bloccante ma popolato. |
+| ISSUE-29 | SVG error          | chiuso | `svg-builder.js` è l'unica fonte canonica di `errorSVG`/`errorSVGString`; re-import per retrocompatibilità in `svg-builder-accessible.js`. |
+| ISSUE-31 | Sentry             | chiuso | Flag debug Sentry: `debug` è `true` SOLO se `SENTRY_DEBUG==='true'`. |
+
+> I numeri non elencati sopra (es. ISSUE-2, ISSUE-4…ISSUE-19, ISSUE-30) non sono
+> referenziati dal codice attuale e quindi non hanno voce; se ricompaiono nei
+> commenti va aggiunta qui la relativa riga, per rispettare la convenzione.
 
 ---
 
@@ -89,7 +116,7 @@ JSON, usato ovunque al posto di `console.*`.
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-6. **Riscrivi README (D3)** — D1 e D2 già fatti; resta D3 (registro ISSUE-N centralizzato).
+6. **Riscrivi README (D3)** — D1 e D2 già fatti; D3 (registro ISSUE-N centralizzato) **CHIUSO** il 2026-07-20: tabella "Registro centralizzato ISSUE-N" in ISSUES.md.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
@@ -157,6 +184,16 @@ JSON, usato ovunque al posto di `console.*`.
   `LOG_LEVEL` NON è letto dal codice della slot (solo da tooling terzo), quindi
   non è documentato come env var reale. Il vincolo di regione `fra1` è ora
   documentato come hardcoded in `vercel.json`.
+
+  **D3 — CHIUSO (2026-07-20):** registro ISSUE-N centralizzato aggiunto in
+  ISSUES.md (sezione 6, "Registro centralizzato ISSUE-N"). Mappa tutti i numeri
+  effettivamente referenziati dal codice (grep su `ISSUE-[0-9]+` → 18 numeri
+  univoci: 1, 3, 7, 8, 11, 12, 16, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+  31) alla relativa descrizione/area/stato. Rispettata la convenzione "ogni
+  ISSUE-N nel codice → voce in ISSUES.md"; Indice priorità e Roadmap aggiornati
+  a CHIUSO. Nota: il testo originale di D3 citava ISSUE-22/23/26/31 come
+  "voci mancanti", ma erano già presenti nel codice — ora hanno tutti la loro
+  riga nel registro.
 
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
