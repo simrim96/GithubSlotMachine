@@ -9,6 +9,7 @@ import { kvEnabled, kvWritable, kvGet, kvSet } from './_lib/kv.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
+import { sendResponse } from './_lib/response-bridge.js';
 import { LANGUAGES } from './_lib/languages.js';
 import * as Sentry from '@sentry/node';
 
@@ -21,12 +22,9 @@ function now() {
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
+    sendResponse(res, { status: 204 });
     return;
   }
-
-  res.setHeader('content-type', 'application/json');
-  res.setHeader('cache-control', 'no-store');
 
   const full = req.query?.full === '1' || req.query?.full === 'true';
   const steps = {};
@@ -118,5 +116,12 @@ export default async function handler(req, res) {
   steps.total_ms = now() - t;
   steps.region_hint =
     'Vercel region: Project → Settings → General. Upstash: crea il DB nella stessa region.';
-  res.status(200).send(JSON.stringify(steps, null, 2));
+  sendResponse(res, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+    },
+    body: JSON.stringify(steps, null, 2),
+  });
 }

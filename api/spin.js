@@ -35,6 +35,7 @@ import {
 } from './_lib/github.js';
 import { kvGet, kvSet, kvEnabled } from './_lib/kv.js';
 import { applyCors } from './_lib/cors.js';
+import { sendResponse } from './_lib/response-bridge.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
@@ -195,7 +196,7 @@ export default async function handler(req, res) {
   // ── CORS + preflight ─────────────────────────────────────────────────────
   applyCors(req, res);
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
+    sendResponse(res, { status: 204 });
     return;
   }
 
@@ -206,9 +207,14 @@ export default async function handler(req, res) {
   // come il normale ritorno al profilo, e l'attaccante non consuma budget.
   const cooldown = await checkSpinCooldown(req);
   if (!cooldown.allowed) {
-    res.setHeader('Retry-After', String(cooldown.retryAfterSec));
-    res.setHeader('X-Spin-Cooldown', '1');
-    res.redirect(302, `https://github.com/${OWNER}`);
+    sendResponse(res, {
+      status: 302,
+      headers: {
+        'Retry-After': String(cooldown.retryAfterSec),
+        'X-Spin-Cooldown': '1',
+      },
+      redirect: `https://github.com/${OWNER}`,
+    });
     return;
   }
 
@@ -243,7 +249,7 @@ export default async function handler(req, res) {
         req.query?.redirect ? String(req.query.redirect).trim() : '',
         `https://github.com/${OWNER}`
       );
-      res.redirect(302, redirectUrl);
+      sendResponse(res, { status: 302, redirect: redirectUrl });
       return;
     }
 
@@ -498,7 +504,7 @@ export default async function handler(req, res) {
       } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
         console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
       }
-      res.redirect(302, redirectUrl);
+      sendResponse(res, { status: 302, redirect: redirectUrl });
       return;
     }
 
@@ -508,7 +514,7 @@ export default async function handler(req, res) {
       : '';
     const redirectUrl = resolveRedirectUrl(rawRedirect, dest);
 
-    res.redirect(302, redirectUrl);
+    sendResponse(res, { status: 302, redirect: redirectUrl });
     console.log('Security: Redirecting to:', redirectUrl);
   } catch (err) {
     // Cattura l'errore su Sentry
@@ -550,13 +556,14 @@ export default async function handler(req, res) {
     );
 
     try {
-      res.redirect(302, redirectUrl);
+      sendResponse(res, { status: 302, redirect: redirectUrl });
     } catch {
       // Ultimo baluardo: niente 500 nudo, ma un SVG di errore valido.
-      res
-        .status(200)
-        .setHeader('Content-Type', 'image/svg+xml')
-        .send(fallbackSvg);
+      sendResponse(res, {
+        status: 200,
+        headers: { 'Content-Type': 'image/svg+xml' },
+        body: fallbackSvg,
+      });
     }
   }
 }
