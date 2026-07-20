@@ -26,7 +26,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| B4  | Bug             | P3      | `image.js` 404 in chiaro senza content-type/Sentry |
 | B5  | Bug             | P3      | `cacheTtl` in `spin.js` calcolato ma mai usato |
 | M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
 | M4  | Manutenibilità  | P3      | Nomi confusionari minori |
@@ -36,16 +35,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 ---
 
 ## 1. Bug / Correttezza
-
-### B4 — `image.js` risponde 404 in chiaro  · P3
-`api/image.js`:
-```js
-if (!r.ok) return res.status(r.status).send('Slot image not found');
-```
-Nessun `Content-Type` impostato e nessun `Sentry.captureException`. In caso di
-errore GitHub il client riceve testo senza tipo, e l'evento non finisce in Sentry.
-**Fix:** impostare `Content-Type: text/plain`, catturare l'errore in Sentry e
-servire l'`errorSVGString` di degrado come negli altri path.
 
 ### B5 — `cacheTtl` calcolato ma mai usato in `spin.js`  · P3
 `api/spin.js` calcola `const cacheTtl = parseLocationHeader(...)` ma la variabile
