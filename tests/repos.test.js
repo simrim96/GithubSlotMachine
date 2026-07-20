@@ -1,6 +1,6 @@
 // Test su api/_lib/repos.js — copre il fix ISSUE-3:
 //   • timeout reale su ogni fetch (AbortController + GITHUB_API_TIMEOUT_MS)
-//   • concorrenza limitata a REPO_LANG_BATCH_SIZE (niente burst di ~100 in parallelo)
+//   • concorrenza limitata a REPO_SEARCH_CONCURRENCY (niente burst di ~100 in parallelo)
 //   • la cache byLangId viene popolata correttamente (≥30% di un linguaggio)
 //
 // Ogni test ricrea il grafo dei moduli (vi.resetModules) così la cache
@@ -93,10 +93,10 @@ async function freshImport() {
 }
 
 describe('repos.js — ISSUE-3 (timeout + concorrenza)', () => {
-  it('REPO_LANG_BATCH_SIZE è definito e ≤ 20 (limite di concorrenza)', async () => {
+  it('REPO_SEARCH_CONCURRENCY è definito e ≤ 20 (limite di concorrenza)', async () => {
     const { repos } = await freshImport();
-    expect(repos.REPO_LANG_BATCH_SIZE).toBeGreaterThan(0);
-    expect(repos.REPO_LANG_BATCH_SIZE).toBeLessThanOrEqual(20);
+    expect(repos.REPO_SEARCH_CONCURRENCY).toBeGreaterThan(0);
+    expect(repos.REPO_SEARCH_CONCURRENCY).toBeLessThanOrEqual(20);
   });
 
   it('popola la cache byLangId per un repo con ≥30% del linguaggio', async () => {
@@ -131,7 +131,7 @@ describe('repos.js — ISSUE-3 (timeout + concorrenza)', () => {
     expect(match).toBeNull();
   });
 
-  it('limita la concorrenza: mai più di REPO_LANG_BATCH_SIZE fetch /languages in parallelo', async () => {
+  it('limita la concorrenza: mai più di REPO_SEARCH_CONCURRENCY fetch /languages in parallelo', async () => {
     const { repos } = await freshImport();
     const reposList = Array.from({ length: 45 }, (_, i) =>
       makeRepo(`repo${i}`, { Python: 100 })
@@ -151,7 +151,7 @@ describe('repos.js — ISSUE-3 (timeout + concorrenza)', () => {
     };
     await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
     await new Promise((r) => setTimeout(r, 250));
-    expect(maxInFlight).toBeLessThanOrEqual(repos.REPO_LANG_BATCH_SIZE);
+    expect(maxInFlight).toBeLessThanOrEqual(repos.REPO_SEARCH_CONCURRENCY);
     expect(maxInFlight).toBeGreaterThan(1);
   });
 
