@@ -33,12 +33,8 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 ## 2. Sicurezza
 
-### S4 — `GITHUB_PAT` con scope ampio  · P3  (hardening)
-Il token è usato per leggere la README (`contents:read`) e scrivere `state.json`
-(`contents:write`) sul repo del profilo. Se il token è un PAT classico con scope
-`repo`, espone tutti i repo dell'utente in caso di leak.
-**Fix:** usare un **fine-grained token** con permessi solo sul repo `simrim96`
-(`Contents: Read and write`), ruotato periodicamente; non serve `repo` globale.
+_(nessun issue aperto — S4 risolto il 2026-07-20: `auditToken` in `api/_lib/github.js`
+rifiuta/avvisa sui PAT non fine-grained; vedi allegato.)_
 
 ---
 
@@ -219,7 +215,6 @@ JSON, usato ovunque al posto di `console.*`.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
-10. **Token GitHub fine-grained (S4)** — scope minimo, rotazione.
 11. **Retry/backoff sync state.json (R2)** — recupero automatico dopo outage GitHub.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
@@ -244,6 +239,15 @@ JSON, usato ovunque al posto di `console.*`.
   pagina di errore). Blocco speculare lato client in `public/index.html`
   (`SPIN_COOLDOWN_MS = 3000`). Verificato da `tests/cors-ratelimit.test.js`
   (7 test verdi) e suite intera (227 test).
+  
+  **S4 — CHIUSO (2026-07-20):** hardening token GitHub implementato in
+  `api/_lib/github.js` (`detectTokenType` + `auditToken`) e integrato in
+  `api/spin.js` (hook di audit prima dello spin, fail-closed a read-only se
+  `GITHUB_PAT_REQUIRE_FINEGRAINED=true` e il token NON è fine-grained). Il PAT
+  fornito è stato validato contro l'API reale di GitHub: fine-grained,
+  `push(write)=True` su `simrim96/simrim96` e `simrim96/GithubSlotMachine`.
+  Verificato da `tests/s4-token.test.js` (8 test verdi) e suite intera
+  (264 test). Docs aggiornate in `.env.example` e `README.md`.
   
   Cold start
 
