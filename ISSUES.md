@@ -20,18 +20,12 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
 | M4  | Manutenibilità  | P3      | Nomi confusionari minori |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
 
 ## 5. Manutenibilità
-
-### M2 — Nomina ingannevole in `state.js`  · P3
-`import { promises as fs } from 'fs'` → la variabile si chiama `fs` ma è in realtà
-`fs.promises`. Funziona, ma chi legge si aspetta `fs.readFileSync` sincrono.
-**Fix:** rinominare in `fsp` per evidenziare la natura async.
 
 ### M4 — Altri nomi confusionari  · P3
 - `ghGet`/`ghGetContents`/`ghGetRaw` hanno comportamento simile ma nomi che non
@@ -131,7 +125,6 @@ JSON, usato ovunque al posto di `console.*`.
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
-8. **Rimuovi codice morto (M2)** — variabile `fs` in `state.js` (M2).
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
@@ -179,6 +172,16 @@ JSON, usato ovunque al posto di `console.*`.
  preserva il comportamento esterno (CORS, rate-limit, redirect 302). Verificato da
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
+
+ **M2 — CHIUSO (2026-07-20):** nomina ingannevole in `api/_lib/state.js`
+ risolta. La variabile importata come `import { promises as fs } from 'fs'`
+ è stata rinominata in `fsp` per evidenziarne la natura async. Nel farlo è
+ stato corretto anche un bug latente: i fallback locali `readStateLocal`/
+ `writeStateLocal` invocavano `fs.promises.readFile`/`fs.promises.writeFile`,
+ ovvero `fs.promises.promises.*` (undefined) — si attivavano solo quando
+ `GITHUB_PAT` è assente e fallivano silenziosamente. Ora usano
+ `fsp.readFile`/`fsp.writeFile` corretti. Verificato da `tests/state-local.test.js`
+ (5 test) e suite intera (280 test).
 
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
