@@ -1,18 +1,25 @@
 // Look-up cache per (linguaggio → miglior repo dell'owner con ≥30% di quel lang).
 //
-// Cache a due livelli:
+// Cache a TRE livelli (R5 — resilienza cross-region):
 //   1. in-memory (module-level) — velocissima finché l'istanza Vercel resta calda
-//   2. Upstash Redis — persiste TRA i cold start di Vercel, quindi il primo spin
-//      a freddo NON fa più lo stall di 1-3s (fino a 100 chiamate /languages).
+//   2. Upstash Redis "fresh" (gsm:repoCache, TTL 30m) — persiste TRA i cold start
+//   3. Upstash Redis "lastgood" (gsm:repoCache:lastgood, SENZA TTL) — snapshot
+//      sempre disponibile dei repo recenti, scritto in parallelo al fresh.
+//
+// Il tier lastgood è il fix di R5: anche se Upstash è in una regione diversa
+// da Vercel (fra1) e il round-trip supera i timeout, lo spin continua a
+// ricevere i repo dall'ultimo snapshot buono invece di cascare nel fallback
+// "nessun repo". Solo al cold-start GENUINO (nessun dato da nessuna parte) si
+// attende la GitHub API (globale, veloce da qualsiasi regione), mai Upstash.
 //
 // Se Redis non è configurato, la cache resta solo in-memory (comportamento
 // originale, con stall possibile sui cold starts).
 //
-// NON-BLOCCANTE: se la cache è stale ma già stata popolata una volta, NON
-// aspettiamo lo stall di refresh — lo lanciamo in background e ritorniamo subito
-// il valore ancora valido. Solo al COLD START (cache mai popolata, ts===0)
-// facciamo un breve await (ISSUE-28, timeout 800ms) così il PRIMO spin ha già i
-// repo se la rete risponde, invece di puntare sempre al profilo.
+// NON-BLOCCANTE: se la cache è stale ma già stata popolata una volta (memoria
+// o lastgood), NON aspettiamo lo stall di refresh — lo lanciamo in background
+// e ritorniamo subito il valore ancora valido. Solo al COLD START GENUINO
+// (cache mai popolata, nessun lastgood) facciamo un breve await (ISSUE-28,
+// timeout 800ms) così il PRIMO spin ha già i repo se la rete risponde.
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
@@ -23,6 +30,11 @@ const TTL_MS = 1000 * 60 * 30; // 30 min
 // risponde (ISSUE-28), senza però appenderci all'infinito sullo stall GitHub.
 const COLD_START_WAIT_MS = 800;
 const KV_KEY = 'gsm:repoCache';
+// Tier "lastgood" (R5): snapshot SEMPRE disponibile dei repo, scritto in
+// parallelo al layer fresh ma SENZA TTL. Sopravvive ai cold start e anche se
+// il layer fresh è scaduto/stale, così lo spin ha SEMPRE i repo recenti anche
+// quando Upstash è cross-region o la refresh GitHub fallisce.
+const KV_LASTGOOD_KEY = 'gsm:repoCache:lastgood';
 // Dimensione dei batch per la fetch dei /languages: evita il burst di ~100
 // richieste parallele a freddo che esaurirebbe il rate-limit GitHub (5000/h).
 const LANG_BATCH_SIZE = 20;
@@ -59,20 +71,45 @@ async function mapBatch(items, size, worker) {
   return results;
 }
 
-function loadFromKv() {
+async function loadFromKv() {
   if (!kvEnabled || kvLoaded) return;
-  const data = kvGet(KV_KEY);
-  if (data && data.ts) {
-    cache.ts = data.ts;
-    cache.byLangId = data.byLangId || {};
+  kvLoaded = true; // marchiamo come tentato anche in caso di timeout parziale
+  // Leggiamo entrambi i tier in parallelo. Ogni lettura è incapsulata in un
+  // catch: se Upstash è down/lento e kvGet LANCIA (non solo timeout→null),
+  // l'errore NON deve propagarsi e rompere lo spin (R5). Un timeout su uno
+  // non deve uccidere l'altro; il tier "lastgood" è il fallback tiered.
+  const safeGet = (key) =>
+    kvGet(key).catch((e) => {
+      console.warn('repos loadFromKv kvGet failed:', e?.message);
+      return null;
+    });
+  const [fresh, lastgood] = await Promise.all([
+    safeGet(KV_KEY),
+    safeGet(KV_LASTGOOD_KEY),
+  ]);
+  if (fresh && fresh.ts && fresh.byLangId) {
+    // Tier fresh (TTL 30m) ancora valido → usiamo quello.
+    cache.ts = fresh.ts;
+    cache.byLangId = fresh.byLangId;
+  } else if (lastgood && lastgood.byLangId) {
+    // Tier lastgood: dati semi-stale ma SEMPRE servibili. Non azzeriamo
+    // cache.ts (resta = lastgood.ts) così la refresh gira in background
+    // nel branch !fresh, mantenendo i repo disponibili nel frattempo.
+    cache.ts = lastgood.ts || 0;
+    cache.byLangId = lastgood.byLangId;
   }
-  kvLoaded = true;
 }
 
 function saveToKv() {
   if (!kvEnabled) return;
   // Fire-and-forget: non blocchiamo lo spin per il salvataggio della cache.
-  kvSet(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(() => {});
+  // Scriviamo SIA il tier fresh (con TTL) SIA il tier lastgood (senza TTL,
+  // R5) così i repo recenti restano sempre disponibili anche a cold start
+  // e anche se Upstash è cross-region.
+  kvSet(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId }, Math.round(TTL_MS / 1000)).catch(
+    () => {}
+  );
+  kvSet(KV_LASTGOOD_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(() => {});
 }
 
 async function refreshCache(token, owner, languages) {
@@ -139,35 +176,39 @@ async function refreshCache(token, owner, languages) {
 
 export async function getRepoForLanguage(token, owner, lang, languages) {
   await loadFromKv();
+  const hasData = Object.keys(cache.byLangId).length > 0;
   const fresh = Date.now() - cache.ts < TTL_MS;
-  if (!fresh) {
-    const isColdStart = cache.ts === 0;
-    if (isColdStart) {
-      // PRIMO giro (cache mai popolata): facciamo un breve await così lo spin
-      // ha già i repo se la rete risponde (ISSUE-28). Se scade il timeout,
-      // ritorniamo subito quel che c'è (spesso null → redirect al profilo).
-      try {
-        await Promise.race([
-          refreshCache(token, owner, languages),
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('cold-start timeout')),
-              COLD_START_WAIT_MS
-            )
-          ),
-        ]);
-      } catch (e) {
-        if (e.message !== 'cold-start timeout') {
-          console.warn('repos cache refresh failed:', e.message);
-        }
+
+  if (!hasData) {
+    // COLD START GENUINO: nessun dato in memoria né in KV (né fresh né
+    // lastgood). È l'UNICO punto in cui attendiamo la rete, e lo facciamo
+    // solo su GitHub (globale, veloce da qualsiasi regione Vercel) → NON
+    // dipende da Upstash/Redis, quindi un DB cross-region NON fa più abortire
+    // TUTTE le ricerche repo (R5). Se scade l'800ms ritorniamo subito (spesso
+    // null → redirect al profilo), senza appenderci all'infinito.
+    try {
+      await Promise.race([
+        refreshCache(token, owner, languages),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('cold-start timeout')),
+            COLD_START_WAIT_MS
+          )
+        ),
+      ]);
+    } catch (e) {
+      if (e.message !== 'cold-start timeout') {
+        console.warn('repos cache refresh failed:', e.message);
       }
-    } else {
-      // Cache già popolata ma stale: non blocchiamo il redirect, popoliamo in
-      // background per le prossime richieste.
-      refreshCache(token, owner, languages).catch((e) =>
-        console.warn('repos cache refresh failed:', e.message)
-      );
     }
+  } else if (!fresh) {
+    // Abbiamo dati (memoria o KV lastgood) ma sono stale: li serviamo SUBITO
+    // e refreschiamo in background. Mai bloccare il redirect su uno stall KV
+    // o GitHub (R5: neanche un round-trip Upstash cross-region ci ferma).
+    refreshCache(token, owner, languages).catch((e) =>
+      console.warn('repos cache refresh failed:', e.message)
+    );
   }
+  // Se hasData && fresh → serviamo immediatamente, nessuna refresh.
   return cache.byLangId[lang.id] || null;
 }

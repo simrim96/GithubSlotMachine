@@ -29,26 +29,8 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
----
-
-## 2. Sicurezza
-
-_(nessun issue aperto — S4 risolto il 2026-07-20: `auditToken` in `api/_lib/github.js`
-rifiuta/avvisa sui PAT non fine-grained; vedi allegato.)_
-
----
 
 ## 3. Affidabilità / Resilienza
-
-### R5 — Spin senza repo se Upstash è cross-region  · P1
-`getRepoForLanguage` (`api/_lib/repos.js`) ha un timeout globale di **800ms**
-(AbortController). Se Upstash/Redis è in una region diversa da Vercel (`fra1` in
-`vercel.json`), il round-trip supera 800ms e TUTTE le ricerche repo abortiscono →
-lo spin cade nel fallback "nessun repo". `api/health.js` esiste proprio per
-diagnosticare questo caso (`kv_roundtrip_ms > 60` → "LENTO: cross-region").
-**Fix:** creare il DB Upstash nella stessa region `fra1` di Vercel (documentato in
-`health.js` ma non nell'ops). Aggiungere un fallback a cache KV "tiered" (repo
-recenti sempre disponibili anche a cold start).
 
 ### R4 — `ghGetContents` senza timeout esplicito  · P2
 `api/_lib/state.js` → `loadState()` legge da KV (timeout 500ms via `kvGet`) ma, se
@@ -83,11 +65,6 @@ spin (stimato +150–400ms). L'endpoint `/api/image` ha già una cache KV
 (`gsm:slotSvg`), ma lo spin non cachea la README.
 **Fix:** cacheare la README in KV con TTL breve (es. 60s, `gsm:readme:<owner>`);
 invalidare alla scrittura di `state.json`.
-
-### R5 (vedi sopra) — concorrenza repo: batch size 20 (OK)
-`REPO_LANG_CONCURRENCY` limita a 20 richieste parallele; con 8 lingue il primo spin
-cold fa 8 chiamate gestite. Non è un problema, ma il valore va reso coerente con
-`REPO_LANG_BATCH_SIZE` (vedi M5).
 
 ---
 
