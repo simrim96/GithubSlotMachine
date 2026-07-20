@@ -394,16 +394,6 @@ export async function getLanguages() {
 // Se hai bisogno dei linguaggi esterni, usa getLanguages()
 export const LANGUAGES = LANGUAGES_BASE;
 
-// Getter sync per gli export dinamici (fallback su BASE se non caricati)
-// Per ottenere i dati COMPLETI (con esterni), usa getFullLookups()
-export function getDynamicLookups() {
-  if (mergedLanguages) {
-    return buildLookups(mergedLanguages);
-  }
-  // Fallback: ritorna lookups basati su BASE
-  return buildLookups(LANGUAGES_BASE);
-}
-
 // Ritorna le lookups complete (asincrono) dopo aver caricato tutti i linguaggi esterni
 export async function getFullLookups() {
   const languages = await getLanguages();

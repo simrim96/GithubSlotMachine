@@ -20,7 +20,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | S1  | Sicurezza       | P2      | Redirect `explain` con blocklist di host arbitraria (non allowlist) |
 | R4  | Affidabilità    | P2      | `ghGetContents` senza timeout esplicito (possibile hang) |
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
-| B1  | Bug             | P2      | `continueSpin` codice morto (e con bug latente) |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 | P1  | Performance     | P2      | README GitHub letta a ogni spin (+150–400ms) non cacheata in KV |
 | S3  | Sicurezza       | P2      | Wildcard CORS su `/api/image` e `/api/lever` (tradeoff noto, da sanitizzare) |
@@ -28,7 +27,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| B2  | Bug             | P3      | `continueSpin` accede a `grid[i][COLS]` fuori range |
 | B4  | Bug             | P3      | `image.js` 404 in chiaro senza content-type/Sentry |
 | B5  | Bug             | P3      | `cacheTtl` in `spin.js` calcolato ma mai usato |
 | M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
@@ -39,24 +37,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 ---
 
 ## 1. Bug / Correttezza
-
-### B1 — `continueSpin` è codice morto  · P2
-`api/_lib/game.js` esporta `continueSpin`, ma `grep -rn continueSpin` su tutto il
-repo (escluso `node_modules`) NON trova alcun riferimento: non è mai importato né
-chiamato. Aumenta la superficie di manutenzione e confonde chi legge (sembra la
-continuazione logica dello spin, ma non lo è).
-**Fix:** rimuovere l'export e la funzione.
-
-### B2 — `continueSpin` ha un bug latente (indice fuori range)  · P3
-Nella funzione (morta) `continueSpin` di `game.js`:
-```js
-for (let i = 0; i < grid.length; i++) {
-  reps.push(grid[i][COLS]);   // COLS = num colonne; indice valido 0..COLS-1
-}
-```
-`grid[i][COLS]` accede alla colonna *oltre* l'ultima (`COLS` è la lunghezza, non un
-indice valido) → `undefined`. Se la funzione venisse mai attivata, produrrebbe
-rulli vuoti. (Risolto di conseguenza rimuovendo la funzione — vedi B1.)
 
 ### B4 — `image.js` risponde 404 in chiaro  · P3
 `api/image.js`:
@@ -296,7 +276,7 @@ JSON, usato ovunque al posto di `console.*`.
 5. **Standardizza handler su Web API `Response` (M1)** — un solo stile, wrapper CORS comune.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
-8. **Rimuovi codice morto (B1/M5/M2)** — `continueSpin`, `REPO_LANG_BATCH_SIZE`, `cacheTtl`.
+8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE`, `cacheTtl`.
 9. **Sanitizza SVG in uscita (S3)** — strip `<script>`/`on*`/`foreignObject`.
 10. **Token GitHub fine-grained (S4)** — scope minimo, rotazione.
 11. **Retry/backoff sync state.json (R2)** — recupero automatico dopo outage GitHub.
@@ -317,3 +297,22 @@ JSON, usato ovunque al posto di `console.*`.
 - `grep` su `README.md` → riferimenti a `languages.js` come renderer simboli (D1).
 - `.gitignore` ignora `state.json`/`slot.svg`; hook pre-commit in `.githooks/`
   rafforza (ISSUE-7, già gestito).
+  
+  
+  Cold start
+
+Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
+Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
+
+Cache
+
+Popola la cache lingua→repo proattivamente con un cron invece di aspettare il primo spin freddo (elimini del tutto lo scenario "800ms di attesa e fallback al profilo").
+Header Cache-Control differenziati: /api/lever cambia raramente (potrebbe quasi essere statico), mentre /api/image è dinamico — assicurati che Camo non tenga in cache più del necessario né rifaccia fetch inutili.
+
+Payload
+
+Minimizza l'SVG generato: nessuno spazio bianco ridondante, riusa <symbol>/<use> per le icone dei linguaggi (sembra che tu lo faccia già), evita di embeddare font o immagini come base64 se non necessario — ogni KB in meno è meno tempo di trasferimento attraverso Camo.
+
+Concorrenza / correttezza
+
+Se due spin arrivano quasi in contemporanea, verifica che la scrittura del counter su Redis sia atomica (INCR, non "leggi-poi-scrivi") per evitare race condition sul contatore — non è propriamente "performance" ma evita comportamenti anomali sotto carico.
