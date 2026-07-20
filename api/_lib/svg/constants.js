@@ -7,7 +7,6 @@ export const GAP = 8;
 export const SVG_W = 600;
 export const SVG_H = 624;
 export const HDR_H = 64;
-export const CROWN_H = 0;
 export const HDR_TOP = 2;
 export const PT_H = 92;
 export const PT_Y = HDR_TOP + HDR_H + 4;

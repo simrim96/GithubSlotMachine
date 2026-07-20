@@ -10,7 +10,6 @@ export function getMX() {
 }
 export const colL = (c) => getMX() + c * (CW + GAP);
 export const cellY = (r, GY) => GY + r * CH;
-export const cellCY = (r, GY) => GY + r * CH + CH / 2;
 export function getGY() {
   // Lascia molto spazio rosso sotto la paytable prima dei rulli:
   // il bordo del frame parte a getGY() - FRAME_PAD - 4, quindi con +52
