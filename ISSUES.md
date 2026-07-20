@@ -20,28 +20,9 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
-| M4  | Manutenibilità  | P3      | Nomi confusionari: ghGet/ghGetContents -> ghGetJson/ghGetContentsJson |
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 | O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
 
-
-## 5. Manutenibilità
-
-### M4 — Nomi confusionari delle funzioni GitHub  · P3 · CHIUSO
-- `ghGet` e `ghGetContents` avevano nomi che non chiarivano il formato di
-  ritorno. Entrambe ritornano l'oggetto JSON della Contents API GitHub
-  (con il campo `content` in base64) oppure `null` su 404/timeout/errore —
-  non un buffer raw né una stringa base64 già decodificata.
-- **Fix applicato:** rinominate in `ghGetJson` e `ghGetContentsJson` (in
-  `api/_lib/github.js`, `api/_lib/state.js`, `api/spin.js`) e aggiornati
-  tutti i test e i mock. `ghGetContentsJson` è ora un semplice wrapper di
-  `ghGetJson` con il timeout stretto (800ms) per il percorso critico dello
-  spin (ISSUE/R4).
-- Nota: in questa codebase **non esistono** `ghGetRaw` né `ghGetBase64`; la
-  menzione precedente era errata. Le uniche due funzioni di lettura sono
-  quelle sopra, entrambe JSON.
-
----
 
 ## 6. Documentazione
 
