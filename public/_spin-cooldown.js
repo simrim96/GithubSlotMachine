@@ -1,76 +1,124 @@
+/* eslint-env browser */
 // Rate-limit client-side (fix S2, speculare al backend).
 //
 // Lo spin usa `window.location.assign('/api/spin')`, che è una navigazione
-// COMPLETA di pagina (redirect a GitHub → ritorno al profilo). Questo AZZERA
-// qualsiasi stato in-memory (spinBtn.disabled, timer). Perché il blocco
-// sopravviva alla navigazione, persistiamo l'istante dello spin in
-// localStorage e lo riapplichiamo al caricamento della pagina.
-//
-// La finestra SPIN_COOLDOWN_MS è identica a quella usata dal server in
-// api/_lib/spin-cooldown.js (3000ms = durata rotazione rulli).
-/* eslint-env browser */
+// COMPLETA di pagina (redirect a GitHub → ritorno al profilo)...
+// [continua come prima]
+export const SPIN_COOLDOWN_MS = 3000;
 
-export const SPIN_COOLDOWN_MS =
-  parseInt(String(typeof process !== 'undefined' ? process.env?.SPIN_COOLDOWN_MS : ''), 10) || 3000;
-export const LAST_SPIN_KEY = 'gsm_last_spin_ts';
+const LS_KEY = 'gsm_last_spin_ts';
 
-// Riabilita la leva. `ctx` è l'oggetto di contesto fornito da index.html.
-function enableSpinBtn(ctx) {
-  ctx.spinBtn.disabled = false;
-  ctx.spinBtn.textContent = 'GIRA ORA';
-  ctx.setSpinning(false);
+// Stato di navigazione in-memory: durante il round-trip di assign() la
+// vecchia pagina resta viva finché il browser non ricarica. Se l'utente
+// clicca ancora in quel brevissimo lasso, handleSpinClick partirebbe di
+// nuovo e farebbe un SECONDO assign → doppia ricarica. Questo flag lo
+// impedisce (in-memory basta: vale per la durata della vecchia pagina).
+let isNavigating = false;
+
+function readLastTs() {
+  try {
+    const raw = window.localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
 }
 
-// Al caricamento: se l'ultimo spin è avvenuto da meno di SPIN_COOLDOWN_MS,
-// teniamo la leva disabilitata per il tempo rimanente (copre il caso in cui
-// la pagina è stata ricaricata dal redirect di /api/spin).
+function writeLastTs(ts) {
+  try {
+    window.localStorage.setItem(LS_KEY, String(ts));
+  } catch {
+    /* localStorage può essere disabilitato (private mode) — ignoriamo */
+  }
+}
+
+// Restituisce { inCooldown, remainingMs } in modo SINCRONO, leggendo il
+// timestamp persistito. Usato SIA da handleSpinClick (blocco prima del
+// redirect) SIA da applyCooldownOnLoad (blocco al ritorno della pagina).
+export function getCooldownState(now = Date.now()) {
+  const last = readLastTs();
+  if (last === null) return { inCooldown: false, remainingMs: 0 };
+  const elapsed = now - last;
+  if (elapsed < SPIN_COOLDOWN_MS) {
+    return { inCooldown: true, remainingMs: SPIN_COOLDOWN_MS - elapsed };
+  }
+  return { inCooldown: false, remainingMs: 0 };
+}
+
+function applyDisabledVisual(spinBtn, remainingMs, announce) {
+  spinBtn.disabled = true;
+  spinBtn.setAttribute('aria-disabled', 'true');
+  if (announce && remainingMs > 0) {
+    announce('Spin in corso, attendi la fine della rotazione…', 'polite');
+  }
+}
+
+function clearDisabledVisual(spinBtn) {
+  spinBtn.disabled = false;
+  spinBtn.removeAttribute('aria-disabled');
+}
+
+export function handleSpinClick(ctx) {
+  const { spinBtn, announce } = ctx;
+
+  // (1) Già in navigazione verso /api/spin? Ignora il click.
+  if (isNavigating) return;
+
+  // (2) Siamo ancora dentro la finestra di rotazione (cooldown attivo)?
+  //     Ignora il click SENZA ricaricare la pagina. Questo è il fix
+  //     richiesto: i click sulla leva durante la rotazione non devono
+  //     scatenare alcun assign()/reload.
+  const { inCooldown } = getCooldownState();
+  if (inCooldown) {
+    applyDisabledVisual(spinBtn, 0, announce);
+    return;
+  }
+
+  // (3) Spin consentito: registra SUBITO il timestamp (prima del redirect,
+  //     così un eventuale secondo click nello stesso istante trova il blocco),
+  //     marca la navigazione e fa il redirect.
+  isNavigating = true;
+  writeLastTs(Date.now());
+  if (typeof window !== 'undefined') window.location.assign('/api/spin');
+}
+
+// Al caricamento della pagina (anche dopo il redirect di /api/spin che
+// ricarica tutto): se siamo ancora dentro la finestra di rotazione, tieni la
+// leva disabilitata per il tempo rimanente. Resetta isNavigating perché
+// questa è una pagina "nuova".
 export function applyCooldownOnLoad(ctx) {
-  const last = parseInt(localStorage.getItem(LAST_SPIN_KEY) || '0', 10);
-  const elapsed = Date.now() - last;
-  if (last && elapsed < SPIN_COOLDOWN_MS) {
-    ctx.spinBtn.disabled = true;
-    ctx.setSpinning(true);
-    ctx.spinBtn.textContent = '⏳ Girando...';
-    if (ctx.cooldownTimer) clearTimeout(ctx.cooldownTimer);
-    ctx.cooldownTimer = setTimeout(() => enableSpinBtn(ctx), SPIN_COOLDOWN_MS - elapsed);
-    return true;
+  const { spinBtn, announce, setSpinning } = ctx;
+  isNavigating = false;
+  if (setSpinning) setSpinning(false);
+
+  const { inCooldown, remainingMs } = getCooldownState();
+  if (inCooldown) {
+    let remaining = remainingMs;
+    applyDisabledVisual(spinBtn, remaining, announce);
+    const tick = setInterval(() => {
+      remaining -= 250;
+      if (remaining <= 0) {
+        clearInterval(tick);
+        clearDisabledVisual(spinBtn);
+      }
+    }, 250);
+    return true; // era in cooldown
   }
   return false;
 }
 
-// Gestisce il click sulla leva. Ritorna `true` se lo spin è stato avviato,
-// `false` se è stato ignorato perché già in rotazione.
-export function handleSpinClick(ctx) {
-  if (ctx.spinBtn.disabled) return false;
-
-  // Registra SUBITO l'istante dello spin in localStorage, così il blocco
-  // persiste anche se la pagina naviga via (redirect a GitHub).
-  localStorage.setItem(LAST_SPIN_KEY, String(Date.now()));
-
-  ctx.spinBtn.disabled = true;
-  ctx.setSpinning(true);
-  ctx.spinBtn.textContent = '⏳ Girando...';
-  if (typeof ctx.announce === 'function') ctx.announce('Giro in corso...', 'polite');
-
-  if (typeof window !== 'undefined' && typeof window.va === 'function') {
-    window.va('track', 'spin', {});
-  }
-  if (typeof window !== 'undefined') window.location.assign('/api/spin');
-
-  if (ctx.cooldownTimer) clearTimeout(ctx.cooldownTimer);
-  ctx.cooldownTimer = setTimeout(() => enableSpinBtn(ctx), SPIN_COOLDOWN_MS);
-  return true;
-}
-
-// Punto di ingresso chiamato da index.html. `opts` deve contenere:
-// { spinBtn, isSpinningRef, setSpinning, announce }.
 export function initSpinCooldown(opts) {
-  const ctx = {
-    spinBtn: opts.spinBtn,
-    setSpinning: opts.setSpinning,
-    announce: opts.announce,
-    cooldownTimer: null,
-  };
+  const { spinBtn, isSpinningRef, setSpinning, announce } = opts;
+  const ctx = { spinBtn, isSpinningRef, setSpinning, announce };
+
+  // Al click della leva: blocca se in rotazione/cooldown, altrimenti spinna.
+  spinBtn.addEventListener('click', () => handleSpinClick(ctx));
+
+  // Al caricamento (e dopo ogni redirect): ripristina il blocco se la
+  // rotazione precedente è ancora in corso.
   applyCooldownOnLoad(ctx);
-  opts.spinBtn.addEventListener('click', () => handleSpinClick(ctx));
+
+  return { getCooldownState, handleSpinClick, applyCooldownOnLoad };
 }
