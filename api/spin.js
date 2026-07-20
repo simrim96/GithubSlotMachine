@@ -37,6 +37,7 @@ import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
+import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 import * as Sentry from '../sentry.config.js';
 // ─── Security: Allowed Origins for Redirect Validation ────────────────────────
 const ALLOWED_ORIGINS = [
@@ -156,11 +157,19 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Nessun rate-limit per-IP (ISSUE-1): l'utente può effettuare tutti gli
-  // spin che vuole, anche di fila. La protezione contro l'abuso del
-  // rate-limit globale GitHub (5000/h) resta demandata al graceful-fallback
-  // in state.js / github.js (timeout via AbortController), non a un blocco 429
-  // sugli spin.
+  // ── Rate-limit per-IP basato sul tempo di rotazione (fix S2, ISSUES.md) ───
+  // Un secondo spin dello stesso IP entro la finestra di rotazione viene
+  // rifiutato con un redirect GRACEFUL verso il profilo owner (302, ZERO
+  // chiamate a GitHub) invece di una pagina di errore: l'utente reale lo vede
+  // come il normale ritorno al profilo, e l'attaccante non consuma budget.
+  const cooldown = await checkSpinCooldown(req);
+  if (!cooldown.allowed) {
+    res.setHeader('Retry-After', String(cooldown.retryAfterSec));
+    res.setHeader('X-Spin-Cooldown', '1');
+    res.redirect(302, `https://github.com/${OWNER}`);
+    return;
+  }
+
   const token = process.env.GITHUB_PAT;
 
   const spinStart = Date.now();
