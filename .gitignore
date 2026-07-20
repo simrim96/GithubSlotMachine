@@ -25,3 +25,6 @@ Thumbs.db
 # state.json e slot.svg (vedi ISSUE-7).
 state.json
 slot.svg
+
+# script one-off di verifica issue (ISSUE-fix workflow)
+verify-issue*.mjs
