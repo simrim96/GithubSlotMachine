@@ -16,13 +16,11 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 |-----|-----------------|---------|--------------|
 | D1  | Documentazione  | P1      | README.md obsoleto (struttura, simboli, env vars) |
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-| R2  | Affidabilità    | P2      | Sync `state.json` su GitHub senza retry (possibile perdita spin) |
 | M1  | Manutenibilità  | P2      | Stile handler misto: `(req,res)` vs `new Response()` |
 | M5  | Manutenibilità  | P2      | Costanti duplicate `REPO_LANG_BATCH_SIZE` / `REPO_LANG_CONCURRENCY` |
 | P1  | Performance     | P2      | README GitHub letta a ogni spin (+150–400ms) non cacheata in KV |
 | T1  | Testing         | P2      | Mancano test end-to-end di `spin.js` con mock KV/GitHub |
 | T3  | Testing         | P2      | Script one-off `verify-issue*.mjs` in root (clutter) |
-| R2  | Affidabilità    | P2      | Sync state.json su GitHub: nessun retry/backoff, diverge se GitHub down |
 | D2/D3| Documentazione | P2      | README non documenta contratto API né registro ISSUE-N |
 | M2  | Manutenibilità  | P3      | Variabile `fs` = `fs/promises` (ingannevole) in `state.js` |
 | M4  | Manutenibilità  | P3      | Nomi confusionari minori |
@@ -31,15 +29,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 
 ## 3. Affidabilità / Resilienza
-
-### R2 — Sync `state.json` su GitHub senza retry  · P2
-`api/_lib/state.js` → `syncStateToGitHub` è fire-and-forget e, dopo 5 fallimenti
-consecutivi, invia solo un alert Sentry (`SENTRY_ALERT_THRESHOLD`). Non c'è
-backoff né retry: se GitHub è down a lungo, `state.json` diverge permanentemente
-dallo stato live senza possibilità di recupero automatico.
-**Fix:** retry con backoff esponenziale (max 3 tentativi) e, in caso di fallimento
-persistente, scrivere un marker `state.json.stale` o un campo `"stale": true` nel
-prossimo sync riuscito, così il frontend può segnalarlo.
 
 ### R3 — Scritture KV silenziose in read-only mode  · P3
 Se è presente solo `KV_REST_API_READ_ONLY_TOKEN` (`kvWritable === false`), le
@@ -183,7 +172,6 @@ JSON, usato ovunque al posto di `console.*`.
 6. **Riscrivi README (D1/D2/D3)** — architettura reale + env vars + API Reference + registro ISSUE-N.
 7. **Test e2e `spin.js` (T1)** — mock GitHub/KV, copre S1.
 8. **Rimuovi codice morto (M5/M2)** — `REPO_LANG_BATCH_SIZE` (M5), variabile `fs` in `state.js` (M2).
-11. **Retry/backoff sync state.json (R2)** — recupero automatico dopo outage GitHub.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.

@@ -35,8 +35,77 @@ import * as Sentry from '../../sentry.config.js';
 const STATE_SYNC_FAILURE_ALERT_THRESHOLD =
   parseInt(process.env.STATE_SYNC_FAILURE_ALERT_THRESHOLD) || 5;
 
+// ── R2: retry + backoff sul sync Redis→GitHub (ISSUES.md §3) ────────────────
+// Il sync su state.json era fire-and-forget senza retry: se GitHub era down
+// a lungo, state.json divergeva permanentemente dallo stato vivo (Redis)
+// senza possibilità di recupero. Ora il sync ritenta fino a
+// STATE_SYNC_MAX_RETRIES volte con backoff esponenziale. Se anche l'ultimo
+// tentativo fallisce, marciamo lo stato come "stale" (persistito in KV o, in
+// fallback, su /tmp) così il *prossimo* sync riuscito scrive un campo
+// `"stale": true` nel body di state.json, segnalando al frontend/profilo
+// che c'è stata una divergenza temporanea.
+const STATE_SYNC_MAX_RETRIES =
+  parseInt(process.env.STATE_SYNC_MAX_RETRIES) || 3;
+// Backoff esponenziale: tentativo n → attesa STATE_SYNC_BACKOFF_BASE_MS * 2^n.
+// Default 200ms → 200, 400, 800ms (≈1.4s totali al massimo).
+const STATE_SYNC_BACKOFF_BASE_MS =
+  parseInt(process.env.STATE_SYNC_BACKOFF_BASE_MS) || 200;
+
+// Marker di stale persistito su /tmp quando KV non è disponibile.
+const STATE_STALE_MARKER_LOCAL = '/tmp/GithubSlotMachine_state.stale';
+// Chiave KV per il marker di stale (fonte di verità preferita, sopravvive al
+// riavvio dell'istanza serverless).
+const STATE_STALE_KV_KEY = 'gsm:stateStale';
+
 let _syncFailureCount = 0;
 let _alertRaised = false;
+// Flag di stale a livello di modulo: true se l'ultimo sync GitHub ha fallito
+// in modo persistente. Viene azzerato al primo sync riuscito.
+let _stateStale = false;
+
+// Carica il flag di stale da KV (preferito) o dal marker /tmp (fallback).
+// Chiamato all'inizio di ogni sync così lo stato sopravvive ai riavvii.
+async function loadStaleFlag() {
+  if (_stateStale) return; // già marcato in memoria
+  try {
+    if (kvEnabled) {
+      const v = await kvGet(STATE_STALE_KV_KEY);
+      if (v === '1') {
+        _stateStale = true;
+        return;
+      }
+    }
+  } catch {
+    /* KV non disponibile: prosegui col fallback /tmp */
+  }
+  try {
+    await fs.access(STATE_STALE_MARKER_LOCAL);
+    _stateStale = true;
+  } catch {
+    /* nessun marker: stato non stale */
+  }
+}
+
+// Persiste il flag di stale (KV + /tmp) così resta valido tra i riavvii.
+async function persistStaleFlag(value) {
+  _stateStale = value;
+  if (kvEnabled) {
+    try {
+      await kvSet(STATE_STALE_KV_KEY, value ? '1' : '0');
+    } catch {
+      /* KV non scrivibile: il /tmp fallback basta per il segnale */
+    }
+  }
+  try {
+    if (value) {
+      await fs.writeFile(STATE_STALE_MARKER_LOCAL, String(Date.now()));
+    } else {
+      await fs.rm(STATE_STALE_MARKER_LOCAL, { force: true });
+    }
+  } catch {
+    /* /tmp non scrivibile: il flag in memoria resta valido per il processo */
+  }
+}
 
 // Sentry è opzionale (il DSN può non essere configurato in dev/test):
 // lo importiamo in modo dinamico/lazy così un'eventuale assenza del modulo
@@ -86,6 +155,57 @@ function recordStateSyncSuccess() {
   }
   _syncFailureCount = 0;
   _alertRaised = false;
+  // R2: se eravamo in stato stale (sync fallito in modo persistente in
+  // precedenza), un sync riuscito significa che la divergenza è risolta:
+  // abbassiamo il flag così il prossimo writeState NON rimarcherà più
+  // state.json come stale.
+  if (_stateStale) {
+    console.log(
+      '[state] sync Redis→GitHub recuperato dopo periodo stale — ' +
+        'flag stale azzerato.'
+    );
+    persistStaleFlag(false);
+  }
+}
+
+// R2: sync con retry + backoff esponenziale verso GitHub (state.json).
+// Ritorna true se ALMENO uno dei tentativi è andato a buon fine, false se
+// tutti i STATE_SYNC_MAX_RETRIES tentativi sono falliti (in tal caso il
+// chiamante marca lo stato come stale). Non lancia mai: gli errori sono
+// catturati e conteggiati dal monitor M4 (fallimenti consecutivi + alert).
+async function syncStateToGitHub(token, owner, repo, state, sha) {
+  await loadStaleFlag();
+  let lastErr;
+  for (let attempt = 0; attempt < STATE_SYNC_MAX_RETRIES; attempt++) {
+    try {
+      // Se siamo in stato stale, scriviamo il campo "stale": true nel body
+      // così chi legge state.json (frontend/profilo) sa che c'è stata una
+      // divergenza temporanea che è stata recuperata.
+      const stateToSync = _stateStale ? { ...state, stale: true } : state;
+      await writeStateGitHub(token, owner, repo, stateToSync, sha);
+      // Sync riuscito: la divergenza è risolta. Azzeriamo il flag stale
+      // DOPO la scrittura, così questo body porta ancora "stale": true (per
+      // segnalare il recupero) ma i sync successivi non lo rimarcheranno.
+      await persistStaleFlag(false);
+      return true;
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        `[state] sync Redis→GitHub tentativo ${attempt + 1}/` +
+          `${STATE_SYNC_MAX_RETRIES} fallito: ${err?.message || err}`
+      );
+      if (attempt < STATE_SYNC_MAX_RETRIES - 1) {
+        const delay = STATE_SYNC_BACKOFF_BASE_MS * 2 ** attempt;
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  // Tutti i tentativi falliti: marca lo stato come stale in modo persistente
+  // (sopravvive ai riavvii) così il prossimo sync riuscito segnalerà
+  // "stale": true nel body.
+  await persistStaleFlag(true);
+  recordStateSyncFailure(lastErr);
+  return false;
 }
 
 const STATE_KEY = 'gsm:state';
@@ -133,7 +253,6 @@ const MIGRATIONS = {
     console.log(`[state] Migrated state from v1 to v2`);
     return migrated;
   },
-
 };
 
 /**
@@ -213,13 +332,7 @@ async function readStateGitHub(token, owner, repo) {
   return { state: { ...DEFAULTS, ...parsed }, sha: data.sha };
 }
 
-async function writeStateGitHub(
-  token,
-  owner,
-  repo,
-  state,
-  sha
-) {
+async function writeStateGitHub(token, owner, repo, state, sha) {
   const encoded = JSON.stringify(state, null, 2);
   await ghPut(
     token,
@@ -295,13 +408,19 @@ export async function writeState(token, owner, repo, state, _sha) {
     }
     await kvSet(STATE_KEY, stateToSave);
     // Sync asincrono su GitHub per backup (non blocca lo spin).
-    // Se fallisce, viene registrato dal monitor M4 (conteggio fallimenti
-    // consecutivi + alert su Sentry/log quando supera la soglia) così ci si
-    // accorge se lo stato persistito su GitHub smette di aggiornarsi.
-    writeStateGitHub(token, owner, repo, stateToSave, _sha)
-      .then(() => recordStateSyncSuccess())
+    // R2: ora con retry + backoff esponenziale (syncStateToGitHub). Se tutti
+    // i tentativi falliscono, lo stato viene marcato "stale" (persistito) e
+    // il prossimo sync riuscito scriverà "stale": true nel body. Il monitor
+    // M4 continua a contare i fallimenti consecutivi + alert Sentry/log.
+    syncStateToGitHub(token, owner, repo, stateToSave, _sha)
+      .then((ok) => {
+        if (ok) recordStateSyncSuccess();
+      })
       .catch((e) => {
-        console.warn('Redis state sync to GitHub failed:', e.message);
+        console.warn(
+          'Redis state sync to GitHub failed (unexpected):',
+          e.message
+        );
         recordStateSyncFailure(e);
       });
     return;
@@ -311,7 +430,10 @@ export async function writeState(token, owner, repo, state, _sha) {
     await writeStateLocal(state);
     return;
   }
-  return writeStateGitHub(token, owner, repo, state, _sha);
+  // Percorso senza KV (solo GitHub): applichiamo la stessa resilienza R2
+  // (retry + backoff); se fallisce marciamo stale e registriamo il fallimento.
+  const ok = await syncStateToGitHub(token, owner, repo, state, _sha);
+  if (ok) recordStateSyncSuccess();
 }
 
 // ── Export del monitor M4 (per testabilità) ───────────────────────────────────
@@ -321,7 +443,14 @@ export {
   recordStateSyncFailure,
   recordStateSyncSuccess,
   reportStateSyncAlert,
+  syncStateToGitHub,
+  persistStaleFlag,
+  loadStaleFlag,
   STATE_SYNC_FAILURE_ALERT_THRESHOLD,
+  STATE_SYNC_MAX_RETRIES,
+  STATE_SYNC_BACKOFF_BASE_MS,
+  STATE_STALE_KV_KEY,
+  STATE_STALE_MARKER_LOCAL,
 };
 // Getter dello stato corrente del monitor (utile per assertions nei test).
 export function getSyncFailureCount() {
@@ -329,4 +458,8 @@ export function getSyncFailureCount() {
 }
 export function isAlertRaised() {
   return _alertRaised;
+}
+// Getter del flag stale (utile per assertions nei test R2).
+export function isStateStale() {
+  return _stateStale;
 }
