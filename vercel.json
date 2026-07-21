@@ -7,22 +7,5 @@
       "path": "/api/health",
       "schedule": "0 0 * * *"
     }
-  ],
-  "functions": {
-    "api/health.js": {
-      "runtime": "@vercel/edge"
-    },
-    "api/spin.js": {
-      "runtime": "@vercel/edge"
-    },
-    "api/image.js": {
-      "runtime": "@vercel/edge"
-    },
-    "api/lever.js": {
-      "runtime": "@vercel/edge"
-    },
-    "api/ratelimit-status.js": {
-      "runtime": "@vercel/edge"
-    }
-  }
+  ]
 }
