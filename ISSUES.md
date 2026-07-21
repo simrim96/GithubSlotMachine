@@ -2,6 +2,16 @@
 
 ## Indice
 
+- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
+  - [M4: Gestione graceful shutdown per processi long-running](#m4-gestione-graceful-shutdown-per-processi-long-running)
+  - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
+  - [M8: Documentazione delle dipendenze NPM](#m8-documentazione-delle-dipendenze-npm)
+  - [M9: Test coverage per edge cases GitHub API](#m9-test-coverage-per-edge-cases-github-api)
+- [🧪 Test Coverage - Verifica Aggiornata](#-test-coverage---verifica-aggiornata)
+- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
+- [🎯 Raccomandazioni Prioritarie](#-raccomandazioni-prioritarie)
+- [📝 Note Finali](#-note-finali)
+
 ## 🚀 Miglioramenti Identificati
 
 ### M4: Gestione graceful shutdown per processi long-running
