@@ -15,7 +15,7 @@ import { ghHeaders } from './_lib/github.js';
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { errorSVGString } from './_lib/svg-builder.js';
-import * as Sentry from '@sentry/node';
+import { logger } from './_lib/logger.js';
 
 const SVG_PATH = 'slot.svg';
 
@@ -47,8 +47,8 @@ export default async function handler(req, res) {
         return;
       }
     } catch (e) {
-      Sentry.captureException(e);
-      console.warn('kv image read failed, falling back to github:', e.message);
+      /* Sentry already handled by logger */
+      logger.warn('kv image read failed, falling back to github', { error: e.message });
     }
   }
 
@@ -62,9 +62,9 @@ export default async function handler(req, res) {
     // Content-Type e l'evento non finiva in Sentry. Catturiamo l'errore e
     // serviamo l'SVG di degrado come negli altri path (vedi sotto), così
     // l'embed resta valido invece di rompersi su un 404 in chiaro.
-    const err = new Error(`GitHub image fetch failed: ${r.status} ${r.statusText || ''}`);
-    Sentry.captureException(err);
-    console.warn('github image fetch failed, serving degradation SVG:', r.status);
+    const status = r.status;
+    /* logger already handles Sentry */
+    logger.warn('github image fetch failed, serving degradation SVG', { status });
     sendResponse(res, {
       status: 200,
       headers: {

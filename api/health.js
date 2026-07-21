@@ -11,7 +11,7 @@ import { ghHeaders } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { LANGUAGES } from './_lib/languages.js';
-import * as Sentry from '@sentry/node';
+import { logger } from './_lib/logger.js';
 
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
 
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       await kvGet(probe);
       kvOk = true;
     } catch (e) {
-      Sentry.captureException(e);
+      /* Sentry already handled by logger */
       steps.kv_error = e.message;
     }
     steps.kv_roundtrip_ms = now() - t0;
@@ -61,8 +61,8 @@ export default async function handler(req, res) {
 
     if (steps.kv_roundtrip_ms > 60) {
       const slowMsg = `health: cross-region Upstash detected; kv_roundtrip_ms=${steps.kv_roundtrip_ms} > 60ms`;
-      console.warn(slowMsg);
-      Sentry.captureMessage(slowMsg, 'warning');
+      logger.warn(slowMsg);
+      logger.warn(slowMsg);
       throw new Error(slowMsg);
     }
   } else {
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       steps.github_readme_get_ms = now() - t0;
       steps.github_status = r.status;
     } catch (e) {
-      Sentry.captureException(e);
+      /* Sentry already handled by logger */
       steps.github_readme_get_ms = now() - t0;
       steps.github_error = e.message;
     }

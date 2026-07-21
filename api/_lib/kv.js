@@ -16,6 +16,7 @@
 // lento NON può mai peggiorare le prestazioni oltre il percorso GitHub.
 
 import { Redis } from '@upstash/redis';
+import { logger } from './logger.js';
 
 // Upstash può essere collegato in due modi, con nomi env DIVERSI:
 //  1) Standalone (crei il DB su upstash.com e copi le env):
@@ -75,12 +76,10 @@ export async function kvSet(key, val, ttlSec = 0) {
     // ISSUE-23: solo token read-only (es. KV_REST_API_READ_ONLY_TOKEN) →
     // una scrittura fallirebbe con 401/403. Lo segnaliamo esplicitamente
     // invece di fallire in silenzio.
-    console.warn(
-      `[kv] kvSet ignorato: nessun token di SCRITTURA configurato ` +
-        `(presente solo KV_REST_API_READ_ONLY_TOKEN). La chiave "${key}" ` +
-        `NON verrà persistita. Configura UPSTASH_REDIS_REST_TOKEN o ` +
-        `KV_REST_API_TOKEN per abilitare le scritture.`
-    );
+    logger.warn('kvSet ignored: no write token configured', {
+      message: 'Only KV_REST_API_READ_ONLY_TOKEN present. Key not persisted.',
+      key,
+    });
     return false;
   }
   try {
@@ -89,10 +88,11 @@ export async function kvSet(key, val, ttlSec = 0) {
     return true;
   } catch (err) {
     if (isAuthError(err)) {
-      console.warn(
-        `[kv] kvSet fallito per ${err.status ?? 'auth'}: scrittura negata ` +
-          `(token di scrittura non valido?). Chiave "${key}" NON persistita.`
-      );
+      logger.warn('kvSet auth failure', {
+        status: err.status,
+        message: 'Write denied (invalid write token?). Key not persisted.',
+        key,
+      });
     }
     return false;
   }
@@ -113,12 +113,10 @@ export async function kvMset(obj) {
   if (!kvEnabled) return false;
   if (!kvWritable) {
     // ISSUE-23: idem kvSet — segnaliamo invece di fallire in silenzio.
-    console.warn(
-      `[kv] kvMset ignorato: nessun token di SCRITTURA configurato ` +
-        `(presente solo KV_REST_API_READ_ONLY_TOKEN). Le chiavi ` +
-        `${Object.keys(obj).join(', ')} NON verranno persistite. ` +
-        `Configura UPSTASH_REDIS_REST_TOKEN o KV_REST_API_TOKEN.`
-    );
+    logger.warn('kvMset ignored: no write token configured', {
+      message: 'Only KV_REST_API_READ_ONLY_TOKEN present. Keys not persisted.',
+      keys: Object.keys(obj).join(', '),
+    });
     return false;
   }
   try {
@@ -126,11 +124,11 @@ export async function kvMset(obj) {
     return true;
   } catch (err) {
     if (isAuthError(err)) {
-      console.warn(
-        `[kv] kvMset fallito per ${err.status ?? 'auth'}: scrittura negata ` +
-          `(token di scrittura non valido?). Chiavi ` +
-          `${Object.keys(obj).join(', ')} NON persistite.`
-      );
+      logger.warn('kvMset auth failure', {
+        status: err.status,
+        message: 'Write denied (invalid write token?). Keys not persisted.',
+        keys: Object.keys(obj).join(', '),
+      });
     }
     return false;
   }
