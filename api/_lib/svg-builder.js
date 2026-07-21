@@ -45,7 +45,7 @@ function computeStateHash(state, languages, grid, uid) {
   return `${uidStr}|${gridStr}|${stateStr}|${langsStr}`;
 }
 
-function getCachedSvg(state, languages, grid, uid) {
+export function getCachedSvg(state, languages, grid, uid) {
   const hash = computeStateHash(state, languages, grid, uid);
   const now = Date.now();
   
@@ -75,7 +75,7 @@ function getCachedSvg(state, languages, grid, uid) {
   return null; // Cache miss, procedere con la build
 }
 
-function setCachedSvg(state, languages, grid, svg) {
+export function setCachedSvg(state, languages, grid, svg) {
   const hash = computeStateHash(state, languages, grid);
   svgCache.set(hash, { svg, ts: Date.now() });
 }
