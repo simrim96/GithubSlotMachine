@@ -24,8 +24,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 ## 9. Miglioramenti proposti (roadmap)
 
-1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-12. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
+1. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
 
 ---
