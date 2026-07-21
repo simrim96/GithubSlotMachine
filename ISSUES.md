@@ -130,6 +130,8 @@ la funzione vada mai completamente a freddo per un visitatore reale.
 **OTTIMIZZAZIONI AGGIUNTE:**
 - `kv.js`: sostituito `@upstash/redis` con fetch diretto → zero init overhead
 - `github.js`: timeout ridotto da 5s a 2s → fallimenti più rapidi
-- `vercel.json`: cron aggiuntivo per `/api/spin` ogni 2 min → warm proattivo
+- **CORREZIONE PIANO HOBBY:** rimossi cron multipli (limite Vercel Hobby: 1 cron/die)
+- Mantenuto solo `/api/health` cron giornaliero (0 0 * * *)
+- Warm-up proattivo gestito via altri meccanismi (es. cache-in-memory, edge caching)
 
 Cold start stimato: < 10ms (da ~200-500ms con @upstash/redis).
