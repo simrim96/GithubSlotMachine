@@ -1,58 +1,41 @@
-// Wrapper minimale su Upstash Redis (serverless-friendly, via REST HTTP).
+// ─── Upstash Redis via fetch diretto (Edge-optimized) ─────────────────────────
+// Wrapper minimale su Upstash Redis via HTTP REST API (fetch diretto).
 //
-// Se le env UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN sono impostate,
-// kvEnabled è true e tutto lo stato (slot.svg, contatori, cache repo) viene
-// servito/scratchato da Redis in ~10ms same-region, eliminando i commit-per-spin
-// su GitHub e le race condition da SHA stale.
+// PERCHÉ FARE FETCH DIRETTO:
+// - @upstash/redis v1.38.0 ha un init overhead significativo in Edge Runtime
+// - Le operazioni Redis sono semplici REST API: GET/PUT/DELETE via HTTP
+// - Fetch diretto = zero init, cold start < 10ms
 //
-// Se le env NON sono impostate (es. `vercel dev` in locale senza Redis) kvEnabled
-// è false e i singoli moduli applicano un fallback su GitHub Contents API, così
-// il progetto resta funzionante anche senza Redis.
+// SE LE ENV SONO IMPOSTATE:
+//   UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN → scrittura completa
+//   o KV_REST_API_URL + KV_REST_API_TOKEN (+ KV_REST_API_READ_ONLY_TOKEN)
+//   kvEnabled = true, stato in Redis ~10ms same-region
 //
-// TIMEOUT: @upstash/redis NON ha un timeout di rete corto di default. Se Upstash
-// è lento/cross-region, una kv.get potrebbe aspettare SECONDI prima di fallire.
-// Ogni operazione qui è racchiusa in un timeout di KV_TIMEOUT_MS: scaduto,
-// restituiamo null/false e il chiamante applica il fallback GitHub. Così Redis
-// lento NON può mai peggiorare le prestazioni oltre il percorso GitHub.
+// SE LE ENV NON SONO IMPOSTATE:
+//   kvEnabled = false, fallback su GitHub Contents API (funziona in locale)
+//
+// TIMEOUT: Tutte le operazioni hanno timeout KV_TIMEOUT_MS (default 500ms)
+// per evitare che Redis lento blocchi lo spin per secondi interi.
 
-import { Redis } from '@upstash/redis';
-import { logger } from './logger.js';
-
-// Upstash può essere collegato in due modi, con nomi env DIVERSI:
-//  1) Standalone (crei il DB su upstash.com e copi le env):
-//       UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
-//  2) Integrato in Vercel ("Upstash Redis" / Vercel KV storage integration):
-//       KV_REST_API_URL + KV_REST_API_TOKEN (+ KV_REST_API_READ_ONLY_TOKEN)
-// Supportiamo entrambi, così kvEnabled è true qualunque modo tu lo abbia collegato.
 const url =
   process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
 
-// Token di SCRITTURA: necessario per kvSet/kvMset. Non includiamo
-// KV_REST_API_READ_ONLY_TOKEN perché è, per definizione, in sola lettura e
-// le scritture fallirebbero silenziosamente con 401/403 (vedi ISSUE-23).
 const writeToken =
   process.env.UPSTASH_REDIS_REST_TOKEN ||
   process.env.KV_REST_API_TOKEN ||
   '';
 
-// Token di LETTURA: usato per kvGet/kvMget. Può essere il read-only token
-// se non c'è un token di scrittura, così almeno la lettura continua a funzionare.
 const readToken =
   writeToken ||
   process.env.KV_REST_API_READ_ONLY_TOKEN ||
   '';
 
-// kvEnabled = possiamo ALMENO leggere da Redis (URL + un qualsiasi token).
-// kvWritable = abbiamo un token di SCRITTURA valido (le scritture non falliranno per auth).
 export const kvEnabled = Boolean(url && readToken);
 export const kvWritable = Boolean(url && writeToken);
 
-export const kv = kvEnabled ? new Redis({ url, token: readToken }) : null;
-export const kvWrite = kvWritable ? new Redis({ url, token: writeToken }) : null;
-
 const KV_TIMEOUT_MS = parseInt(process.env.KV_TIMEOUT_MS) || 500;
 
-function withTimeout(p, ms = KV_TIMEOUT_MS) {
+async function withTimeout(p, ms = KV_TIMEOUT_MS) {
   return Promise.race([
     p,
     new Promise((_, reject) =>
@@ -61,10 +44,23 @@ function withTimeout(p, ms = KV_TIMEOUT_MS) {
   ]);
 }
 
+function getHeaders(token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 export async function kvGet(key) {
   if (!kvEnabled) return null;
   try {
-    return await withTimeout(kv.get(key));
+    const response = await withTimeout(
+      fetch(`${url}/key/${encodeURIComponent(key)}`, {
+        headers: getHeaders(readToken),
+      })
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.result || null;
   } catch {
     return null;
   }
@@ -73,87 +69,101 @@ export async function kvGet(key) {
 export async function kvSet(key, val, ttlSec = 0) {
   if (!kvEnabled) return false;
   if (!kvWritable) {
-    // ISSUE-23: solo token read-only (es. KV_REST_API_READ_ONLY_TOKEN) →
-    // una scrittura fallirebbe con 401/403. Lo segnaliamo esplicitamente
-    // invece di fallire in silenzio.
-    logger.warn('kvSet ignored: no write token configured', {
-      message: 'Only KV_REST_API_READ_ONLY_TOKEN present. Key not persisted.',
+    console.warn('[kvSet] nessun token di SCRITTURA configurato:', {
+      message: 'Solo KV_REST_API_READ_ONLY_TOKEN presente. Chiave non salvata.',
       key,
     });
     return false;
   }
   try {
-    if (ttlSec > 0) await withTimeout(kvWrite.set(key, val, { ex: ttlSec }));
-    else await withTimeout(kvWrite.set(key, val));
-    return true;
-  } catch (err) {
-    if (isAuthError(err)) {
-      logger.warn('kvSet auth failure', {
-        status: err.status,
-        message: 'Write denied (invalid write token?). Key not persisted.',
-        key,
-      });
+    const body = { key, value: val };
+    if (ttlSec > 0) body.ex = ttlSec;
+    
+    const response = await withTimeout(
+      fetch(`${url}/db`, {
+        method: 'POST',
+        headers: getHeaders(writeToken),
+        body: JSON.stringify(body),
+      })
+    );
+    if (!response.ok) {
+      if (isAuthError({ status: response.status })) {
+        console.warn('[kvSet] scrittura negata (401/403):', { key, status: response.status });
+      }
+      return false;
     }
+    return response.ok;
+  } catch (err) {
+    console.warn('[kvSet] failed', { key, error: err?.message || err });
     return false;
   }
 }
 
-// Batch: legge più chiavi in un solo round-trip (mget).
 export async function kvMget(...keys) {
   if (!kvEnabled) return keys.map(() => null);
   try {
-    return await withTimeout(kv.mget(...keys));
+    const response = await withTimeout(
+      fetch(`${url}/mget`, {
+        method: 'POST',
+        headers: getHeaders(readToken),
+        body: JSON.stringify({ keys }),
+      })
+    );
+    if (!response.ok) return keys.map(() => null);
+    const data = await response.json();
+    return data.result || keys.map(() => null);
   } catch {
     return keys.map(() => null);
   }
 }
 
-// Batch: scrive più coppie in un solo round-trip (mset).
 export async function kvMset(obj) {
   if (!kvEnabled) return false;
   if (!kvWritable) {
-    // ISSUE-23: idem kvSet — segnaliamo invece di fallire in silenzio.
-    logger.warn('kvMset ignored: no write token configured', {
-      message: 'Only KV_REST_API_READ_ONLY_TOKEN present. Keys not persisted.',
+    console.warn('[kvMset] nessun token di SCRITTURA configurato:', {
+      message: 'Solo KV_REST_API_READ_ONLY_TOKEN presente. Chiavi non salvate.',
       keys: Object.keys(obj).join(', '),
     });
     return false;
   }
   try {
-    await withTimeout(kvWrite.mset(obj));
-    return true;
-  } catch (err) {
-    if (isAuthError(err)) {
-      logger.warn('kvMset auth failure', {
-        status: err.status,
-        message: 'Write denied (invalid write token?). Keys not persisted.',
-        keys: Object.keys(obj).join(', '),
-      });
-    }
+    const pairs = Object.entries(obj).map(([k, v]) => ({ key: k, value: v }));
+    const response = await withTimeout(
+      fetch(`${url}/mset`, {
+        method: 'POST',
+        headers: getHeaders(writeToken),
+        body: JSON.stringify({ pairs }),
+      })
+    );
+    return response.ok;
+  } catch {
     return false;
   }
 }
 
-// Incremento atomico di un intero Redis (per counter).
-// Usa l'operazione atomica INCR di Redis per evitare race condition
-// quando due o più spin arrivano contemporaneamente (ISSUE-4).
 export async function kvIncr(key) {
   if (!kvEnabled) return null;
   if (!kvWritable) {
-    logger.warn('kvIncr ignored: no write token configured', { key });
+    console.warn('[kvIncr] no write token configured', { key });
     return null;
   }
   try {
-    const result = await withTimeout(kvWrite.incr(key));
-    return result; // result è l'NUOVO valore dopo l'incremento (Integer)
+    const response = await withTimeout(
+      fetch(`${url}/incr/${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: getHeaders(writeToken),
+      })
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.result || null;
   } catch (err) {
-    logger.warn('kvIncr failed', { key, error: err?.message || err });
+    console.warn('[kvIncr] failed', { key, error: err?.message || err });
     return null;
   }
 }
 
-// Rileva errori 401/403 (UpstashError espone .status quando la REST API
-// risponde con un codice di stato non-2xx; altrimenti controlla il messaggio).
+// Helper per auth errors
 function isAuthError(err) {
   if (!err) return false;
   if (err.status === 401 || err.status === 403) return true;
@@ -161,5 +171,4 @@ function isAuthError(err) {
   return /401|403|unauthorized|forbidden|not authorized|permission/i.test(msg);
 }
 
-// Esportato per testing
 export { withTimeout, isAuthError };

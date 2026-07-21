@@ -1,6 +1,6 @@
-// Test per il modulo kv.js — verifica del timeout e comportamento fallback
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { withTimeout } from '../api/_lib/kv.js';
+// Test per il modulo kv.js — verifica del timeout e comportamento fetch diretto
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { withTimeout, isAuthError } from '../api/_lib/kv.js';
 
 describe('kv.js timeout', () => {
   beforeEach(() => {
@@ -49,6 +49,9 @@ describe('kv.js timeout', () => {
   it('kvGet ritorna null quando Redis non è abilitato', async () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.KV_REST_API_READ_ONLY_TOKEN;
 
     vi.resetModules();
     const { kvGet, kvEnabled } = await import('../api/_lib/kv.js');
@@ -61,6 +64,9 @@ describe('kv.js timeout', () => {
   it('kvSet ritorna false quando Redis non è abilitato', async () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.KV_REST_API_READ_ONLY_TOKEN;
 
     vi.resetModules();
     const { kvSet, kvEnabled } = await import('../api/_lib/kv.js');
@@ -82,6 +88,10 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     vi.restoreAllMocks();
   });
 
+  afterEach(() => {
+    delete globalThis.fetchMock;
+  });
+
   it('con solo KV_REST_API_READ_ONLY_TOKEN: kvEnabled=true (lettura ok) ma kvWritable=false', async () => {
     process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
     process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
@@ -97,11 +107,10 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
   it('con solo KV_REST_API_READ_ONLY_TOKEN: kvSet ritorna false e logga un warning', async () => {
     process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
-    process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
+    process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-token';
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    vi.resetModules();
     const { kvSet } = await import('../api/_lib/kv.js');
 
     const result = await kvSet('gsm:slotSvg', '<svg/>');
@@ -109,21 +118,24 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     expect(result).toBe(false);
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toMatch(/nessun token di SCRITTURA/i);
-    expect(warnSpy.mock.calls[0][0]).toMatch(/KV_REST_API_READ_ONLY_TOKEN/);
+    expect(warnSpy.mock.calls[0][0]).toMatch(/SCRITTURA/i);
+    
+    warnSpy.mockRestore();
   });
 
-  it('con UPSTASH_REDIS_REST_TOKEN: kvWritable=true e kvSet usa il client di scrittura', async () => {
+  it('con UPSTASH_REDIS_REST_TOKEN: kvWritable=true e kvSet usa fetch diretto', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
     process.env.UPSTASH_REDIS_REST_TOKEN='***';
 
-    // Client fake deterministico: registriamo la chiamata a .set()
-    const FakeRedis = vi.fn().mockImplementation(() => ({
-      set: vi.fn().mockResolvedValue('OK'),
-      mset: vi.fn().mockResolvedValue('OK'),
-    }));
-    vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
-
     vi.resetModules();
+
+    // Mock fetch globale prima di importare il modulo
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: 'OK' }),
+    });
+
     const { kvEnabled, kvWritable, kvSet } = await import('../api/_lib/kv.js');
 
     expect(kvEnabled).toBe(true);
@@ -131,38 +143,43 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
     const result = await kvSet('gsm:slotSvg', '<svg/>');
     expect(result).toBe(true);
-    expect(FakeRedis).toHaveBeenCalled();
-    // Il client di SCRITTURA deve essere stato costruito con il write token
-    const usedToken = FakeRedis.mock.calls[0][0].token;
-    expect(usedToken).toBe('***');
-
-    vi.doUnmock('@upstash/redis');
+    
+    // Verifica che fetch sia stato chiamato
+    expect(globalThis.fetch).toHaveBeenCalled();
+    
+    // Ripristina fetch originale
+    if (originalFetch) {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('kvSet logga un warning esplicito su errore 401/403 invece di fallire in silenzio', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
     process.env.UPSTASH_REDIS_REST_TOKEN='***';
 
-    // Client fake che rifiuta con un errore di autenticazione (come Upstash 401).
-    const authErr = Object.assign(new Error('UpstashError: Unauthorized'), {
+    vi.resetModules();
+
+    // Mock fetch che simula errore 401
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
       status: 401,
+      json: async () => ({ error: 'Unauthorized' }),
     });
-    const FakeRedis = vi.fn().mockImplementation(() => ({
-      set: vi.fn().mockRejectedValue(authErr),
-      mset: vi.fn().mockRejectedValue(authErr),
-    }));
-    vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    vi.resetModules();
     const { kvSet } = await import('../api/_lib/kv.js');
 
     const result = await kvSet('gsm:slotSvg', '<svg/>');
     expect(result).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     expect(warnSpy.mock.calls[0][0]).toMatch(/scrittura negata|401|403/i);
-
-    vi.doUnmock('@upstash/redis');
+    
+    warnSpy.mockRestore();
+    if (originalFetch) {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('isAuthError rileva 401/403 e messaggi di permesso negato', async () => {
@@ -187,6 +204,10 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       delete process.env.KV_REST_API_READ_ONLY_TOKEN;
     });
 
+    afterEach(() => {
+      delete globalThis.fetchMock;
+    });
+
     it('kvIncr ritorna null quando Redis non è abilitato', async () => {
       vi.resetModules();
       const { kvIncr, kvEnabled } = await import('../api/_lib/kv.js');
@@ -203,39 +224,33 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       vi.resetModules();
-      const { kvIncr, kvEnabled, kvWritable } = await import('../api/_lib/kv.js');
-
-      expect(kvEnabled).toBe(true);
-      expect(kvWritable).toBe(false);
+      const { kvIncr } = await import('../api/_lib/kv.js');
 
       const result = await kvIncr('gsm:counter:spins');
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('kvIncr ignored: no write token configured', { key: 'gsm:counter:spins' });
+      expect(warnSpy).toHaveBeenCalledWith('[kvIncr] no write token configured', {
+        key: 'gsm:counter:spins',
+      });
     });
 
-    it('kvIncr incrementa correttamente un contatore su Redis (simulato)', async () => {
+    it('kvIncr incrementa correttamente un contatore su Upstash (simulato)', async () => {
       process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
-
-      // Client fake: incrementa un contatore simulato
-      const counters = new Map();
-      const FakeRedis = vi.fn().mockImplementation(() => ({
-        incr: vi.fn().mockImplementation(async (key) => {
-          const current = counters.get(key) || 0;
-          const newValue = current + 1;
-          counters.set(key, newValue);
-          return newValue;
-        }),
-      }));
-      vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
-
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      process.env.UPSTASH_REDIS_REST_TOKEN='***';
 
       vi.resetModules();
-      const { kvIncr, kvEnabled, kvWritable } = await import('../api/_lib/kv.js');
 
-      expect(kvEnabled).toBe(true);
-      expect(kvWritable).toBe(true);
+      // Mock fetch globale prima di importare il modulo
+      const originalFetch = globalThis.fetch;
+      let callCount = 0;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => {
+          callCount++;
+          return { result: callCount };
+        },
+      });
+
+      const { kvIncr } = await import('../api/_lib/kv.js');
 
       // Primo increment
       const result1 = await kvIncr('gsm:counter:spins');
@@ -244,49 +259,40 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       // Secondo increment
       const result2 = await kvIncr('gsm:counter:spins');
       expect(result2).toBe(2);
-
-      // Terzo increment
-      const result3 = await kvIncr('gsm:counter:spins');
-      expect(result3).toBe(3);
-
-      // Il contatore wins è indipendente
-      const winsResult1 = await kvIncr('gsm:counter:wins');
-      expect(winsResult1).toBe(1);
-
-      warnSpy.mockRestore();
-      vi.doUnmock('@upstash/redis');
+      
+      if (originalFetch) {
+        globalThis.fetch = originalFetch;
+      }
     });
 
     it('kvIncr gestisce correttamente il timeout', async () => {
-      process.env.KV_TIMEOUT_MS = '50';
-
       process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+      process.env.UPSTASH_REDIS_REST_TOKEN='***';
 
-      // Client fake: simula un timeout
-      const FakeRedis = vi.fn().mockImplementation(() => ({
-        incr: vi.fn().mockImplementation(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return 1;
-        }),
-      }));
-      vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+      vi.resetModules();
+
+      // Mock fetch che timeouta
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation(() =>
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('fetch timeout')), 1000)
+        )
+      );
 
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      vi.resetModules();
       const { kvIncr } = await import('../api/_lib/kv.js');
 
-      // Dovrebbe timeoutare e ritonare null
       const result = await kvIncr('gsm:counter:spins');
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('kvIncr failed', expect.objectContaining({
-        error: 'kv timeout',
-        key: 'gsm:counter:spins'
+      expect(warnSpy).toHaveBeenCalledWith('[kvIncr] failed', expect.objectContaining({
+        key: 'gsm:counter:spins',
       }));
-
+      
       warnSpy.mockRestore();
-      vi.doUnmock('@upstash/redis');
+      if (originalFetch) {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

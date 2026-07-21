@@ -5,9 +5,9 @@ import { kvEnabled, kvGet, kvSet } from './kv.js';
 import { logRateLimit } from './ratelimit-tracker.js';
 import { logger } from '../_lib/logger.js';
 
-// Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
+// Timeout per le chiamate GitHub API (2 secondi, più ragionevole per Edge)
 export const GITHUB_API_TIMEOUT_MS =
-  parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 5000;
+  parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 2000;
 
 // Timeout STRETTO per le letture di *contenuto* nel percorso critico dello
 // spin (state.json quando KV è disabilitato, config della slot, ecc.).
