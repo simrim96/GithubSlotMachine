@@ -1,8 +1,8 @@
 // Test sulla generazione SVG (buildSVG) — verifica FORMA e struttura, non i
 // valori casuali dei filler/coins. Usa griglie costruite a mano per coprire
 // i casi win / near-miss / jackpot / no-win.
-import { describe, it, expect } from 'vitest';
-import { buildSVG } from '../api/_lib/svg-builder.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { buildSVG, clearCache } from '../api/_lib/svg-builder.js';
 import {
   checkWins,
   detectNearMiss,
@@ -70,6 +70,10 @@ const repoMatch = {
 };
 
 describe('buildSVG — forma', () => {
+  beforeEach(() => {
+    clearCache();
+  });
+
   it('restituisce un <svg> ben formato', () => {
     const svg = buildSVG({
       grid: emptyGrid(),
@@ -124,6 +128,10 @@ describe('buildSVG — forma', () => {
 });
 
 describe('buildSVG — casi di gioco', () => {
+  beforeEach(() => {
+    clearCache();
+  });
+
   it('win: mostra la payline vincente e il pannello linguaggio', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     expect(checkWins(grid).length).toBeGreaterThan(0);
@@ -187,6 +195,10 @@ describe('buildSVG — casi di gioco', () => {
 });
 
 describe('buildSVG — escape', () => {
+  beforeEach(() => {
+    clearCache();
+  });
+
   it('escapa i caratteri pericolosi nei fatti', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     const svg = buildSVG({

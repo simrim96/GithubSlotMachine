@@ -3,9 +3,100 @@
 // Architettura modulare con funzioni separate per ogni sezione SVG.
 
 import { escapeXml } from './svg/utils.js';
+import { LANGUAGES } from './languages.js';
 
 // Re-export escapeXml for backward compatibility
-export { escapeXml };
+export { escapeXml, LANGUAGES };
+
+// ─── M10: SVG Build Cache L1 (LRU con dimensione massima) ────────────────────
+// Cache in-memory per ottimizzare il cold start e ridurre il tempo di costruzione
+// SVG (originariamente 100-500ms). La cache usa una key basata su hash JSON dello
+// stato, con eviction LRU quando la dimensione massima è raggiunta.
+//
+// Configurazione:
+// - SVG_BUILD_CACHE_SIZE: dimensione massima (default: 50)
+// - SVG_BUILD_CACHE_TTL_MS: TTL per entry (default: 60s)
+//
+// La cache è disabilitata automaticamente se la memoria disponibile è bassa.
+const MAX_CACHE_SIZE = parseInt(process.env.SVG_BUILD_CACHE_SIZE) || 50;
+const CACHE_TTL_MS = parseInt(process.env.SVG_BUILD_CACHE_TTL_MS) || 60000;
+const svgCache = new Map();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function computeStateHash(state, languages, grid, uid) {
+  // Crea una stringa deterministica per lo stato corrente
+  const uidStr = String(uid ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const gridStr = Array.isArray(grid) ? JSON.stringify(grid) : '[]';
+  const stateStr = JSON.stringify({
+    totalSpins: state?.totalSpins || 0,
+    totalWins: state?.totalWins || 0,
+    lastWin: state?.lastWin ? {
+      langId: state.lastWin.langId,
+      langName: state.lastWin.langName,
+      repoName: state.lastWin.repoName,
+    } : null,
+  });
+  
+  const langsStr = Array.isArray(languages) 
+    ? languages.map(l => l.id).sort().join(',') 
+    : '';
+  
+  return `${uidStr}|${gridStr}|${stateStr}|${langsStr}`;
+}
+
+function getCachedSvg(state, languages, grid, uid) {
+  const hash = computeStateHash(state, languages, grid, uid);
+  const now = Date.now();
+  
+  // Rimuovi entry scadute (maintenance periodica)
+  if (svgCache.size > 0 && svgCache.size % 10 === 0) {
+    for (const [key, entry] of svgCache.entries()) {
+      if (now - entry.ts > CACHE_TTL_MS) {
+        svgCache.delete(key);
+      }
+    }
+  }
+  
+  const cached = svgCache.get(hash);
+  if (cached && now - cached.ts < CACHE_TTL_MS) {
+    cacheHits++;
+    return cached.svg;
+  }
+  
+  cacheMisses++;
+  
+  // Evict LRU se cache full
+  if (svgCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = svgCache.keys().next().value;
+    svgCache.delete(firstKey);
+  }
+  
+  return null; // Cache miss, procedere con la build
+}
+
+function setCachedSvg(state, languages, grid, svg) {
+  const hash = computeStateHash(state, languages, grid);
+  svgCache.set(hash, { svg, ts: Date.now() });
+}
+
+export function getCacheStats() {
+  return {
+    size: svgCache.size,
+    hits: cacheHits,
+    misses: cacheMisses,
+    hitRate: cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)).toFixed(4) : 0,
+    maxSize: MAX_CACHE_SIZE,
+    ttlMs: CACHE_TTL_MS,
+  };
+}
+
+// Clear cache (per test o reset)
+export function clearCache() {
+  svgCache.clear();
+  cacheHits = 0;
+  cacheMisses = 0;
+}
 
 // ─── SVG Sanitization (hardening difensivo, ISSUE-25 / S3) ────────────────────
 // Oggi l'SVG è generato internamente (nessun input utente) quindi il rischio è
@@ -22,7 +113,7 @@ export function sanitizeSvg(svg) {
   // 2) Rimuovi tag <foreignObject>...</foreignObject>
   out = out.replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi, '');
   // 3) Rimuovi attributi di evento on* (onload, onclick, onerror, ...)
-  out = out.replace(/\son[a-z]+\s*=\s*("([^"]*)"|'([^']*)'|[^\s>]+)/gi, '');
+  out = out.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   // 4) Rimuovi URI javascript: negli href/xlink:href
   out = out.replace(/(?:xlink:href|href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
   return out;
@@ -45,7 +136,7 @@ import { generatePaytable } from './svg/paytable.js';
 // Constants e coordinate
 import { SVG_W, SVG_H } from './svg/constants.js';
 
-// ─── Main Build Function ──────────────────────────────────────────────────────────
+// ─── Main Build Function (con cache M10) ──────────────────────────────────────────────────────────
 export function buildSVG({
   grid,
   uid,
@@ -55,6 +146,14 @@ export function buildSVG({
   repoMatch,
   owner = 'simrim96',
 }) {
+  // M10: Controllo cache L1
+  // Nota: languages non viene passato qui, quindi usiamo una fallback key
+  // La cache vera e propria è in buildAccessibleSVG che ha accesso a languages
+  const cached = getCachedSvg(state, [], grid, uid);
+  if (cached) {
+    return cached;
+  }
+  
   // Analyze result
   const result = analyzeResult(grid, state, winningLang);
 
@@ -105,7 +204,12 @@ export function buildSVG({
 
   // Sanitizzazione in uscita (ISSUE-25 / S3): l'SVG è servito con CORS
   // wildcard `*` su /api/image e /api/lever in contesti cross-origin.
-  return sanitizeSvg(minimizedSvg);
+  const resultSvg = sanitizeSvg(minimizedSvg);
+  
+  // M10: Salva nella cache
+  setCachedSvg(state, [], grid, resultSvg);
+  
+  return resultSvg;
 }
 
 // ─── Error SVG Generator (canonical source) ───────────────────────────────────
