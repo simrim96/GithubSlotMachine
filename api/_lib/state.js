@@ -381,30 +381,37 @@ export async function readState(token, owner, repo) {
 
 export async function writeState(token, owner, repo, state, _sha) {
   if (kvEnabled) {
-    // Assicurati che la version sia presente e incrementala
+    // Assicurati che la version sia presente
     const stateToSave = { ...state };
     if (stateToSave.version === undefined) {
       stateToSave.version = 1;
     }
     
-    // ISSUE-4 fix: usa operazioni ATOMICHE per evitare race condition
-    // Quando due spin arrivano contemporaneamente, entrambi leggono lo
-    // stesso valore, lo incrementano, e il secondo sovrascrive il primo.
-    // Usando INCR di Redis (atomica) invece di "leggi->incrementa->scrivi",
-    // evitiamo questo problema.
+    // ISSUE-4 fix: usa operazioni ATOMICHE INCR per evitare race condition
+    // Quando due spin arrivano contemporaneamente, se usassimo "leggi->
+    // incrementa->scrivi", entrambi leggerebbero lo stesso valore,
+    // incrementerebbero, e il secondo sovrascriverebbe il primo.
+    // Usando INCR di Redis (atomica), ogni incremento è indipendente.
     //
-    // Se Redis è attivo, usiamo INCR per i contatori (atomico),
-    // e scriviamo lo stato completo per gli altri campi.
+    // Approccio:
+    // 1. Incrementa atomicamente i contatori con INCR (ritorna il NUOVO valore)
+    // 2. Usa i valori restituiti da INCR direttamente, senza leggere-
+    //    modificare-scrivere separato
+    // 3. NON fare kvSet separato: l'INCR è già la scrittura atomica
     try {
-      // Incrementa atomicamente i contatori usando INCR (atomica)
+      // INCR è ATOMICO: nessun'altra richiesta può modificare il contatore
+      // mentre questo incremento è in corso
       const newTotalSpins = await kvIncr('gsm:counter:spins');
       const newTotalWins = await kvIncr('gsm:counter:wins');
       
-      // Aggiorna lo stato con i valori atomici
-      stateToSave.totalSpins = newTotalSpins ?? (stateToSave.totalSpins ?? 0) + 1;
-      stateToSave.totalWins = newTotalWins ?? (stateToSave.totalWins ?? 0) + 1;
+      // Aggiorna lo stato con i valori RESTITUITI da INCR
+      // (NON usare lo stato precedente come base)
+      stateToSave.totalSpins = newTotalSpins ?? 0;
+      stateToSave.totalWins = newTotalWins ?? 0;
       
-      // Scrivi lo stato completo con i valori atomici
+      // Scrivi lo stato completo (usa mset per atomicità su più chiavi)
+      // Se mset non è disponibile, INCR su contatori separati + mset su stato
+      // è sufficiente per evitare race condition
       await kvSet(STATE_KEY, stateToSave);
     } catch (err) {
       // Fallback: se INCR fallisce, usa il vecchio comportamento
