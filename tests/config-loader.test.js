@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import {
   validateLanguageSchema,
   mergeLanguages,
+  validateLanguagesSchema,
 } from '../api/_lib/config-loader.js';
 
 // Mock del filesystem con named exports
@@ -57,6 +58,145 @@ describe('config-loader', () => {
         facts: [{ it: 'Fact', en: 'Fact' }],
       };
       expect(validateLanguageSchema(langWithOptional)).toBe(true);
+    });
+  });
+
+  describe('validateLanguagesSchema', () => {
+    test('validates correct configuration', () => {
+      const validConfig = {
+        languages: [
+          {
+            id: 'rust',
+            name: 'Rust',
+            short: 'Rust',
+            color: '#DEA584',
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(validConfig);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    test('rejects missing required field id', () => {
+      const invalidConfig = {
+        languages: [
+          {
+            // id missing
+            name: 'Rust',
+            short: 'Rust',
+            color: '#DEA584',
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    test('rejects missing required field name', () => {
+      const invalidConfig = {
+        languages: [
+          {
+            id: 'rust',
+            // name missing
+            short: 'Rust',
+            color: '#DEA584',
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(false);
+    });
+
+    test('rejects invalid color format', () => {
+      const invalidConfig = {
+        languages: [
+          {
+            id: 'rust',
+            name: 'Rust',
+            short: 'Rust',
+            color: 'invalid', // Not a valid hex color
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(false);
+    });
+
+    test('rejects missing languages array', () => {
+      const invalidConfig = {
+        otherField: 'value',
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(false);
+    });
+
+    test('rejects empty languages array', () => {
+      const invalidConfig = {
+        languages: [],
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(true); // Empty array is valid
+    });
+
+    test('accepts optional fields', () => {
+      const configWithOptional = {
+        languages: [
+          {
+            id: 'rust',
+            name: 'Rust',
+            short: 'Rust',
+            color: '#DEA584',
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+            topic: 'rust-lang',
+            competence: 3,
+            icon: '<svg>...</svg>',
+            facts: [{ it: 'Fact in italiano', en: 'Fact in English' }],
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(configWithOptional);
+      expect(result.valid).toBe(true);
+    });
+
+    test('rejects invalid competence value', () => {
+      const invalidConfig = {
+        languages: [
+          {
+            id: 'rust',
+            name: 'Rust',
+            short: 'Rust',
+            color: '#DEA584',
+            accent: '#F0C7A5',
+            text: '#ffffff',
+            githubLang: 'Rust',
+            competence: 10, // Out of range
+          },
+        ],
+      };
+      const result = validateLanguagesSchema(invalidConfig);
+      expect(result.valid).toBe(false);
+    });
+
+    test('handles null/undefined config', () => {
+      expect(validateLanguagesSchema(null).valid).toBe(false);
+      expect(validateLanguagesSchema(undefined).valid).toBe(false);
+      expect(validateLanguagesSchema({}).valid).toBe(false); // Missing languages
     });
   });
 
