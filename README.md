@@ -101,6 +101,11 @@ already in the repo (`vercel.json` + `package.json` declare the runtime).
    - `https://<your-app>.vercel.app/api/lever`
    - `https://<your-app>.vercel.app/api/spin`
 
+> ⚠️ Region is pinned to `fra1` — both in Vercel and Upstash. `vercel.json` hard-codes
+> `regions: ["fra1"]`, so Vercel functions **always run in `fra1` (Frankfurt)**.
+> Because Upstash REST calls are plain HTTPS round-trips, an Upstash DB in a
+> different region makes cross-region latency likely. See _Upstash Redis_ below.
+
 > The first time someone spins, `slot.svg` is generated on the fly. Until then
 > `api/image` returns a friendly "🎰 Pull the lever to spin!" placeholder.
 
@@ -287,6 +292,14 @@ only needs `GITHUB_PAT` to actually run).
 > `api/_lib/game.js`, not env vars — edit that file (and redeploy) to change them.
 
 ### ⚡ Upstash Redis (optional but recommended)
+
+This project pins Vercel to **`fra1`** (`vercel.json`), and Upstash REST calls
+are plain HTTPS round-trips. For low latency, create the Upstash database in
+the **same region (`fra1`)**: same-region calls are ~10–20 ms, while
+cross-region can exceed 100 ms and dominate spin time. If you accidentally
+create the DB elsewhere, `/api/health` reports `kv_roundtrip_ms`; values
+above **60 ms** are treated as a same-region violation and surface an alert
+in logs + Sentry.
 
 By default the slot persists `slot.svg` and the community counters by **committing
 to the GitHub repo** (`state.json` + `slot.svg` via the Contents API). This works,

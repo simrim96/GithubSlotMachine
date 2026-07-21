@@ -58,6 +58,13 @@ export default async function handler(req, res) {
           ? 'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.'
           : 'OK: same-region ~10-20ms.';
     }
+
+    if (steps.kv_roundtrip_ms > 60) {
+      const slowMsg = `health: cross-region Upstash detected; kv_roundtrip_ms=${steps.kv_roundtrip_ms} > 60ms`;
+      console.warn(slowMsg);
+      Sentry.captureMessage(slowMsg, 'warning');
+      throw new Error(slowMsg);
+    }
   } else {
     steps.kv_enabled = false;
     steps.kv_note = 'Upstash NON configurato (uso fallback GitHub).';

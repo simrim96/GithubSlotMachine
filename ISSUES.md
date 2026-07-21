@@ -21,13 +21,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 ## 8. Operatività / Deploy
 
-### O1 — Dipendenza di regione Upstash↔Vercel  · P2  (collegato a R5)
-`vercel.json` fissa `regions: ["fra1"]`. Upstash DEVE essere crea nella stessa
-regione, altrimenti gli spin cold sono lenti/without-repo. Questo vincolo è
-nascosto nei commenti di `health.js` e non documentato nell'ops/deploy.
-**Fix:** documentarlo in README (D1) e, se possibile, misurarlo in CI (alert se
-`kv_roundtrip_ms > 60`).
-
 ### O2 — Sentry error sampling al 100%  · P3
 `sentry.config.js` imposta `tracesSampleRate`/`profilesSampleRate` a 0 di default
 (ok), ma `captureException` invia SEMPRE (error sampling 1.0). Su traffico alto
@@ -48,7 +41,6 @@ JSON, usato ovunque al posto di `console.*`.
 12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
 13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
-14. **Documenta vincolo regione fra1 (O1)** — nel README e (opzionale) alert CI.
 
 ---
 
