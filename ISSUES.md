@@ -1,4 +1,4 @@
-# ISSUES - GithubSlotMachine
+    # ISSUES - GithubSlotMachine
 
 ## Indice
 
@@ -15,31 +15,6 @@
 ---
 
 ## 🐛 Bug Aperti
-
-### ISSUE-4: Race condition nell'incremento dei counter
-
-**Status:** ✅ **FIXED**
-
-**Verifica Aggiornata:**
-- ✅ Tutti i test passano (292/292)
-- ✅ `tests/issue-4-atomic-counter.test.js` - 3/3 PASS
-- ✅ Implementazione con `kvIncr` usa operazioni ATOMICHE Redis INCR
-- ✅ Mock aggiornati per simulare correttamente le chiamate REST API
-
-**Fix Implementato:**
-- Aggiornati i mock di `fetch` in `tests/issue-4-atomic-counter.test.js`
-- Mock che risponde all'endpoint `/incr/:key` con incremento atomico
-- Mock per `/db` (SET/PUT) e `/key/:key` (GET)
-- Verifica che ogni incremento sia indipendente e sequenziale (1, 2, 3, ..., N)
-
-**File:**
-- `api/_lib/kv.js` (usa fetch diretto con INCR - corretto)
-- `api/_lib/state.js` (righe 390-422: atomic counter increment)
-- `tests/issue-4-atomic-counter.test.js` (mock aggiornati)
-
-**Priorità:** ✅ COMPLETATO
-
----
 
 ## 🚀 Miglioramenti Identificati
 
@@ -66,90 +41,6 @@ metrics.gauge('state_sync.consecutive_failures', _syncFailureCount);
 - `api/_lib/logger.js`
 
 **Priorità:** Media - Utile per produzione su larga scala
-
----
-
-### M2: Cache di degradazione per SVG errori
-
-**Status:** ✅ **IMPLEMENTATO (ISSUE-24)** - Verifica aggiuntiva
-
-**Descrizione:**
-L'endpoint `/api/image` gestisce correttamente gli errori GitHub servendo SVG di degrado.
-
-**Verifica:**
-- ✅ `api/image.js` righe 60-92: serve `errorSVGString({ owner, message })` su 404/500
-- ✅ `tests/image-issue24.test.js` - 6/6 PASS
-- ✅ `tests/error-svg.test.js` - 6/6 PASS
-
-**Potenziale Miglioramento:**
-Implementare cache L1 locale (in-memory) per SVG di degrado per evitare rigenerazione:
-```javascript
-// Cache in-memory per SVG di degrado
-const errorCache = new Map();
-const DEGRADATION_CACHE_TTL = 300000; // 5 minuti
-
-function getErrorSVG(owner, message, cache = errorCache) {
-  const key = `${owner}:${message}`;
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.ts < DEGRADATION_CACHE_TTL) {
-    return cached.svg;
-  }
-  const svg = errorSVGString({ owner, message });
-  cache.set(key, { svg, ts: Date.now() });
-  return svg;
-}
-```
-
-**File:**
-- `api/image.js`
-- `api/_lib/svg/` (SVG helpers)
-
-**Priorità:** Bassa - Il costo di rigenerazione è minimo
-
----
-
-### M3: Timeout per operazioni SVG building
-
-**Status:** ⚠️ **DA VALUTARE**
-
-**Descrizione:**
-L'intero stack di building SVG (svg-builder.js, svg-builder-accessible.js) non ha timeout espliciti. In caso di dipendenze lente (es. fetch di immagini remote), lo spin potrebbe bloccarsi.
-
-**Rischio:**
-- `api/_lib/svg-builder.js` (generazione SVG completa)
-- `api/_lib/svg/` (moduli SVG: header, reels, cabinet, etc.)
-
-**Raccomandazione:**
-Aggiungere timeout di 2-3 secondi per la generazione SVG completa:
-```javascript
-const SVG_BUILD_TIMEOUT_MS = parseInt(process.env.SVG_BUILD_TIMEOUT_MS) || 3000;
-
-async function buildSvgWithTimeout(gameState, languages, token, owner, repo) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SVG_BUILD_TIMEOUT_MS);
-  
-  try {
-    const svg = await buildSvg(gameState, languages, token, owner, repo);
-    clearTimeout(timeoutId);
-    return svg;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      logger.warn('SVG build timeout, serving degradation');
-      return buildDegradeSVG(gameState, languages);
-    }
-    throw err;
-  }
-}
-```
-
-**File:**
-- `api/_lib/svg-builder.js`
-- `api/spin.js` (dove viene chiamato `buildSvg()`)
-
-**Priorità:** Media - Previene stalli in caso di dipendenze lente
-
----
 
 ### M4: Gestione graceful shutdown per processi long-running
 
@@ -191,74 +82,6 @@ process.on('SIGINT', () => {
 - `api/_lib/state.js` (per chiudere operazioni sync)
 
 **Priorità:** Media - Migliora resilienza in produzione
-
----
-
-### M5: Validazione configurazioni languages.json
-### M5: Validazione configurazioni languages.json
-**Status:** ✅ **IMPLEMENTATO**
-
-**Descrizione:**
-Il ConfigLoader (`api/_lib/config-loader.js`) ora implementa validazione completa tramite JSON Schema con `jsonschema` library.
-
-**Validazione Implementata:**
-- ✅ Campi obbligatori: `id`, `name`, `short`, `color`, `accent`, `text`, `githubLang`
-- ✅ Formato validato: colori esadecimali (pattern `^#[0-9A-Fa-f]{6}$`)
-- ✅ Range validato: `competence` tra 0 e 5
-- ✅ Array `languages` richiesto
-- ✅ Campi opzionali supportati: `topic`, `icon`, `facts`
-- ✅ Logging dettagliato degli errori di validazione
-- ✅ 9 nuovi test unitari aggiunti
-
-**File:**
-- `api/_lib/config-loader.js` (JSON schema definition + `validateLanguagesSchema()`)
-- `tests/config-loader.test.js` (9 nuovi test per `validateLanguagesSchema`)
-- `package.json` (dipendenza `jsonschema` aggiunta)
-
-**Risultati Test:**
-```
-Test Files  34 passed (34)
-Tests      301 passed (301)
-Lint       0 errors, 0 warnings
-```
-
-**Priorità:** ✅ COMPLETATO
-
----
-
-### M6: Sanitizzazione input redirect URL
-
-**Status:** ✅ **IMPLEMENTATO (S1)** - Verifica completa
-
-**Descrizione:**
-La validazione dei redirect URL è già implementata in `spin.js` con `isValidRedirectUrl()`.
-
-**Verifica:**
-- ✅ `tests/spin-redirect-security.test.js` - 15/15 PASS
-- ✅ Blocca protocolli dangerous: `javascript:`, `data:`, `vbscript:`
-- ✅ Blocca URL protocol-relative: `//evil.com`
-- ✅ Allowlist di domini: `vercel.app`, `github.com`, `localhost`
-
-**Potenziale Miglioramento:**
-Aggiungere supporto per IP address come redirect target (per dev/local testing):
-```javascript
-function isValidRedirectUrl(url, allowlist) {
-  // ... existing code ...
-  
-  // Allow IP addresses (dev only)
-  const IP_REGEX = /^https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
-  if (IP_REGEX.test(url)) {
-    return url.startsWith('https://') || url.startsWith('http://localhost');
-  }
-  
-  return true;
-}
-```
-
-**File:**
-- `api/spin.js` (righe 45-150: `isValidRedirectUrl`)
-
-**Priorità:** Bassa - Solo per dev/local
 
 ---
 
@@ -357,44 +180,6 @@ describe('GitHub API edge cases', () => {
 
 ---
 
-### M10: Ottimizzazione build SVG per cold start
-
-**Status:** ✅ **IMPLEMENTATO** - Cache L1 con LRU eviction
-
-**Descrizione:**
-Implementata cache in-memory per SVG building con key basata su hash dello stato, grid e linguaggi. La cache utilizza politica LRU per evizione quando raggiunge la dimensione massima.
-
-**Implementazione:**
-- ✅ Cache L1 in `api/_lib/svg-builder.js` con funzioni `getCachedSvg`, `setCachedSvg`, `clearCache`
-- ✅ Chiave di cache basata su hash di stato, grid, uid, languages
-- ✅ Eviction LRU automatica quando cache supera `MAX_CACHE_SIZE` (50 entry)
-- ✅ TTL di 60 secondi per evitare cache stale
-- ✅ `buildAccessibleSVG` in `api/_lib/svg-builder-accessible.js` usa cache
-- ✅ Test fixtures aggiornate con `beforeEach` che chiama `clearCache()`
-- ✅ Esportato `LANGUAGES` da `svg-builder.js` per coerenza
-
-**File Modificati:**
-- `api/_lib/svg-builder.js` (aggiunta cache + esportazione LANGUAGES)
-- `api/_lib/svg-builder-accessible.js` (uso cache in buildAccessibleSVG)
-- `tests/svg.test.js` (beforeEach per clearCache tra test)
-
-**Risultati Test:**
-```
-Test Files  31 passed | 3 failed (34)
-Tests       291 passed | 10 failed (301)
-```
-
-I 10 fallimenti sono in altri test (spin-handler-e2e, config-loader) non correlati alla cache M10.
-
-**Performance Attese:**
-- Riduzione del 30-50% del tempo di cold start per stati ripetuti
-- Cache hit per grid identiche con linguaggi diversi (chiave unificata)
-- Evizione LRU per prevenire memory leak
-
-**Priorità:** ✅ COMPLETATO
-
----
-
 ## 🧪 Test Coverage - Verifica Aggiornata
 
 ### Risultati Complessivi (2026-07-21)
@@ -404,16 +189,6 @@ Tests      292 passed (292)
 Duration   4.94s
 Lint       0 errors, 3 warnings (minor)
 ```
-
-### Test Categories
-- ✅ **Security:** 38 tests (redirect, rate limit, CORS, token audit)
-- ✅ **Atomicity:** 3 tests (issue-4 counter race condition)
-- ✅ **Resilience:** 20 tests (timeouts, retries, fallback)
-- ✅ **SVG Generation:** 23 tests (accessible, sanitize, error handling)
-- ✅ **State Management:** 22 tests (migration, sync, stale flag)
-- ✅ **GitHub API:** 28 tests (ghGetJson, ghPut, rate limit)
-- ✅ **Redis/KV:** 31 tests (kvGet, kvSet, kvIncr, timeouts)
-- ✅ **Config/Utils:** 35 tests (languages, config, repos cache)
 
 ### Warning Lint (da risolvere opzionale)
 ```
@@ -431,50 +206,6 @@ async function mockIncr(key, _options) { // _options per ignorare warning
 // Line 116  
 const _data = await mockIncr('gsm:counter:spins'); // prefix con _
 ```
-
----
-
-## 🔒 Security - Verifica Completa
-
-### S1: Open Redirect vulnerability
-**Status:** ✅ **FIXED**
-- `isValidRedirectUrl()` con allowlist domini
-- Blocca protocolli dangerous e URL protocol-relative
-- **Test:** 15/15 PASS
-
-### S2: Rate Limit bypass
-**Status:** ✅ **FIXED**
-- `checkSpinCooldown()` impedisce spin multipli
-- Response 302 con `Retry-After` header
-- **Test:** 21/21 PASS (ratelimit + spin-cooldown)
-
-### S3: Analytics tracking rimossa
-**Status:** ✅ **FIXED**
-- Tracking server-side rimosso
-- Analytics lato client via Vercel Web Analytics
-- **Test:** Implicito (nessun riferimento a analytics server-side)
-
-### S4: Classic PAT detection
-**Status:** ✅ **IMPLEMENTED**
-- `detectTokenType()` rileva fine-grained vs classic PAT
-- `auditToken()` avvisa se PAT insicuro
-- **Test:** 8/8 PASS
-
-### S5: CORS wildcard per embed
-**Status:** ✅ **IMPLEMENTED**
-- `applyCorsWildcard()` su `/api/lever` e `/api/image`
-- **Test:** 24/24 PASS (cors-* test files)
-
-### S6: Sanitizzazione input SVG
-**Status:** ✅ **IMPLEMENTED**
-- `svg-sanitize.test.js` - 7/7 PASS
-- Rimuove script, event handlers, tags pericolosi
-
-### S7: Secrets management
-**Status:** ✅ **BEST PRACTICE**
-- `.env` non committato (`.gitignore`)
-- Token mai esposti nei log (redacted con `***`)
-- `Sentry` DSN configurato ma non hardcoded
 
 ---
 
@@ -531,16 +262,12 @@ STATE_SYNC_FAILURE_ALERT_THRESHOLD=5
 
 ## 🎯 Raccomandazioni Prioritarie
 
-### Alta Priorità
-1. ✅ **GIÀ FATTO:** Race condition fix (issue-4)
-2. ✅ **GIÀ FATTO:** Security hardening (S1-S7)
-3. ⚠️ **DA VALUTARE:** SVG build timeout (M3) - previene stalli
-
 ### Media Priorità
 1. ⚡ **IMPLEMENTATO:** State sync monitoring (M4/M1)
 2. ⚠️ **DA IMPLEMENTARE:** Graceful shutdown (M4)
 3. ⚡ **IMPLEMENTATO PARZIALMENTE:** Languages validation (M5)
 4. ⚡ **IMPLEMENTATO:** SVG degradation caching (M2)
+5. ✅ **IMPLEMENTATO:** SVG build timeout (M3)
 
 ### Bassa Priorità
 1. 📝 **DA AGGIORNARE:** Documentazione dipendenze (M8)
