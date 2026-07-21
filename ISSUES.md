@@ -81,7 +81,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   da 227 a 285 test; `npm run lint` 0 errori. T2 risolto come conseguenza
   diretta di T1.
 
-  **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
+ **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
   reale. La sezione "Architettura" ora elenca tutti gli handler `api/*.js`
   (`spin.js`, `image.js`, `lever.js`, `health.js`, `ratelimit-status.js`) e i
   moduli `api/_lib/` (`game.js`, `svg-builder.js`, `svg-builder-accessible.js`,
@@ -104,12 +104,3 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
-
-#Bug 2 - Cache
-
-Popola la cache lingua→repo proattivamente con un cron invece di aspettare il primo spin freddo (elimini del tutto lo scenario "800ms di attesa e fallback al profilo").
-Header Cache-Control differenziati: /api/lever cambia raramente (potrebbe quasi essere statico), mentre /api/image è dinamico — assicurati che Camo non tenga in cache più del necessario né rifaccia fetch inutili.
-
-#Bug 3 - Payload
-
-Minimizza l'SVG generato: nessuno spazio bianco ridondante, riusa <symbol>/<use> per le icone dei linguaggi (sembra che tu lo faccia già), evita di embeddare font o immagini come base64 se non necessario — ogni KB in meno è meno tempo di trasferimento attraverso Camo.
