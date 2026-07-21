@@ -42,6 +42,8 @@ import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 import { logger } from './_lib/logger.js';
+// Graceful shutdown per M4: gestione segnali SIGTERM/SIGINT
+import { gracefulShutdown, trackOperation } from './_lib/shutdown.js';
 // ─── Security: Allowlist host per la validazione del redirect (fix S1, ISSUES.md) ─
 // Sostituisce la vecchia logica basata su blocklist (BLOCKED_HOSTS) con un'
 // ALLOWLIST derivata da env (SLOT_ALLOWED_HOSTS, CSV). Default: solo i domini
@@ -192,32 +194,13 @@ export {
 // server-side residua.
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
+// M4: Registra handler di graceful shutdown una sola volta all'inizio
+gracefulShutdown();
+
 export default async function handler(req, res) {
-  // ── CORS + preflight ─────────────────────────────────────────────────────
-  applyCors(req, res);
-  if (req.method === 'OPTIONS') {
-    sendResponse(res, { status: 204 });
-    return;
-  }
-
-  // ── Rate-limit per-IP basato sul tempo di rotazione (fix S2, ISSUES.md) ───
-  // Un secondo spin dello stesso IP entro la finestra di rotazione viene
-  // rifiutato con un redirect GRACEFUL verso il profilo owner (302, ZERO
-  // chiamate a GitHub) invece di una pagina di errore: l'utente reale lo vede
-  // come il normale ritorno al profilo, e l'attaccante non consuma budget.
-  const cooldown = await checkSpinCooldown(req);
-  if (!cooldown.allowed) {
-    sendResponse(res, {
-      status: 302,
-      headers: {
-        'Retry-After': String(cooldown.retryAfterSec),
-        'X-Spin-Cooldown': '1',
-      },
-      redirect: `https://github.com/${OWNER}`,
-    });
-    return;
-  }
-
+  // M4: Traccia lo spin come operazione in-flight per graceful shutdown
+  const spinOp = trackOperation('spin');
+  
   // S4 hardening: rileva/rifiuta PAT classici (ISSUES.md §2).
   // Default: solo warning. Imposta GITHUB_PAT_REQUIRE_FINEGRAINED=true per
   // fallire in modo "closed" (salta i write GitHub, modalità read-only) quando
@@ -235,10 +218,35 @@ export default async function handler(req, res) {
       token = null;
     }
   }
-
-  const spinStart = Date.now();
-
+  
   try {
+    // ── CORS + preflight ─────────────────────────────────────────────────────
+    applyCors(req, res);
+    if (req.method === 'OPTIONS') {
+      sendResponse(res, { status: 204 });
+      return;
+    }
+
+    // ── Rate-limit per-IP basato sul tempo di rotazione (fix S2, ISSUES.md) ───
+    // Un secondo spin dello stesso IP entro la finestra di rotazione viene
+    // rifiutato con un redirect GRACEFUL verso il profilo owner (302, ZERO
+    // chiamate a GitHub) invece di una pagina di errore: l'utente reale lo vede
+    // come il normale ritorno al profilo, e l'attaccante non consuma budget.
+    const cooldown = await checkSpinCooldown(req);
+    if (!cooldown.allowed) {
+      sendResponse(res, {
+        status: 302,
+        headers: {
+          'Retry-After': String(cooldown.retryAfterSec),
+          'X-Spin-Cooldown': '1',
+        },
+        redirect: `https://github.com/${OWNER}`,
+      });
+      return;
+    }
+    
+
+    const spinStart = Date.now();
     // Se manca il token di GitHub, NON rispondere con un 500 nudo (che
     // "rompe" la leva): facciamo comunque un redirect verso il profilo
     // dell'owner così l'utente non vede mai una pagina rotta. Lo spin non
@@ -556,5 +564,7 @@ export default async function handler(req, res) {
         body: fallbackSvg,
       });
     }
+    // M4: Termina traccia operazione spin (sempre, anche in caso di errore)
+    spinOp.end();
   }
 }
