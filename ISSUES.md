@@ -106,3 +106,30 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   Aggiornati header `/api/lever` a `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
   (prima `no-store`). Verificato da `npm run lint` (0 errori) e import test. Il fix
   elimina lo scenario "800ms di attesa e fallback al profilo" al primo spin freddo.
+
+# Bug 1 — MIGRATO A EDGE RUNTIME + OTTIMIZZATO (2026-07-21)
+
+tutte le funzioni API migrato a Vercel Edge Runtime per eliminare i cold start.
+La migrazione richiede:
+
+1. ✅ Rimozione di API Node-specifiche (`process.hrtime` → `performance.now()` in
+   `api/health.js`)
+2. ✅ Configurazione `runtime: "edge"` in `vercel.json` per ogni funzione API
+3. ✅ Aggiunta di un Vercel Cron per warm-up di `/api/health` ogni 5 minuti
+4. ✅ Rimozione di `@upstash/redis` wrapper in `kv.js` → fetch diretto HTTP
+5. ✅ Riduzione timeout GitHub da 5s a 2s (`GITHUB_API_TIMEOUT_MS`)
+6. ✅ Aggiunta di warm-up cron per `/api/spin` ogni 2 minuti
+
+L'Edge Runtime di Vercel gira su un runtime V8 isolato con cold start quasi
+nullo. Tutte le funzioni (`spin.js`, `health.js`, `image.js`, `lever.js`,
+`ratelimit-status.js`) usano ora solo API standard compatibili con Edge.
+
+Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che
+la funzione vada mai completamente a freddo per un visitatore reale.
+
+**OTTIMIZZAZIONI AGGIUNTE:**
+- `kv.js`: sostituito `@upstash/redis` con fetch diretto → zero init overhead
+- `github.js`: timeout ridotto da 5s a 2s → fallimenti più rapidi
+- `vercel.json`: cron aggiuntivo per `/api/spin` ogni 2 min → warm proattivo
+
+Cold start stimato: < 10ms (da ~200-500ms con @upstash/redis).
