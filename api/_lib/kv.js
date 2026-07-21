@@ -134,6 +134,24 @@ export async function kvMset(obj) {
   }
 }
 
+// Incremento atomico di un intero Redis (per counter).
+// Usa l'operazione atomica INCR di Redis per evitare race condition
+// quando due o più spin arrivano contemporaneamente (ISSUE-4).
+export async function kvIncr(key) {
+  if (!kvEnabled) return null;
+  if (!kvWritable) {
+    logger.warn('kvIncr ignored: no write token configured', { key });
+    return null;
+  }
+  try {
+    const result = await withTimeout(kvWrite.incr(key));
+    return result; // result è l'NUOVO valore dopo l'incremento (Integer)
+  } catch (err) {
+    logger.warn('kvIncr failed', { key, error: err?.message || err });
+    return null;
+  }
+}
+
 // Rileva errori 401/403 (UpstashError espone .status quando la REST API
 // risponde con un codice di stato non-2xx; altrimenti controlla il messaggio).
 function isAuthError(err) {
