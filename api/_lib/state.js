@@ -14,7 +14,7 @@
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { ghGetContentsJson, ghPut } from './github.js';
 import { promises as fsp } from 'fs';
-import * as Sentry from '../../sentry.config.js';
+import { logger } from '../_lib/logger.js';
 
 // ── Monitoring del sync Redis→GitHub (Miglioramento M4, ISSUES.md) ───────────
 // Lo stato vivo risiede in Redis (kvSet, ~10ms). Per avere un backup
@@ -116,16 +116,8 @@ function reportStateSyncAlert(failures, lastError) {
     `[state] ALERT: sync Redis→GitHub fallito ${failures} volte di fila. ` +
     `Lo stato persistito su GitHub (state.json) NON si sta aggiornando. ` +
     `Ultimo errore: ${lastError || 'sconosciuto'}`;
-  console.error(msg);
-  // Best-effort: Sentry cattura l'evento come errore applicativo (solo se
-  // il DSN è configurato; altrimenti captureMessage è un no-op silenzioso).
-  try {
-    if (Sentry && typeof Sentry.captureMessage === 'function') {
-      Sentry.captureMessage(msg, 'error');
-    }
-  } catch {
-    /* Sentry non disponibile: il console.error sopra basta */
-  }
+  logger.error(msg);
+  // Sentry integration handled by logger
 }
 
 function recordStateSyncFailure(err) {
@@ -139,19 +131,13 @@ function recordStateSyncFailure(err) {
   } else if (_alertRaised) {
     // Continuiamo a loggare (a livello warn, meno rumoroso) finché l'alert
     // è già stato sollevato, così chi guarda i log vede la persistenza.
-    console.warn(
-      `[state] sync Redis→GitHub ancora fallito (totale ${_syncFailureCount} consecutivi): ` +
-        `${err?.message || err}`
-    );
+    logger.warn('state sync Redis→GitHub failed', { consecutive_failures: _syncFailureCount, error: err?.message || err });
   }
 }
 
 function recordStateSyncSuccess() {
   if (_syncFailureCount !== 0 || _alertRaised) {
-    console.log(
-      `[state] sync Redis→GitHub recuperato dopo ${_syncFailureCount} ` +
-        `fallimenti consecutivi — contatore azzerato.`
-    );
+    logger.info('state sync Redis→GitHub recovered', { consecutive_failures: _syncFailureCount });
   }
   _syncFailureCount = 0;
   _alertRaised = false;
@@ -160,10 +146,7 @@ function recordStateSyncSuccess() {
   // abbassiamo il flag così il prossimo writeState NON rimarcherà più
   // state.json come stale.
   if (_stateStale) {
-    console.log(
-      '[state] sync Redis→GitHub recuperato dopo periodo stale — ' +
-        'flag stale azzerato.'
-    );
+    logger.info('state sync Redis→GitHub recovered after stale period');
     persistStaleFlag(false);
   }
 }
@@ -190,10 +173,7 @@ async function syncStateToGitHub(token, owner, repo, state, sha) {
       return true;
     } catch (err) {
       lastErr = err;
-      console.warn(
-        `[state] sync Redis→GitHub tentativo ${attempt + 1}/` +
-          `${STATE_SYNC_MAX_RETRIES} fallito: ${err?.message || err}`
-      );
+      logger.warn('state sync Redis→GitHub attempt failed', { attempt: attempt + 1, max_retries: STATE_SYNC_MAX_RETRIES, error: err?.message || err });
       if (attempt < STATE_SYNC_MAX_RETRIES - 1) {
         const delay = STATE_SYNC_BACKOFF_BASE_MS * 2 ** attempt;
         await new Promise((r) => setTimeout(r, delay));
@@ -250,7 +230,7 @@ const MIGRATIONS = {
         winsByLang: {},
       },
     };
-    console.log(`[state] Migrated state from v1 to v2`);
+    logger.info('state migrated from v1 to v2');
     return migrated;
   },
 };
@@ -417,10 +397,7 @@ export async function writeState(token, owner, repo, state, _sha) {
         if (ok) recordStateSyncSuccess();
       })
       .catch((e) => {
-        console.warn(
-          'Redis state sync to GitHub failed (unexpected):',
-          e.message
-        );
+        logger.warn('Redis state sync to GitHub failed', { error: e.message });
         recordStateSyncFailure(e);
       });
     return;

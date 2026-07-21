@@ -14,26 +14,18 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 | ID  | Area            | Gravità | Titolo breve |
 |-----|-----------------|---------|--------------|
-| R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
+|| R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
-| R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
-|| O3 | Operatività    | P3      | Logger non strutturato |
+|| R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
 
 ## 8. Operatività / Deploy
-
-### O3 — Logger non strutturato  · P3
-Il codice mescola `console.log`/`console.warn`/`Sentry.captureException` senza un
-logger unico. `LOG_LEVEL` è letto ma non centralizza l'output.
-**Fix:** introdurre un piccolo `logger.js` (`_lib/logger.js`) con livelli e output
-JSON, usato ovunque al posto di `console.*`.
 
 ---
 
 ## 9. Miglioramenti proposti (roadmap)
 
 1. **Allowlist redirect (S1)** — sostituire `BLOCKED_HOSTS` con `SLOT_ALLOWED_HOSTS`.
-12. **Logger strutturato (O3)** — `_lib/logger.js`, livelli + JSON.
-13. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
+12. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
     notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
 
 ---

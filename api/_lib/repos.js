@@ -23,6 +23,7 @@
 
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
+import { logger } from '../_lib/logger.js';
 
 const TTL_MS = 1000 * 60 * 30; // 30 min
 // Al cold start (cache mai popolata) aspettiamo al massimo questo timeout prima
@@ -81,7 +82,7 @@ async function loadFromKv() {
   // non deve uccidere l'altro; il tier "lastgood" è il fallback tiered.
   const safeGet = (key) =>
     kvGet(key).catch((e) => {
-      console.warn('repos loadFromKv kvGet failed:', e?.message);
+      logger.warn('repos loadFromKv kvGet failed', { error: e?.message });
       return null;
     });
   const [fresh, lastgood] = await Promise.all([
@@ -199,7 +200,7 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
       ]);
     } catch (e) {
       if (e.message !== 'cold-start timeout') {
-        console.warn('repos cache refresh failed:', e.message);
+        logger.warn('repos cache refresh failed', { error: e.message });
       }
     }
   } else if (!fresh) {
@@ -207,7 +208,7 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
     // e refreschiamo in background. Mai bloccare il redirect su uno stall KV
     // o GitHub (R5: neanche un round-trip Upstash cross-region ci ferma).
     refreshCache(token, owner, languages).catch((e) =>
-      console.warn('repos cache refresh failed:', e.message)
+      logger.warn('repos cache refresh failed', { error: e.message })
     );
   }
   // Se hasData && fresh → serviamo immediatamente, nessuna refresh.

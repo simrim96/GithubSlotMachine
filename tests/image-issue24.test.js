@@ -6,10 +6,18 @@
 // Ora deve servire un errorSVG con status 200 invece di crashare.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Evita l'invio di eventi Sentry reali durante i test.
-vi.mock('@sentry/node', () => ({
-  captureException: vi.fn(),
-  init: vi.fn(),
+// Mock del logger centrale (S15, O3)
+vi.mock('../api/_lib/logger.js', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
+  LEVELS: ['debug', 'info', 'warn', 'error'],
+  LOG_LEVEL: 'info',
+  MIN_LEVEL_IDX: 1,
+  ENABLED: ['info', 'warn', 'error'],
 }));
 
 // Niente Redis in test: forza il ramo GitHub.
@@ -151,12 +159,12 @@ describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () =>
     delete process.env.GITHUB_PAT;
   });
 
-  it('404 GitHub → 200 con SVG di degrado + Content-Type image/svg+xml + Sentry', async () => {
+  it('404 GitHub → 200 con SVG di degrado + Content-Type image/svg+xml + logger.error', async () => {
     global.fetch = vi.fn(async () =>
       makeResponse(false, 404, { message: 'Not Found' })
     );
+    const { logger } = await import('../api/_lib/logger.js');
     const { default: handler } = await import('../api/image.js');
-    const Sentry = await import('@sentry/node');
     const res = {
       statusCode: null,
       body: null,
@@ -182,16 +190,16 @@ describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () =>
     expect(res.body).toContain('Slot image unavailable');
     // Content-Type esplicito (ISSUE-B4).
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
-    // L'errore finisce in Sentry (ISSUE-B4).
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    // L'avviso viene loggato (S15, O3).
+    expect(logger.warn).toHaveBeenCalledWith('github image fetch failed, serving degradation SVG', expect.objectContaining({ status: 404 }));
   });
 
-  it('500 GitHub → 200 con SVG di degrado + Sentry (nessun crash)', async () => {
+  it('500 GitHub → 200 con SVG di degrado + logger.warn (nessun crash)', async () => {
     global.fetch = vi.fn(async () =>
       makeResponse(false, 500, { message: 'Internal Server Error' })
     );
+    const { logger } = await import('../api/_lib/logger.js');
     const { default: handler } = await import('../api/image.js');
-    const Sentry = await import('@sentry/node');
     const res = {
       statusCode: null,
       body: null,
@@ -213,6 +221,6 @@ describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () =>
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<svg');
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith('github image fetch failed, serving degradation SVG', expect.objectContaining({ status: 500 }));
   });
 });

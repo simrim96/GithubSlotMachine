@@ -42,6 +42,7 @@
 //    icon        SVG markup interno (opzionale, viewBox 84x84)
 //    facts       (opzionale) lista di fun-fact in formato { it, en }
 // ─────────────────────────────────────────────────────────────────────────────
+import { logger } from './logger.js';
 
 // ══════════════════════════ LINGUAGGI HARDCODED (DEFAULT) ═════════════════════
 export const LANGUAGES_BASE = [
@@ -350,19 +351,15 @@ async function loadExternalLanguagesInternal() {
       mergedLanguages = mergeLanguages(LANGUAGES_BASE, external);
 
       if (external.length > 0) {
-        console.log(
-          `[Languages] Caricati ${external.length} linguaggi esterni. Totale: ${mergedLanguages.length}`
-        );
+        logger.info('Languages loaded external', { count: external.length, total: mergedLanguages.length });
       } else {
         mergedLanguages = LANGUAGES_BASE;
-        console.log(
-          '[Languages] Nessun linguaggio esterno trovato, usando hardcoded base'
-        );
+        logger.info('Languages no external found, using hardcoded base');
       }
 
       return mergedLanguages;
     } catch (err) {
-      console.warn(
+      logger.warn(
         '[Languages] Error loading external languages, using base only:',
         err.message
       );

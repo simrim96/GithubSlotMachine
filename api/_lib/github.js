@@ -3,7 +3,7 @@
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
 import { kvEnabled, kvGet, kvSet } from './kv.js';
 import { logRateLimit } from './ratelimit-tracker.js';
-import * as Sentry from '@sentry/node';
+import { logger } from '../_lib/logger.js';
 
 // Timeout per le chiamate GitHub API (5 secondi default, overrideabile via env)
 export const GITHUB_API_TIMEOUT_MS =
@@ -42,7 +42,7 @@ export function detectTokenType(token) {
   return { kind: 'unknown', safe: false };
 }
 
-// Emette un allarme Sentry + console quando è configurato un token insicuro
+// Emette un allarme logger quando è configurato un token insicuro
 // (classic/unknown). Ritorna il tipo rilevato così il chiamante può decidere
 // se abortire. `enforce` (default false) fa saltare il write GitHub e degrada
 // a read-only quando il token NON è fine-grained.
@@ -54,12 +54,8 @@ export function auditToken(token, { enforce = false } = {}) {
     `Classic/unknown PATs can expose ALL your repos if leaked. ` +
     `Use a fine-grained PAT scoped to the slot + profile repos only ` +
     `(Contents: read & write, Metadata: read). Rotate the leaked token now.`;
-  console.error(msg);
-  try {
-    if (typeof Sentry !== 'undefined' && Sentry.captureMessage) {
-      Sentry.captureMessage(msg, 'warning');
-    }
-  } catch { /* no-op */ }
+  logger.error(msg);
+  // Sentry integration handled by logger
   if (enforce) {
     throw new Error(
       'S4 enforcement: refusing to use a non-fine-grained GITHUB_PAT. ' +
@@ -87,11 +83,11 @@ export function ghHeaders(token, opts = {}) {
 }
 
 export function escapeRegex(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(s).replace(/[.*+?^${}()|\\[\]]/g, '\\$&');
 }
 
 export function escapeMarkdown(s) {
-  return String(s).replace(/[*_`\[\]]/g, '\\$&');
+  return String(s).replace(/[*_`\\[\\]]/g, '\\\\$&');
 }
 
 // ghGetJson: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
@@ -127,21 +123,13 @@ export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API
 
       return response.ok ? await response.json() : null;
     } catch (error) {
-    if (error.name === 'AbortError') {
-      console.warn(
-        `GitHub API timeout for ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
-      );
-    } else {
-      console.error(
-        `[ghGetJson] ERROR ${owner}/${repo}/${path}:`,
-        error?.name,
-        error?.message,
-        error?.stack?.split('\n').slice(0, 3).join(' | ')
-      );
+      if (error.name === 'AbortError') {
+        logger.warn('GitHub API timeout', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
+      } else {
+        logger.error('ghGetJson ERROR', { owner, repo, path, name: error?.name, message: error?.message, stack: error?.stack?.split('\n').slice(0, 3).join(' | ') });
+      }
+      throw error; // Sentry handled by logger
     }
-    if (typeof Sentry !== 'undefined') Sentry.captureException(error);
-    throw error;
-  }
 }
 
 // ghGetContentsJson: lettura di un file da GitHub Contents API con timeout STRETTO
@@ -214,11 +202,9 @@ export async function ghPut(
           throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
       } catch (error) {
         if (error.name === 'AbortError') {
-          console.warn(
-            `GitHub API timeout for PUT ${owner}/${repo}/${path} after ${GITHUB_API_TIMEOUT_MS}ms`
-          );
+          logger.warn('GitHub API timeout PUT', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
         }
-        Sentry.captureException(error);
+        // Sentry handled by logger
         throw error;
       }
 }
@@ -234,8 +220,8 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
       const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
       if (ok) return;
     } catch (e) {
-      Sentry.captureException(e);
-      console.warn('kv slotSvg save failed/timed out, falling back to github');
+      logger.warn('kv slotSvg save failed/timed out, falling back to github');
+      // Sentry handled by logger
     }
   }
   await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');

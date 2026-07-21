@@ -41,7 +41,7 @@ import { getRepoForLanguage } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
-import * as Sentry from '../sentry.config.js';
+import { logger } from './_lib/logger.js';
 // ─── Security: Allowlist host per la validazione del redirect (fix S1, ISSUES.md) ─
 // Sostituisce la vecchia logica basata su blocklist (BLOCKED_HOSTS) con un'
 // ALLOWLIST derivata da env (SLOT_ALLOWED_HOSTS, CSV). Default: solo i domini
@@ -140,11 +140,11 @@ function isValidRedirectUrl(urlString) {
 function resolveRedirectUrl(rawRedirect, defaultUrl) {
   const r = rawRedirect && typeof rawRedirect === 'string' ? rawRedirect.trim() : '';
   if (r && isValidRedirectUrl(r)) {
-    console.log('Security: Allowed validated redirect to:', r);
-    return r;
+  logger.debug('Security: Allowed validated redirect to:', { url: r });
+  return r;
   }
   if (r && !isValidRedirectUrl(r)) {
-    console.warn(`[Security] Blocked open redirect attempt to: ${r}`);
+  logger.warn('[Security] Blocked open redirect attempt to:', { url: r });
   }
   return defaultUrl;
 }
@@ -231,7 +231,7 @@ export default async function handler(req, res) {
       // Fail-closed: operiamo in read-only (niente token) così non usiamo mai
       // la credenziale insicura per gli write. Lo spin funziona lo stesso
       // (redirect graceful verso il profilo).
-      console.error('[S4]', e.message);
+      logger.error('[S4]', { error: e.message });
       token = null;
     }
   }
@@ -244,7 +244,7 @@ export default async function handler(req, res) {
     // dell'owner così l'utente non vede mai una pagina rotta. Lo spin non
     // persistito non è critico (il contatore si aggiorna al giro dopo).
     if (!token) {
-      console.error('spin handler: GITHUB_PAT non configurato — redirect graceful');
+      logger.error('spin handler: GITHUB_PAT non configurato — redirect graceful');
       const redirectUrl = resolveRedirectUrl(
         req.query?.redirect ? String(req.query.redirect).trim() : '',
         `https://github.com/${OWNER}`
@@ -294,7 +294,7 @@ export default async function handler(req, res) {
           LANGUAGES
         );
       } catch (e) {
-        console.warn('repo lookup failed:', e.message);
+        logger.warn('repo lookup failed:', { error: e.message });
       }
       state.lastWin = {
         langId: winningLang.id,
@@ -368,7 +368,7 @@ export default async function handler(req, res) {
     const README_CACHE_TTL_SEC = 60;
 
     const readmePromise = (async () => {
-      console.log(`[readme-update] START spin=${spinStart}`);
+      logger.info('[readme-update] START', { spin: spinStart });
       const MAX_RETRIES = 2;
       const RETRY_DELAY_MS = 500;
       let lastError = null;
@@ -383,20 +383,18 @@ export default async function handler(req, res) {
               typeof cached === 'string' ? JSON.parse(cached) : cached;
             if (parsed && parsed.content) {
               rf = { content: parsed.content, sha: parsed.sha ?? null };
-              console.log('[readme-update] cache HIT — skip GitHub GET');
+              logger.info('[readme-update] cache HIT — skip GitHub GET');
             }
           }
         } catch (e) {
-          console.warn('[readme-update] cache read failed, fallback GET:', e.message);
+          logger.warn('[readme-update] cache read failed, fallback GET:', { error: e.message });
         }
       }
 
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
           if (!rf) {
-            console.log(
-              `[readme-update] ghGetJson owner=${PROFILE_REPO} repo=${PROFILE_REPO} attempt=${attempt + 1}`
-            );
+            logger.info('[readme-update] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
             rf = await ghGetJson(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
             if (rf && kvEnabled) {
               try {
@@ -405,17 +403,17 @@ export default async function handler(req, res) {
                   { content: rf.content, sha: rf.sha },
                   README_CACHE_TTL_SEC
                 );
-                console.log('[readme-update] cache populated from GitHub GET');
+                logger.info('[readme-update] cache populated from GitHub GET');
               } catch (e) {
-                console.warn('[readme-update] cache set failed:', e.message);
+                logger.warn('[readme-update] cache set failed:', { error: e.message });
               }
             }
           }
           if (!rf) {
-            console.log('[readme-update] ghGetJson returned null (README assente/illegibile)');
+            logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
             return;
           }
-          console.log('[readme-update] ghGetJson OK, sha present:', Boolean(rf.sha));
+          logger.info('[readme-update] ghGetJson OK', { sha_present: Boolean(rf.sha) });
 
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
           let newReadme = oldReadme.replace(
@@ -439,7 +437,7 @@ export default async function handler(req, res) {
               rf.sha,
               '🎰 Update slot'
             );
-            console.log(`[readme-update] ghPut OK, new ?v=${spinStart}`);
+            logger.info('[readme-update] ghPut OK', { version: spinStart });
             // Refresh cache con il contenuto appena scritto (P1).
             if (kvEnabled) {
               try {
@@ -451,24 +449,24 @@ export default async function handler(req, res) {
                   },
                   README_CACHE_TTL_SEC
                 );
-                console.log('[readme-update] cache refreshed after PUT');
+                logger.info('[readme-update] cache refreshed after PUT');
               } catch (e) {
-                console.warn('[readme-update] cache refresh failed:', e.message);
+                logger.warn('[readme-update] cache refresh failed:', { error: e.message });
               }
             }
           } else {
-            console.log('[readme-update] README unchanged, skip PUT');
+            logger.info('[readme-update] README unchanged, skip PUT');
           }
           return; // Successo
         } catch (e) {
           lastError = e;
-          console.warn(`README update attempt ${attempt + 1} failed:`, e.message);
+          logger.warn('README update attempt failed', { attempt: attempt + 1, error: e.message });
           if (attempt < MAX_RETRIES - 1) {
             await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
           }
         }
       }
-      console.error('README update failed after', MAX_RETRIES, 'attempts:', lastError?.message);
+      logger.error('README update failed', { max_retries: MAX_RETRIES, last_error: lastError?.message });
     })();
 
     // slot.svg + state + README girano in parallelo. Se la README supera il
@@ -478,7 +476,7 @@ export default async function handler(req, res) {
       readmePromise,
       new Promise((res) =>
         setTimeout(() => {
-          console.warn('[readme-update] timeout di sicurezza, skip per non bloccare redirect');
+          logger.warn('[readme-update] timeout di sicurezza, skip per non bloccare redirect');
           res();
         }, README_TIMEOUT_MS)
       ),
@@ -491,7 +489,7 @@ export default async function handler(req, res) {
     ]);
 
     if (slotResult.status === 'rejected') {
-      console.warn('slot.svg write failed (redirect anyway):', slotResult.reason?.message);
+      logger.warn('slot.svg write failed (redirect anyway)', { reason: slotResult.reason?.message });
       // Redirect anche se slot.svg fallisce (l'utente vede il risultato
       // precedente una volta, ma lo slot non esplode con un 500).
       const rawRedirect = req.query?.redirect
@@ -500,9 +498,9 @@ export default async function handler(req, res) {
       let redirectUrl = dest;
       if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
         redirectUrl = rawRedirect;
-        console.log('Security: Allowed validated redirect to:', redirectUrl);
+        logger.debug('Security: Allowed validated redirect to:', { url: redirectUrl });
       } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-        console.warn(`[Security] Blocked open redirect attempt to: ${rawRedirect}`);
+        logger.warn('[Security] Blocked open redirect attempt to:', { url: rawRedirect });
       }
       sendResponse(res, { status: 302, redirect: redirectUrl });
       return;
@@ -515,19 +513,10 @@ export default async function handler(req, res) {
     const redirectUrl = resolveRedirectUrl(rawRedirect, dest);
 
     sendResponse(res, { status: 302, redirect: redirectUrl });
-    console.log('Security: Redirecting to:', redirectUrl);
+    logger.debug('Security: Redirecting to:', { url: redirectUrl });
   } catch (err) {
-    // Cattura l'errore su Sentry
-    Sentry.captureException(err);
-
-    // Degrado graceful: invece di un 500 che "rompe" la leva, proviamo a
-    // salvare un SVG di errore su slot.svg (best-effort, stringa GREZZA così
-    // l'immagine si vede davvero) e poi facciamo comunque il redirect verso
-    // il profilo dell'owner. L'utente non vede mai una pagina rotta; al
-    // prossimo spin (se l'errore era transitorio) torna tutto normale. Lo
-    // stato dei contatori è già stato incrementato in memoria ma non
-    // persistito, quindi non si perdono dati critici.
-    console.error('spin handler error:', err?.message || err);
+    logger.error('spin handler error:', { error: err?.message || err });
+    // Sentry integration handled by logger
     const fallbackSvg = errorSVGString({
       owner: OWNER,
       message: 'Ops, riprova un attimo!',

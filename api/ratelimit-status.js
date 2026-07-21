@@ -24,6 +24,7 @@
 // Endpoints correlati:
 //   • GET /api/health     - Health check completo
 //   • GET /api/stats      - Statistiche dell'applicazione
+//
 
 import {
   GITHUB_RATE_LIMIT_HEADER_REMAINING,
@@ -31,6 +32,7 @@ import {
   GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
   safeGetHeader,
 } from './_lib/ratelimit-tracker.js';
+import { logger } from './_lib/logger.js';
 import { ghHeaders } from './_lib/github.js';
 import { corsHeaders } from './_lib/cors.js';
 import { buildResponse } from './_lib/response-bridge.js';
@@ -58,7 +60,7 @@ export default async function handler(req) {
   try {
     response = await fetch('https://api.github.com/rate_limit', { headers });
   } catch (error) {
-    console.warn('[ratelimit-status] fetch /rate_limit fallita:', error?.message);
+    logger.warn('ratelimit-status fetch /rate_limit failed', { error: error?.message });
     return buildResponse({
       status: 200,
       headers: {

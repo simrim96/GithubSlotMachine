@@ -12,6 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { logger } from './logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..', '..');
@@ -27,10 +28,7 @@ function loadJSON(filePath) {
     const content = readFileSync(filePath, 'utf-8');
     return JSON.parse(content);
   } catch (err) {
-    console.warn(
-      `[ConfigLoader] Errore nel parsing di ${filePath}:`,
-      err.message
-    );
+    logger.warn('ConfigLoader JSON parse error', { path: filePath, error: err.message });
     return null;
   }
 }
@@ -89,16 +87,14 @@ export async function loadExternalLanguages() {
     return [];
   }
 
-  console.log(`[ConfigLoader] Caricamento config esterna: ${filePath}`);
+  logger.info('ConfigLoader loading external config', { path: filePath });
 
   const config = loadJSON(filePath);
   if (config && config.languages) {
     return config.languages;
   }
 
-  console.warn(
-    `[ConfigLoader] File ${filePath} trovato ma non contiene campo 'languages'`
-  );
+  logger.warn('ConfigLoader file missing languages field', { path: filePath });
   return [];
 }
 
@@ -119,7 +115,7 @@ export function validateLanguageSchema(lang) {
   ];
   for (const field of requiredFields) {
     if (!lang[field]) {
-      console.warn(`[ConfigLoader] Campo richiesto mancante: ${field}`);
+      logger.warn('ConfigLoader missing required field', { field });
       return false;
     }
   }
@@ -137,7 +133,7 @@ export function mergeLanguages(hardcodedLanguages, externalLanguages) {
   const externalValid = externalLanguages.filter((lang) => {
     if (!validateLanguageSchema(lang)) return false;
     if (idSet.has(lang.id)) {
-      console.warn(`[ConfigLoader] Lingua duplicata ignorata: ${lang.id}`);
+      logger.warn('ConfigLoader duplicate language ignored', { langId: lang.id });
       return false;
     }
     return true;

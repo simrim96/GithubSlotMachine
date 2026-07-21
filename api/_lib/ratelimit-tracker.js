@@ -11,6 +11,7 @@
 // nessun handler la interrogava per bloccare le chiamate → codice puramente
 // osservazionale e ingannevole. Rimossa: qui restano solo gli helper di
 // parsing header e il logging.
+import { logger } from './logger.js';
 
 export const GITHUB_RATE_LIMIT_HEADER_REMAINING = 'X-RateLimit-Remaining';
 export const GITHUB_RATE_LIMIT_HEADER_RESET = 'X-RateLimit-Reset';
@@ -65,8 +66,6 @@ export function logRateLimit(response) {
   if (remaining !== null && remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD) {
     const resetStr =
       reset !== null ? new Date(reset * 1000).toLocaleString() : 'unknown';
-    console.warn(
-      `[GitHub Rate Limit] Remaining: ${remaining}, Reset at: ${resetStr}`
-    );
+    logger.info('GitHub Rate Limit status', { remaining, resetAt: resetStr });
   }
 }
