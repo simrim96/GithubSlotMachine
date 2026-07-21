@@ -1,115 +1,28 @@
-# ISSUES - GithubSlotMachine
-
-## Indice
-
-- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
-  - [M4: Gestione graceful shutdown per processi long-running](#m4-gestione-graceful-shutdown-per-processi-long-running)
-  - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
-  - [M8: Documentazione delle dipendenze NPM](#m8-documentazione-delle-dipendenze-npm)
-  - [M9: Test coverage per edge cases GitHub API](#m9-test-coverage-per-edge-cases-github-api)
-- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
-- [🎯 Raccomandazioni Prioritarie](#-raccomandazioni-prioritarie)
-- [📝 Note Finali](#-note-finali)
-
-## 🚀 Miglioramenti Identificati
-
-### M4: Gestione graceful shutdown per processi long-running
-
-**Status:** ✅ **IMPLEMENTATO**
-
-**Descrizione:**
-Implementata gestione segnali SIGTERM/SIGINT per operazioni in-flight. L'handler di shutdown ora:
-- Registra ogni operazione spin come "in-flight" tramite `trackOperation()`
-- Attende il completamento delle operazioni in corso (max 5 secondi)
-- Chiude correttamente le connessioni Redis e le risorse
-- Gestisce SIGTERM con attesa graceful, SIGINT con shutdown immediato
-
-**Implementazione:**
-- Nuovo modulo: `api/_lib/shutdown.js` (170 righe)
-- Importato in `api/spin.js` all'inizio dell'handler
-- Chiamata `gracefulShutdown()` all'avvio per registrare handler globali
-
-**Rischio mitigato:**
-- ✅ Sync Redis→GitHub interrotto → ora gestito con attese
-- ✅ SVG build incompleto → ora gestito con timeout
-- ✅ Connessioni Redis non chiuse → ora chiuse correttamente
-
-**File:**
-- `api/spin.js` (entry point, import e init)
-- `api/_lib/shutdown.js` (implementazione completa)
-
-**Priorità:** Media - Migliora resilienza in produzione
-
-### M7: Rate limiting configurabile per IP vs User-Agent
-
-**Status:** ⚡ **IMPLEMENTATO** - Suggerimento estensione
-
-**Descrizione:**
-Il rate limiting attuale (`api/_lib/ratelimit.js`) usa IP come key. È stata implementata la validazione base, ma si consiglia di aggiungere supporto per User-Agent come fallback quando IP non è disponibile (proxy, CDN).
-
-**File:**
-- `api/_lib/ratelimit.js`
-- `api/ratelimit-tracker.js`
-
-**Priorità:** Bassa - Utile per deploy dietro CDN
-
----
-
-### M8: Documentazione delle dipendenze NPM
-
-**Status:** ✅ **IMPLEMENTATO**
-
-**Descrizione:**
-È stato creato il file `DEVELOPER.md` che documenta tutte le dipendenze critiche del progetto con dettagli su:
-- Scopo di ogni dipendenza
-- Configurazione necessaria
-- Comandi di utilizzo
-- Metriche e priorità
-
-**Implementazione:**
-- Nuovo file: `DEVELOPER.md` (5526 bytes)
-- Sezione per dipendenze di produzione (5 pacchetti)
-- Sezione per dipendenze di sviluppo (5 pacchetti)
-- Tabella dipendenze critiche con priorità
-- Guida onboarding per nuovi developer
-- Metriche delle dipendenze
-
-**File:**
-- `DEVELOPER.md` (documentazione completa)
-- `package.json` (lista dipendenze)
-
-**Priorità:** Bassa - Migliora onboarding nuovi developer ✅ COMPLETATO
-
----
-
-### M9: Test coverage per edge cases GitHub API
-
-**Status:** ✅ **IMPLEMENTATO**
-
-**Descrizione:**
-Sono stati aggiunti test specifici per gli edge cases GitHub API mancanti:
-- ✅ GitHub API 403 rate_limit_exceeded - test per rate limit headers
-- ✅ GitHub API 502/504/503 gateway errors - test per errori server
-- ✅ Forked repo handling - test per forked repo con timeout stretto
-- ✅ Additional edge cases: 404, 401, 403 Forbidden
-
-**Implementazione:**
-- Nuovo file: `tests/github-edge-cases.test.js` (22 test)
-- Copertura completa per ghGetJson con vari HTTP status codes
-- Test per helper function: ghHeaders, detectTokenType, auditToken
-- Test per token type detection (fine-grained vs classic PAT)
-
-**File:**
-- `tests/github-edge-cases.test.js` (nuovo - 22 test)
-- `api/_lib/github.js` (codice testato)
-
-**Risultati:**
-```
-Test Files  1 passed (1)
-Tests      22 passed (22)
-```
-
----
+1|# ISSUES - GithubSlotMachine
+2|
+3|## Indice
+4|
+5|- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
+6|  - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
+7|- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
+8|- [📝 Note Finali](#-note-finali)
+9|
+10|## 🚀 Miglioramenti Identificati
+11|
+12|### M7: Rate limiting configurabile per IP vs User-Agent
+13|
+14|**Status:** ⚡ **IMPLEMENTATO** - Suggerimento estensione
+15|
+16|**Descrizione:**
+17|Il rate limiting attuale (`api/_lib/ratelimit.js`) usa IP come key. È stata implementata la validazione base, ma si consiglia di aggiungere supporto per User-Agent come fallback quando IP non è disponibile (proxy, CDN).
+18|
+19|**File:**
+20|- `api/_lib/ratelimit.js`
+21|- `api/ratelimit-tracker.js`
+22|
+23|**Priorità:** Bassa - Utile per deploy dietro CDN
+24|
+25|---
 
 ## 🧪 Test Coverage - Verifica Aggiornata
 
@@ -198,24 +111,18 @@ SVG_BUILD_CACHE_TTL_MS=60000
 ## 🎯 Raccomandazioni Prioritarie
 
 ### Completati ✅
-1. ⚡ **IMPLEMENTATO:** State sync monitoring (M1/M4)
-2. ✅ **IMPLEMENTATO:** SVG build timeout (M3)
-3. ✅ **IMPLEMENTATO:** JSON Schema validation (M5)
-4. ✅ **IMPLEMENTATO:** SVG degradation caching (M2)
-5. ✅ **IMPLEMENTATO:** SVG build cache L1 (M10)
-6. ⚡ **IMPLEMENTATO:** Rate limiting base (M7 - parziale)
-7. ✅ **IMPLEMENTATO:** Graceful shutdown (M4) - **17 test aggiunti**
-8. ✅ **IMPLEMENTATO:** Documentazione dipendenze (M8)
-9. ✅ **IMPLEMENTATO:** Test edge cases GitHub API (M9) - **22 test aggiunti**
+1. ✅ **IMPLEMENTATO:** SVG build timeout (M3)
+2. ✅ **IMPLEMENTATO:** JSON Schema validation (M5)
+3. ✅ **IMPLEMENTATO:** SVG degradation caching (M2)
+4. ✅ **IMPLEMENTATO:** SVG build cache L1 (M10)
 
 ### Da Implementare ⚠️
 1. 🌐 **OPZIONALE:** Rate limit per User-Agent (M7 - estensione)
 
 ### Opzionali 🚀
 1. 📊 **OPZIONALE:** Prometheus/StatsD metrics
-2. 🌐 **OPZIONALE:** Rate limit per User-Agent (M7 - estensione)
-3. 🚀 **OPZIONALE:** SVG build cache optimization (M10 - estensione)
-4. 🌐 **OPZIONALE:** IP redirect support (M6)
+2. 🚀 **OPZIONALE:** SVG build cache optimization (M10 - estensione)
+3. 🌐 **OPZIONALE:** IP redirect support (M6)
 
 ---
 
@@ -226,7 +133,7 @@ SVG_BUILD_CACHE_TTL_MS=60000
 **ECCLENTE** - Il progetto GithubSlotMachine è ben architettato, testato e sicuro.
 
 **Punti di forza:**
-- ✅ 100% test coverage (301/301 test passed)
+- ✅ 100% test coverage (340/340 test passed)
 - ✅ Security hardening completa (7/7 issues fixed)
 - ✅ Resilienza operativa (timeouts, retries, fallbacks)
 - ✅ Performance ottimizzata (caching tiered, Redis, L1 SVG cache)
@@ -244,9 +151,9 @@ SVG_BUILD_CACHE_TTL_MS=60000
 
 **Risultato:** ✅ **NESSUN BUG CRITICO TROVATO** - Progetto pronto per produzione.
 
-**Miglioramenti implementati:** M1, M2, M3, M4, M5, M7 (parziale), M8, M9, M10
+**Miglioramenti implementati:** M1, M2, M3, M5, M7 (parziale), M10
 **Miglioramenti pendenti:** Nessuno (tutti completati)
 
 ---
 
-*Ultima modifica: 2026-07-21 23:30 - Completamento M9: Test coverage edge cases GitHub API (22 test aggiunti)*
+*Ultima modifica: 2026-07-21 - Aggiornamento ISSUES.md: rimossi M4, M8, M9 (completati)*
