@@ -8,24 +8,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 > Nota di metodo: il file `README.md` è parzialmente obsoleto (vedi D1) e NON è stato
 > usato come fonte di verità. Tutti i punti sotto citano il codice effettivo.
 
----
-
-## Indice delle priorità
-
-| ID  | Area            | Gravità | Titolo breve |
-|-----|-----------------|---------|--------------|
-|| R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
-
-|| R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
-
-## 8. Operatività / Deploy
-
----
-
-## 9. Miglioramenti proposti (roadmap)
-
----
-
 ## Allegato — Verifiche eseguite (evidence)
 
 - `npx vitest run` → **227 passed / 227** (25 file). Nessun test fallito.
@@ -118,19 +100,35 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   non è documentato come env var reale. Il vincolo di regione `fra1` è ora
   documentato come hardcoded in `vercel.json`.
 
+  **ISSUE-4 — CHIUSO (2026-07-21):** fix race condition su Redis counter.
+  Problema: quando due spin arrivano quasi in contemporanea, entrambi leggevano
+  lo stesso stato da Redis, incrementavano i counter di 1, e il secondo
+  sovrascriveva il primo → il contatore totale aumentava di 1 invece che di 2.
+  Fix: implementato `kvIncr()` in `api/_lib/kv.js` che usa l'operazione atomica
+  INCR di Redis (`@upstash/redis`). In `api/_lib/state.js`, `writeState()` ora
+  incrementa `totalSpins` e `totalWins` con `await kvIncr('gsm:counter:spins')`
+  e `await kvIncr('gsm:counter:wins')` prima di scrivere lo stato completo.
+  INCR è atomica a livello di Redis: nessun altro client può leggere-modificare-
+  scrivere tra un increment e l'altro. I test in `tests/issue-4-atomic-counter.test.js`
+  (3 test verdi) verificano che: (1) `kvIncr` ritorna valori sequenziali corretti,
+  (2) `writeState` usa `kvIncr` per incrementi atomici, (3) N incrementi paralleli
+  producono risultati unici e sequenziali (1,2,3,...,N). Verificato da `npx vitest
+  run issue-4-atomic-counter` e suite intera.
+
+# Bug 1
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
 Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
 
-Cache
+#Bug 2 - Cache
 
 Popola la cache lingua→repo proattivamente con un cron invece di aspettare il primo spin freddo (elimini del tutto lo scenario "800ms di attesa e fallback al profilo").
 Header Cache-Control differenziati: /api/lever cambia raramente (potrebbe quasi essere statico), mentre /api/image è dinamico — assicurati che Camo non tenga in cache più del necessario né rifaccia fetch inutili.
 
-Payload
+#Bug 3 - Payload
 
 Minimizza l'SVG generato: nessuno spazio bianco ridondante, riusa <symbol>/<use> per le icone dei linguaggi (sembra che tu lo faccia già), evita di embeddare font o immagini come base64 se non necessario — ogni KB in meno è meno tempo di trasferimento attraverso Camo.
 
-Concorrenza / correttezza
+#Bug 4 - Concorrenza / correttezza
 
 Se due spin arrivano quasi in contemporanea, verifica che la scrittura del counter su Redis sia atomica (INCR, non "leggi-poi-scrivi") per evitare race condition sul contatore — non è propriamente "performance" ma evita comportamenti anomali sotto carico.

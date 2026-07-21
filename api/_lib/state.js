@@ -11,7 +11,7 @@
 // Tutte le chiamate KV passano dai wrapper con timeout in kv.js, così Redis
 // lento/cross-region non blocca mai lo spin.
 
-import { kvGet, kvSet, kvEnabled } from './kv.js';
+import { kvGet, kvSet, kvEnabled, kvIncr } from './kv.js';
 import { ghGetContentsJson, ghPut } from './github.js';
 import { promises as fsp } from 'fs';
 import { logger } from '../_lib/logger.js';
@@ -386,7 +386,34 @@ export async function writeState(token, owner, repo, state, _sha) {
     if (stateToSave.version === undefined) {
       stateToSave.version = 1;
     }
-    await kvSet(STATE_KEY, stateToSave);
+    
+    // ISSUE-4 fix: usa operazioni ATOMICHE per evitare race condition
+    // Quando due spin arrivano contemporaneamente, entrambi leggono lo
+    // stesso valore, lo incrementano, e il secondo sovrascrive il primo.
+    // Usando INCR di Redis (atomica) invece di "leggi->incrementa->scrivi",
+    // evitiamo questo problema.
+    //
+    // Se Redis è attivo, usiamo INCR per i contatori (atomico),
+    // e scriviamo lo stato completo per gli altri campi.
+    try {
+      // Incrementa atomicamente i contatori usando INCR (atomica)
+      const newTotalSpins = await kvIncr('gsm:counter:spins');
+      const newTotalWins = await kvIncr('gsm:counter:wins');
+      
+      // Aggiorna lo stato con i valori atomici
+      stateToSave.totalSpins = newTotalSpins ?? (stateToSave.totalSpins ?? 0) + 1;
+      stateToSave.totalWins = newTotalWins ?? (stateToSave.totalWins ?? 0) + 1;
+      
+      // Scrivi lo stato completo con i valori atomici
+      await kvSet(STATE_KEY, stateToSave);
+    } catch (err) {
+      // Fallback: se INCR fallisce, usa il vecchio comportamento
+      logger.warn('atomic counter increment failed, fallback to normal write', {
+        error: err?.message || err,
+      });
+      await kvSet(STATE_KEY, stateToSave);
+    }
+    
     // Sync asincrono su GitHub per backup (non blocca lo spin).
     // R2: ora con retry + backoff esponenziale (syncStateToGitHub). Se tutti
     // i tentativi falliscono, lo stato viene marcato "stale" (persistito) e

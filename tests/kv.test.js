@@ -176,4 +176,117 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     expect(isAuthError({ message: 'network timeout' })).toBe(false);
     expect(isAuthError(null)).toBe(false);
   });
+
+  describe('ISSUE-4: incremento atomico con kvIncr', () => {
+    beforeEach(() => {
+      // Pulizia completa delle env KV/Upstash prima di ogni test
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      delete process.env.KV_REST_API_URL;
+      delete process.env.KV_REST_API_TOKEN;
+      delete process.env.KV_REST_API_READ_ONLY_TOKEN;
+    });
+
+    it('kvIncr ritorna null quando Redis non è abilitato', async () => {
+      vi.resetModules();
+      const { kvIncr, kvEnabled } = await import('../api/_lib/kv.js');
+
+      expect(kvEnabled).toBe(false);
+      const result = await kvIncr('gsm:counter:spins');
+      expect(result).toBeNull();
+    });
+
+    it('kvIncr ritorna null quando non c\'è token di scrittura', async () => {
+      process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
+      process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      vi.resetModules();
+      const { kvIncr, kvEnabled, kvWritable } = await import('../api/_lib/kv.js');
+
+      expect(kvEnabled).toBe(true);
+      expect(kvWritable).toBe(false);
+
+      const result = await kvIncr('gsm:counter:spins');
+      expect(result).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith('kvIncr ignored: no write token configured', { key: 'gsm:counter:spins' });
+    });
+
+    it('kvIncr incrementa correttamente un contatore su Redis (simulato)', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      // Client fake: incrementa un contatore simulato
+      const counters = new Map();
+      const FakeRedis = vi.fn().mockImplementation(() => ({
+        incr: vi.fn().mockImplementation(async (key) => {
+          const current = counters.get(key) || 0;
+          const newValue = current + 1;
+          counters.set(key, newValue);
+          return newValue;
+        }),
+      }));
+      vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      vi.resetModules();
+      const { kvIncr, kvEnabled, kvWritable } = await import('../api/_lib/kv.js');
+
+      expect(kvEnabled).toBe(true);
+      expect(kvWritable).toBe(true);
+
+      // Primo increment
+      const result1 = await kvIncr('gsm:counter:spins');
+      expect(result1).toBe(1);
+
+      // Secondo increment
+      const result2 = await kvIncr('gsm:counter:spins');
+      expect(result2).toBe(2);
+
+      // Terzo increment
+      const result3 = await kvIncr('gsm:counter:spins');
+      expect(result3).toBe(3);
+
+      // Il contatore wins è indipendente
+      const winsResult1 = await kvIncr('gsm:counter:wins');
+      expect(winsResult1).toBe(1);
+
+      warnSpy.mockRestore();
+      vi.doUnmock('@upstash/redis');
+    });
+
+    it('kvIncr gestisce correttamente il timeout', async () => {
+      process.env.KV_TIMEOUT_MS = '50';
+
+      process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      // Client fake: simula un timeout
+      const FakeRedis = vi.fn().mockImplementation(() => ({
+        incr: vi.fn().mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return 1;
+        }),
+      }));
+      vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      vi.resetModules();
+      const { kvIncr } = await import('../api/_lib/kv.js');
+
+      // Dovrebbe timeoutare e ritonare null
+      const result = await kvIncr('gsm:counter:spins');
+      expect(result).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith('kvIncr failed', expect.objectContaining({
+        error: 'kv timeout',
+        key: 'gsm:counter:spins'
+      }));
+
+      warnSpy.mockRestore();
+      vi.doUnmock('@upstash/redis');
+    });
+  });
 });
