@@ -9,7 +9,6 @@ import {
   initSpinCooldown,
   handleSpinClick,
   getCooldownState,
-  applyCooldownOnLoad,
 } from '../public/_spin-cooldown.js';
 
 const LS_KEY = 'gsm_last_spin_ts';

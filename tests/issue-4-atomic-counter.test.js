@@ -8,7 +8,7 @@
 //
 // Fix: usare l'operazione atomica INCR di Redis per incrementare i counter.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
   beforeEach(() => {
@@ -21,26 +21,46 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     vi.restoreAllMocks();
   });
 
+  afterEach(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.KV_REST_API_READ_ONLY_TOKEN;
+  });
+
   it('kvIncr usa operazioni ATOMICHE per evitare race condition', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.KV_TIMEOUT_MS = '1000';
 
-    // Simuliamo un Redis che tiene traccia dei counter
+    // Simuliamo un Redis con Map per tenere traccia dei counter
     const counters = new Map();
     
-    // Client fake: incrementa un contatore in modo ATOMICO
-    const FakeRedis = vi.fn().mockImplementation(() => ({
-      incr: vi.fn().mockImplementation(async (key) => {
-        // Simuliamo l'atomicità di INCR: nessun altro può leggere-modificare-scrivere
-        // tra un increment e l'altro
+    // Mock di fetch per simulare l'endpoint INCR REST
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      
+      // Simuliamo risposta per endpoint /incr/:key
+      if (path.startsWith('/incr/')) {
+        const key = decodeURIComponent(path.split('/').pop());
         const current = counters.get(key) || 0;
         const newValue = current + 1;
         counters.set(key, newValue);
-        return newValue;
-      }),
-      set: vi.fn().mockResolvedValue('OK'),
-    }));
-    vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+        
+        return {
+          ok: true,
+          json: async () => ({ result: newValue }),
+        };
+      }
+      
+      // Fallback per altre chiamate
+      return {
+        ok: false,
+        json: async () => null,
+      };
+    });
 
     vi.resetModules();
     const { kvIncr, kvEnabled, kvWritable } = await import('../api/_lib/kv.js');
@@ -49,10 +69,6 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     expect(kvWritable).toBe(true);
 
     // Simuliamo due spin che arrivano contemporaneamente
-    // Con un approccio NON atomico (leggi->incrementa->scrivi),
-    // entrambi leggerebbero totalSpins=0, incrementerebbero a 1,
-    // e il secondo sovrascriverebbe il primo → totalSpins=1 invece di 2
-    
     // Con l'approccio atomico INCR, ogni increment è indipendente
     const spin1 = await kvIncr('gsm:counter:spins');
     const spin2 = await kvIncr('gsm:counter:spins');
@@ -68,36 +84,71 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
   it('writeState usa kvIncr per incrementare atomicamente totalSpins e totalWins', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+    process.env.UPSTASH_REDIS_REST_TOKEN='***';
     process.env.KV_TIMEOUT_MS = '500';
 
-    // Simuliamo un Redis
+    // Simuliamo un Redis con Map per stato e counter
     const redisState = new Map();
     const counters = new Map();
     
-    const FakeRedis = vi.fn().mockImplementation(() => ({
-      incr: vi.fn().mockImplementation(async (key) => {
+    // Mock di fetch per simulare tutte le operazioni REST API
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      
+      if (path.startsWith('/incr/')) {
+        // Simuliamo INCR
+        const key = decodeURIComponent(path.split('/').pop());
         const current = counters.get(key) || 0;
         const newValue = current + 1;
         counters.set(key, newValue);
-        return newValue;
-      }),
-      get: vi.fn().mockImplementation(async (key) => redisState.get(key)),
-      set: vi.fn().mockImplementation(async (key, val) => {
-        redisState.set(key, val);
-        return 'OK';
-      }),
-    }));
-    vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+        
+        return {
+          ok: true,
+          json: async () => ({ result: newValue }),
+        };
+      }
+      
+      if (path === '/db') {
+        // Simuliamo SET/PUT
+        const body = options?.body ? JSON.parse(options.body) : {};
+        const { key, value } = body;
+        redisState.set(key, value);
+        
+        return {
+          ok: true,
+          json: async () => ({ result: 'OK' }),
+        };
+      }
+      
+      if (path.startsWith('/key/')) {
+        // Simuliamo GET
+        const key = decodeURIComponent(path.split('/').pop());
+        const value = redisState.get(key);
+        
+        return {
+          ok: true,
+          json: async () => ({ result: value }),
+        };
+      }
+      
+      // Fallback
+      return {
+        ok: false,
+        json: async () => null,
+      };
+    });
 
-    // Mock di ghGetContentsJson che ritorna stato iniziale
+    // Mock completo di github.js con ES module syntax (vi.mock factory)
+    const originalGithubModule = await import('../api/_lib/github.js');
     const mockState = { totalSpins: 0, totalWins: 0, version: 2 };
+    
     vi.doMock('../api/_lib/github.js', () => ({
+      ...originalGithubModule,
       ghGetContentsJson: vi.fn().mockResolvedValue({
         content: Buffer.from(JSON.stringify(mockState)).toString('base64'),
         sha: 'abc123',
       }),
-      ghPut: vi.fn().mockResolvedValue('OK'),
     }));
 
     vi.resetModules();
@@ -130,21 +181,32 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
   it('due incrementi paralleli (simulati) producono risultati atomici corretti', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+    process.env.UPSTASH_REDIS_REST_TOKEN='***';
 
     const counters = new Map();
     
-    const FakeRedis = vi.fn().mockImplementation(() => ({
-      incr: vi.fn().mockImplementation(async (key) => {
-        // Simula atomicità: legge-modifica-scrivi in un'unica operazione
-        // che non può essere interrotta
+    // Mock di fetch per INCR
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      
+      if (path.startsWith('/incr/')) {
+        const key = decodeURIComponent(path.split('/').pop());
         const current = counters.get(key) || 0;
         const newValue = current + 1;
         counters.set(key, newValue);
-        return newValue;
-      }),
-    }));
-    vi.doMock('@upstash/redis', () => ({ Redis: FakeRedis }));
+        
+        return {
+          ok: true,
+          json: async () => ({ result: newValue }),
+        };
+      }
+      
+      return {
+        ok: false,
+        json: async () => null,
+      };
+    });
 
     vi.resetModules();
     const { kvIncr } = await import('../api/_lib/kv.js');
