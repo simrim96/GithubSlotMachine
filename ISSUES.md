@@ -100,21 +100,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   non è documentato come env var reale. Il vincolo di regione `fra1` è ora
   documentato come hardcoded in `vercel.json`.
 
-  **ISSUE-4 — CHIUSO (2026-07-21):** fix race condition su Redis counter.
-  Problema: quando due spin arrivano quasi in contemporanea, entrambi leggevano
-  lo stesso stato da Redis, incrementavano i counter di 1, e il secondo
-  sovrascriveva il primo → il contatore totale aumentava di 1 invece che di 2.
-  Fix: implementato `kvIncr()` in `api/_lib/kv.js` che usa l'operazione atomica
-  INCR di Redis (`@upstash/redis`). In `api/_lib/state.js`, `writeState()` ora
-  incrementa `totalSpins` e `totalWins` con `await kvIncr('gsm:counter:spins')`
-  e `await kvIncr('gsm:counter:wins')` prima di scrivere lo stato completo.
-  INCR è atomica a livello di Redis: nessun altro client può leggere-modificare-
-  scrivere tra un increment e l'altro. I test in `tests/issue-4-atomic-counter.test.js`
-  (3 test verdi) verificano che: (1) `kvIncr` ritorna valori sequenziali corretti,
-  (2) `writeState` usa `kvIncr` per incrementi atomici, (3) N incrementi paralleli
-  producono risultati unici e sequenziali (1,2,3,...,N). Verificato da `npx vitest
-  run issue-4-atomic-counter` e suite intera.
-
 # Bug 1
   Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
 
