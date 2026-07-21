@@ -30,7 +30,7 @@ let cacheMisses = 0;
 // Configurazione:
 // - SVG_BUILD_TIMEOUT_MS: timeout in ms (default: 3000 = 3 secondi)
 // Quando scade il timeout, viene servito un SVG di degrado invece di bloccare.
-const SVG_BUILD_TIMEOUT_MS = parseInt(process.env.SVG_BUILD_TIMEOUT_MS) || 3000;
+export const SVG_BUILD_TIMEOUT_MS = parseInt(process.env.SVG_BUILD_TIMEOUT_MS) || 3000;
 
 function computeStateHash(state, languages, grid, uid) {
   // Crea una stringa deterministica per lo stato corrente
