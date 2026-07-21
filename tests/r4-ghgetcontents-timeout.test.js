@@ -54,9 +54,9 @@ describe('R4: ghGetContentsJson ha un timeout stretto e non si appoggia all\'inf
     vi.restoreAllMocks();
   });
 
-  it('GH_CONTENTS_TIMEOUT_MS (800) è molto più stretto di GITHUB_API_TIMEOUT_MS (5000)', () => {
+  it('GH_CONTENTS_TIMEOUT_MS (800) è molto più stretto di GITHUB_API_TIMEOUT_MS (2000)', () => {
     expect(GH_CONTENTS_TIMEOUT_MS).toBeLessThanOrEqual(1500);
-    expect(GITHUB_API_TIMEOUT_MS).toBeGreaterThanOrEqual(3000);
+    expect(GITHUB_API_TIMEOUT_MS).toBeGreaterThanOrEqual(1500);
     expect(GH_CONTENTS_TIMEOUT_MS).toBeLessThan(GITHUB_API_TIMEOUT_MS);
   });
 

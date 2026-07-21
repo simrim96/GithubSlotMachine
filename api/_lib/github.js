@@ -87,7 +87,7 @@ export function escapeRegex(s) {
 }
 
 export function escapeMarkdown(s) {
-  return String(s).replace(/[*_`\\[\\]]/g, '\\\\$&');
+  return String(s).replace(/[*_`\[\]]/g, '\\$&');
 }
 
 // ghGetJson: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)

@@ -28,13 +28,17 @@ vi.mock('../api/_lib/game.js', async () => {
 });
 
 // Mock delle dipendenze di rete così il catch non tocca GitHub/Redis.
-vi.mock('../api/_lib/github.js', () => ({
-  ghGetJson: vi.fn(),
-  ghPut: vi.fn(),
-  saveSlotSvg: vi.fn().mockResolvedValue({}),
-  loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: null }),
-  updateReadmeMarkers: vi.fn((r) => r),
-}));
+vi.mock('../api/_lib/github.js', async () => {
+  const actual = await vi.importActual('../api/_lib/github.js');
+  return {
+    ...actual,
+    ghGetJson: vi.fn(),
+    ghPut: vi.fn(),
+    saveSlotSvg: vi.fn().mockResolvedValue({}),
+    loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: null }),
+    updateReadmeMarkers: vi.fn((r) => r),
+  };
+});
 
 vi.mock('../api/_lib/state.js', () => ({
   readState: vi.fn().mockResolvedValue({
