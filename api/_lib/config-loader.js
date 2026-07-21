@@ -13,9 +13,71 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logger } from './logger.js';
+import { validate } from 'jsonschema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..', '..');
+
+/**
+ * JSON Schema per la validazione della configurazione languages.
+ */
+const LANGUAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    languages: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', minLength: 1 },
+          name: { type: 'string', minLength: 1 },
+          short: { type: 'string', minLength: 1 },
+          color: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' },
+          accent: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' },
+          text: { type: 'string', pattern: '^#[0-9A-Fa-f]{6}$' },
+          githubLang: { type: 'string', minLength: 1 },
+          topic: { type: 'string' },
+          competence: { type: 'integer', minimum: 0, maximum: 5 },
+          icon: { type: 'string' },
+          facts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                it: { type: 'string' },
+                en: { type: 'string' },
+              },
+            },
+          },
+        },
+        required: ['id', 'name', 'short', 'color', 'accent', 'text', 'githubLang'],
+      },
+    },
+  },
+  required: ['languages'],
+};
+
+/**
+ * Valida l'intera configurazione languages contro lo schema JSON Schema.
+ * @param {object} config - Oggetto configurazione con campo languages
+ * @returns {object} { valid: boolean, errors: Array<string> }
+ */
+export function validateLanguagesSchema(config) {
+  if (!config || typeof config !== 'object') {
+    logger.warn('ConfigLoader invalid config type', { config });
+    return { valid: false, errors: ['Config must be an object'] };
+  }
+
+  const result = validate(config, LANGUAGE_SCHEMA);
+
+  if (!result.valid) {
+    const errors = result.errors.map((err) => err.toString());
+    logger.warn('ConfigLoader JSON schema validation failed', { errors });
+    return { valid: false, errors };
+  }
+
+  return { valid: true, errors: [] };
+}
 
 /**
  * Tenta di caricare un file JSON.
@@ -90,7 +152,22 @@ export async function loadExternalLanguages() {
   logger.info('ConfigLoader loading external config', { path: filePath });
 
   const config = loadJSON(filePath);
-  if (config && config.languages) {
+  if (!config) {
+    logger.warn('ConfigLoader failed to load/parse config', { path: filePath });
+    return [];
+  }
+
+  // Validazione JSON schema
+  const schemaValidation = validateLanguagesSchema(config);
+  if (!schemaValidation.valid) {
+    logger.error('ConfigLoader JSON schema validation failed', {
+      path: filePath,
+      errors: schemaValidation.errors,
+    });
+    return [];
+  }
+
+  if (config.languages) {
     return config.languages;
   }
 
