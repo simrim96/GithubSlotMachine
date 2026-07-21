@@ -10,19 +10,19 @@
   ],
   "functions": {
     "api/health.js": {
-      "runtime": "edge"
+      "runtime": "@vercel/edge"
     },
     "api/spin.js": {
-      "runtime": "edge"
+      "runtime": "@vercel/edge"
     },
     "api/image.js": {
-      "runtime": "edge"
+      "runtime": "@vercel/edge"
     },
     "api/lever.js": {
-      "runtime": "edge"
+      "runtime": "@vercel/edge"
     },
     "api/ratelimit-status.js": {
-      "runtime": "edge"
+      "runtime": "@vercel/edge"
     }
   }
 }
