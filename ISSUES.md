@@ -49,7 +49,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
 
-  **T2+ — CHIUSO (2026-07-21):** alert Sentry per GitHub rate-limit implementato.
+ **T2+ — CHIUSO (2026-07-21):** alert Sentry per GitHub rate-limit implementato.
   Cambiata la chiamata da `logger.info` a `logger.warn` in
   `api/_lib/ratelimit-tracker.js` (riga 69), così quando `remaining <= 10` il
   logger invia automaticamente un alert a Sentry (`Sentry.captureMessage(msg, 'warning')`).
@@ -113,7 +113,3 @@ Header Cache-Control differenziati: /api/lever cambia raramente (potrebbe quasi 
 #Bug 3 - Payload
 
 Minimizza l'SVG generato: nessuno spazio bianco ridondante, riusa <symbol>/<use> per le icone dei linguaggi (sembra che tu lo faccia già), evita di embeddare font o immagini come base64 se non necessario — ogni KB in meno è meno tempo di trasferimento attraverso Camo.
-
-#Bug 4 - Concorrenza / correttezza
-
-Se due spin arrivano quasi in contemporanea, verifica che la scrittura del counter su Redis sia atomica (INCR, non "leggi-poi-scrivi") per evitare race condition sul contatore — non è propriamente "performance" ma evita comportamenti anomali sotto carico.
