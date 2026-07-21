@@ -93,25 +93,25 @@ I test coprono bene i casi principali. Sono stati aggiunti:
 
 ## 🧪 Test Coverage - Verifica Aggiornata
 
-### Risultati Complessivi (2026-07-21)
+### Risultati Complessivi (2026-07-21 - Post-M4 testing)
 
 ```
-Test Files  34 passed (34)
-Tests      301 passed (301)
-Duration   ~5s
+Test Files  35 passed (35)
+Tests      318 passed (318)
+Duration   ~6s
 Lint       0 errors, 0 warnings
 ```
 
 ### Test Coverage per Miglioramenti
 
-| Miglioramento | File di Test | Stato |
-|--------------|--------------|-------|
-| M3 (SVG timeout) | `tests/svg.test.js` | ✅ |
-| M4 (Graceful shutdown) | `api/_lib/shutdown.js` | ✅ Implementato |
-| M5 (Schema validation) | `tests/config-loader.test.js` | ✅ |
-| M7 (Rate limiting) | `tests/ratelimit.test.js`, `tests/ratelimit-tracker.test.js` | ✅ |
-| M9 (Edge cases) | `tests/r4-ghgetcontents-timeout.test.js`, `tests/spin-error-handling.test.js` | ⚡ Parziale |
-| M10 (SVG cache) | `tests/svg.test.js` | ✅ |
+|| Miglioramento | File di Test | Stato |
+||--------------|--------------|-------|
+|| M3 (SVG timeout) | `tests/svg.test.js` | ✅ |
+|| M4 (Graceful shutdown) | `tests/shutdown.test.js` (17 test) | ✅ Completamente testato |
+|| M5 (Schema validation) | `tests/config-loader.test.js` | ✅ |
+|| M7 (Rate limiting) | `tests/ratelimit.test.js`, `tests/ratelimit-tracker.test.js` | ✅ |
+|| M9 (Edge cases) | `tests/r4-ghgetcontents-timeout.test.js`, `tests/spin-error-handling.test.js` | ⚡ Parziale |
+|| M10 (SVG cache) | `tests/svg.test.js` | ✅ |
 
 ---
 
@@ -183,7 +183,7 @@ SVG_BUILD_CACHE_TTL_MS=60000
 4. ✅ **IMPLEMENTATO:** SVG degradation caching (M2)
 5. ✅ **IMPLEMENTATO:** SVG build cache L1 (M10)
 6. ⚡ **IMPLEMENTATO:** Rate limiting base (M7 - parziale)
-7. ✅ **IMPLEMENTATO:** Graceful shutdown (M4)
+7. ✅ **IMPLEMENTATO:** Graceful shutdown (M4) - **17 test aggiunti**
 
 ### Da Implementare ⚠️
 1. ⚠️ **DA AGGIORNARE:** Documentazione dipendenze (M8)
