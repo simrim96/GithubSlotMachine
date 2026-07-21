@@ -4,8 +4,29 @@
   "regions": ["fra1"],
   "crons": [
     {
+      "path": "/api/health",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cache-refresh",
       "schedule": "*/30 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/health.js": {
+      "runtime": "edge"
+    },
+    "api/spin.js": {
+      "runtime": "edge"
+    },
+    "api/image.js": {
+      "runtime": "edge"
+    },
+    "api/lever.js": {
+      "runtime": "edge"
+    },
+    "api/ratelimit-status.js": {
+      "runtime": "edge"
+    }
+  }
 }

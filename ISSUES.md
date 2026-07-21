@@ -108,6 +108,17 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   elimina lo scenario "800ms di attesa e fallback al profilo" al primo spin freddo.
 
 # Bug 1
-  Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
-  
-Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
+**CHIUSO (2026-07-21):** tutte le funzioni API migrato a Vercel Edge Runtime
+per eliminare i cold start. La migrazione richiede:
+
+1. Rimozione di API Node-specifiche (`process.hrtime` → `performance.now()` in
+   `api/health.js`)
+2. Configurazione `runtime: "edge"` in `vercel.json` per ogni funzione API
+3. Aggiunta di un Vercel Cron per warm-up di `/api/health` ogni 5 minuti
+
+L'Edge Runtime di Vercel gira su un runtime V8 isolato con cold start quasi
+nullo. Tutte le funzioni (`spin.js`, `health.js`, `image.js`, `lever.js`,
+`ratelimit-status.js`) usano ora solo API standard compatibili con Edge.
+
+Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che
+la funzione vada mai completamente a freddo per un visitatore reale.

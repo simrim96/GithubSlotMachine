@@ -16,7 +16,7 @@ import { logger } from './_lib/logger.js';
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
 
 function now() {
-  return Number(process.hrtime.bigint() / 1000000n);
+  return performance.now();
 }
 
 export default async function handler(req, res) {
