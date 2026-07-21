@@ -24,9 +24,6 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 
 ## 9. Miglioramenti proposti (roadmap)
 
-1. **Alert rate-limit GitHub (T2+)** — `ratelimit-status` già espone `remaining`; aggiungere
-    notifica (Sentry/Telegram) quando `< soglia`, oltre al solo frontend badge.
-
 ---
 
 ## Allegato — Verifiche eseguite (evidence)
@@ -70,7 +67,14 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
  `tests/cors-all-endpoints.test.js`, `tests/cors-ratelimit.test.js`,
  `tests/cors-wildcard.test.js` e suite intera (280 test).
 
-  **T1 — CHIUSO (2026-07-20):** test end-to-end di `api/spin.js` come
+  **T2+ — CHIUSO (2026-07-21):** alert Sentry per GitHub rate-limit implementato.
+  Cambiata la chiamata da `logger.info` a `logger.warn` in
+  `api/_lib/ratelimit-tracker.js` (riga 69), così quando `remaining <= 10` il
+  logger invia automaticamente un alert a Sentry (`Sentry.captureMessage(msg, 'warning')`).
+  La funzione `logRateLimit()` è chiamata ad ogni richiesta GitHub (`github.js` righe 122, 185).
+  Verificato da `tests/ratelimit-tracker.test.js` (12 test verdi) e `npm run lint` (0 errori).
+
+  **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
   handler Vercel aggiunti in `tests/spin-handler-e2e.test.js` (5 test verdi).
   Il test invoca il VERO `handler(req, res)` con GitHub (`_lib/github.js`) e
   KV (`_lib/kv.js`, store in-memory) mockati, e copre i tre comportamenti

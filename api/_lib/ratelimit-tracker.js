@@ -66,6 +66,6 @@ export function logRateLimit(response) {
   if (remaining !== null && remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD) {
     const resetStr =
       reset !== null ? new Date(reset * 1000).toLocaleString() : 'unknown';
-    logger.info('GitHub Rate Limit status', { remaining, resetAt: resetStr });
+    logger.warn('GitHub Rate Limit status', { remaining, resetAt: resetStr });
   }
 }
