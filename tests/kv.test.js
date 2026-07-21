@@ -1,6 +1,6 @@
 // Test per il modulo kv.js — verifica del timeout e comportamento fetch diretto
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { withTimeout, isAuthError } from '../api/_lib/kv.js';
+import { withTimeout } from '../api/_lib/kv.js';
 
 describe('kv.js timeout', () => {
   beforeEach(() => {
