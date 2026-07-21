@@ -163,9 +163,9 @@ export default function handler(req, res) {
     status: 200,
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
-      Pragma: 'no-cache',
-      Expires: '0',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400',
+      'ETag': `"lever-${Date.now()}"`, // ETag statico per cache validation
+      Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
     },
     body: LEVER_SVG,
   });

@@ -56,7 +56,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   La funzione `logRateLimit()` è chiamata ad ogni richiesta GitHub (`github.js` righe 122, 185).
   Verificato da `tests/ratelimit-tracker.test.js` (12 test verdi) e `npm run lint` (0 errori).
 
-  **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
+ **D1 — CHIUSO (2026-07-20):** README riscritto per riflettere l'architettura
   handler Vercel aggiunti in `tests/spin-handler-e2e.test.js` (5 test verdi).
   Il test invoca il VERO `handler(req, res)` con GitHub (`_lib/github.js`) e
   KV (`_lib/kv.js`, store in-memory) mockati, e copre i tre comportamenti
@@ -70,7 +70,7 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   bug S1 è ora intercettato. Verificato dalla suite intera (285 test) e
   `npm run lint` (0 errori).
 
-  **T2 — CHIUSO (2026-07-20):** la carenza di copertura sui percorsi di rete
+ **T2 — CHIUSO (2026-07-20):** la carenza di copertura sui percorsi di rete
   (GitHub/KV) segnalata in T2 è stata colmata dai test end-to-end di T1 in
   `tests/spin-handler-e2e.test.js`. T2 prescriveva esplicitamente "aggiungere i
   test di T1 per alzare la copertura dei percorsi di rete", e quei 5 test
@@ -100,12 +100,9 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   non è documentato come env var reale. Il vincolo di regione `fra1` è ora
   documentato come hardcoded in `vercel.json`.
 
-# Bug 1
-  Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
-
-Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
-
-# Bug 2 - Cache
-
-Popola la cache lingua→repo proattivamente con un cron invece di aspettare il primo spin freddo (elimini del tutto lo scenario "800ms di attesa e fallback al profilo").
-Header Cache-Control differenziati: /api/lever cambia raramente (potrebbe quasi essere statico), mentre /api/image è dinamico — assicurati che Camo non tenga in cache più del necessario né rifaccia fetch inutili.
+ **BUG-2 — CHIUSO (2026-07-21):** cache lingua→repo + header Cache-Control differenziati
+  implementati. Creato `api/cache-refresh.js` (endpoint POST per popolare proattivamente
+  la cache in-memory e KV) e configurato un Vercel Cron (ogni 30 minuti) per chiamarlo.
+  Aggiornati header `/api/lever` a `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
+  (prima `no-store`). Verificato da `npm run lint` (0 errori) e import test. Il fix
+  elimina lo scenario "800ms di attesa e fallback al profilo" al primo spin freddo.
