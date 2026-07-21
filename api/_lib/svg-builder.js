@@ -4,6 +4,7 @@
 
 import { escapeXml } from './svg/utils.js';
 import { LANGUAGES } from './languages.js';
+import { logger } from './logger.js';
 
 // Re-export escapeXml for backward compatibility
 export { escapeXml, LANGUAGES };
@@ -23,6 +24,13 @@ const CACHE_TTL_MS = parseInt(process.env.SVG_BUILD_CACHE_TTL_MS) || 60000;
 const svgCache = new Map();
 let cacheHits = 0;
 let cacheMisses = 0;
+
+// ─── M3: SVG Build Timeout ──────────────────────────────────────────────────
+// Timeout per prevenire stalli durante la generazione SVG in caso di dipendenze lente.
+// Configurazione:
+// - SVG_BUILD_TIMEOUT_MS: timeout in ms (default: 3000 = 3 secondi)
+// Quando scade il timeout, viene servito un SVG di degrado invece di bloccare.
+const SVG_BUILD_TIMEOUT_MS = parseInt(process.env.SVG_BUILD_TIMEOUT_MS) || 3000;
 
 function computeStateHash(state, languages, grid, uid) {
   // Crea una stringa deterministica per lo stato corrente
@@ -96,6 +104,30 @@ export function clearCache() {
   svgCache.clear();
   cacheHits = 0;
   cacheMisses = 0;
+}
+
+// ─── M3: SVG Build with Timeout ─────────────────────────────────────────────
+// Wrapper che applica un timeout alla build SVG. Se il timeout scade, serve
+// un SVG di degrado invece di bloccare l'operazione.
+export async function buildSvgWithTimeout(options) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SVG_BUILD_TIMEOUT_MS);
+  
+  try {
+    const svg = await buildSVG(options);
+    clearTimeout(timeoutId);
+    return svg;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      logger.warn('M3: SVG build timeout, serving degradation SVG');
+      return errorSVGString({ 
+        owner: options.owner || 'simrim96', 
+        message: 'Timeout build SVG - riprova!' 
+      });
+    }
+    throw err;
+  }
 }
 
 // ─── SVG Sanitization (hardening difensivo, ISSUE-25 / S3) ────────────────────

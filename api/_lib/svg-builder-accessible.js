@@ -10,7 +10,8 @@
 // senza modificare la logica di rendering esistente.
 
 import { escapeXml } from './svg/utils.js';
-import { buildSVG, errorSVG, errorSVGString, getCachedSvg, setCachedSvg, LANGUAGES } from './svg-builder.js';
+import { buildSVG, errorSVG, errorSVGString, getCachedSvg, setCachedSvg, LANGUAGES, SVG_BUILD_TIMEOUT_MS } from './svg-builder.js';
+import { logger } from './logger.js';
 
 // Cache helper per buildAccessibleSVG (usa le funzioni di cache globali)
 function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, isWin, isJackpot, nearMissCol, uid) {
@@ -140,3 +141,26 @@ function addAriaToSvg(svg, ariaLabel, uid) {
 // ISSUE-29) e re-importati qui per retrocompatibilità: svg-builder-accessible
 // non deve ridefinirli (evita la dipendenza circolare con svg-builder.js).
 export { errorSVG, errorSVGString };
+
+// ─── M3: Accessible SVG Build with Timeout ───────────────────────────────────
+// Wrapper per buildAccessibleSVG con timeout per prevenire stalli.
+export async function buildAccessibleSVGWithTimeout(params) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SVG_BUILD_TIMEOUT_MS);
+  
+  try {
+    const svg = buildAccessibleSVG(params);
+    clearTimeout(timeoutId);
+    return svg;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      logger.warn('M3: Accessible SVG build timeout, serving degradation SVG');
+      return errorSVGString({ 
+        owner: params.owner || 'simrim96', 
+        message: 'Timeout build SVG - riprova!' 
+      });
+    }
+    throw err;
+  }
+}

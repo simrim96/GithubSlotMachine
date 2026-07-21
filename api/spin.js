@@ -24,7 +24,7 @@ import {
   wrap,
 } from './_lib/game.js';
 import { buildSVG, errorSVG, errorSVGString } from './_lib/svg-builder.js';
-import { buildAccessibleSVG } from './_lib/svg-builder-accessible.js';
+import { buildAccessibleSVG, buildAccessibleSVGWithTimeout } from './_lib/svg-builder-accessible.js';
 import {
   ghGetJson,
   ghPut,
@@ -307,7 +307,9 @@ export default async function handler(req, res) {
       };
     }
 
-    const svg = buildAccessibleSVG({
+    // M3: Build SVG con timeout di sicurezza (3s default)
+    // Se il timeout scade, viene servito un SVG di degrado invece di bloccare.
+    const svg = await buildAccessibleSVGWithTimeout({
       grid,
       uid: spinStart,
       state,
