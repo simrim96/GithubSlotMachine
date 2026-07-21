@@ -5,15 +5,7 @@
   "crons": [
     {
       "path": "/api/health",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/spin",
-      "schedule": "*/2 * * * *"
-    },
-    {
-      "path": "/api/cache-refresh",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "functions": {
