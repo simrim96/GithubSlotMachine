@@ -58,29 +58,28 @@ Il rate limiting attuale (`api/_lib/ratelimit.js`) usa IP come key. È stata imp
 
 ### M8: Documentazione delle dipendenze NPM
 
-**Status:** ⚠️ **DA AGGIORNARE**
+**Status:** ✅ **IMPLEMENTATO**
 
 **Descrizione:**
-Il `package.json` non ha una sezione di documentazione sulle dipendenze critiche. Suggerimento: aggiungere commenti o documento separato che spiega lo scopo di ogni dipendenza.
+È stato creato il file `DEVELOPER.md` che documenta tutte le dipendenze critiche del progetto con dettagli su:
+- Scopo di ogni dipendenza
+- Configurazione necessaria
+- Comandi di utilizzo
+- Metriche e priorità
+
+**Implementazione:**
+- Nuovo file: `DEVELOPER.md` (5526 bytes)
+- Sezione per dipendenze di produzione (5 pacchetti)
+- Sezione per dipendenze di sviluppo (5 pacchetti)
+- Tabella dipendenze critiche con priorità
+- Guida onboarding per nuovi developer
+- Metriche delle dipendenze
 
 **File:**
-- `package.json`
-- `README.md` (se esiste)
+- `DEVELOPER.md` (documentazione completa)
+- `package.json` (lista dipendenze)
 
-**Raccomandazione:**
-Aggiungere sezione `DEVELOPER.md`:
-
-```markdown
-## Dipendenze Critiche
-
-- `@upstash/redis` (o fetch diretto) → Cache Redis per stato e repo
-- `vitest` → Testing unitario e E2E
-- `eslint` → Linting e quality guard
-- `jsonschema` → Validazione linguaggi
-- `@sentry/vercel-edge` → Error monitoring
-```
-
-**Priorità:** Bassa - Migliora onboarding nuovi developer
+**Priorità:** Bassa - Migliora onboarding nuovi developer ✅ COMPLETATO
 
 ---
 
@@ -194,10 +193,10 @@ SVG_BUILD_CACHE_TTL_MS=60000
 5. ✅ **IMPLEMENTATO:** SVG build cache L1 (M10)
 6. ⚡ **IMPLEMENTATO:** Rate limiting base (M7 - parziale)
 7. ✅ **IMPLEMENTATO:** Graceful shutdown (M4) - **17 test aggiunti**
+8. ✅ **IMPLEMENTATO:** Documentazione dipendenze (M8)
 
 ### Da Implementare ⚠️
-1. ⚠️ **DA AGGIORNARE:** Documentazione dipendenze (M8)
-2. ⚡ **DA AUMENTARE:** Test coverage edge cases (M9)
+1. ⚡ **DA AUMENTARE:** Test coverage edge cases (M9)
 
 ### Opzionali 🚀
 1. 📊 **OPZIONALE:** Prometheus/StatsD metrics
