@@ -17,15 +17,9 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
 | R5  | Affidabilità    | P1      | Spin senza repo se Upstash è cross-region (timeout 800ms) |
 
 | R3  | Affidabilità    | P3      | Scritture KV silenziose in read-only mode |
-| O2/O3| Operatività    | P3      | Sentry error sampling 1.0; logger non strutturato |
+|| O3 | Operatività    | P3      | Logger non strutturato |
 
 ## 8. Operatività / Deploy
-
-### O2 — Sentry error sampling al 100%  · P3
-`sentry.config.js` imposta `tracesSampleRate`/`profilesSampleRate` a 0 di default
-(ok), ma `captureException` invia SEMPRE (error sampling 1.0). Su traffico alto
-aumenta i costi Sentry. Per una slot personale è accettabile; se il traffico cresce,
-valutare `sampleRate` su `Sentry.init`.
 
 ### O3 — Logger non strutturato  · P3
 Il codice mescola `console.log`/`console.warn`/`Sentry.captureException` senza un
@@ -61,16 +55,16 @@ JSON, usato ovunque al posto di `console.*`.
   (`SPIN_COOLDOWN_MS = 3000`). Verificato da `tests/cors-ratelimit.test.js`
   (7 test verdi) e suite intera (227 test).
   
-  **S4 — CHIUSO (2026-07-20):** hardening token GitHub implementato in
-  `api/_lib/github.js` (`detectTokenType` + `auditToken`) e integrato in
-  `api/spin.js` (hook di audit prima dello spin, fail-closed a read-only se
-  `GITHUB_PAT_REQUIRE_FINEGRAINED=true` e il token NON è fine-grained). Il PAT
-  fornito è stato validato contro l'API reale di GitHub: fine-grained,
-  `push(write)=True` su `simrim96/simrim96` e `simrim96/GithubSlotMachine`.
-  Verificato da `tests/s4-token.test.js` (8 test verdi) e suite intera
-  (264 test). Docs aggiornate in `.env.example` e `README.md`.
+  - **S4 — CHIUSO (2026-07-20):** hardening token GitHub implementato in
+    `api/_lib/github.js` (`detectTokenType` + `auditToken`) e integrato in
+    `api/spin.js` (hook di audit prima dello spin, fail-closed a read-only se
+    `GITHUB_PAT_REQUIRE_FINEGRAINED=true` e il token NON è fine-grained). Il PAT
+    fornito è stato validato contro l'API reale di GitHub: fine-grained,
+    `push(write)=True` su `simrim96/simrim96` e `simrim96/GithubSlotMachine`.
+    Verificato da `tests/s4-token.test.js` (8 test verdi) e suite intera
+    (264 test). Docs aggiornate in `.env.example` e `README.md`.
 
-  **P1 — CHIUSO (2026-07-20):** cache README in KV implementata in
+    **P1 — CHIUSO (2026-07-20):** cache README in KV implementata in
   `api/spin.js` (import `kvGet, kvSet, kvEnabled` da `./_lib/kv.js`,
   chiave `gsm:readme:<owner>`, TTL 60s). Su cache HIT la GET GitHub viene
   saltata del tutto; dopo la `ghPut` la cache viene refrescata. Degradazione

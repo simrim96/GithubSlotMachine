@@ -8,6 +8,11 @@ Sentry.init({
   dsn: process.env.SENTRY_DSN,
   environment: process.env.VERCEL_ENV || 'development',
 
+  // Error sampling: default to 10% (0.1) to control costs at scale.
+  // Override with SENTRY_ERROR_SAMPLE_RATE (0.0–1.0).
+  sampleRate:
+    parseFloat(process.env.SENTRY_ERROR_SAMPLE_RATE ?? '0.1') || 0.1,
+
   // Read sample rates from env vars instead of hardcoding 1.0.
   // Defaults to 0 (tracing/profiling off) when the vars are not set, so a
   // misconfigured fork doesn't silently send 100% of traffic to Sentry.
