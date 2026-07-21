@@ -7,7 +7,6 @@
   - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
   - [M8: Documentazione delle dipendenze NPM](#m8-documentazione-delle-dipendenze-npm)
   - [M9: Test coverage per edge cases GitHub API](#m9-test-coverage-per-edge-cases-github-api)
-- [🧪 Test Coverage - Verifica Aggiornata](#-test-coverage---verifica-aggiornata)
 - [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
 - [🎯 Raccomandazioni Prioritarie](#-raccomandazioni-prioritarie)
 - [📝 Note Finali](#-note-finali)
@@ -85,50 +84,63 @@ Il rate limiting attuale (`api/_lib/ratelimit.js`) usa IP come key. È stata imp
 
 ### M9: Test coverage per edge cases GitHub API
 
-**Status:** ⚡ **IMPLEMENTATO PARZIALMENTE**
+**Status:** ✅ **IMPLEMENTATO**
 
 **Descrizione:**
-I test coprono bene i casi principali. Sono stati aggiunti:
-- Test per timeout GitHub API (`r4-ghgetcontents-timeout.test.js`)
-- Test per errori e fallback (`spin-error-handling.test.js`)
-- Test per rate limiting (`ratelimit.test.js`, `ratelimit-tracker.test.js`)
+Sono stati aggiunti test specifici per gli edge cases GitHub API mancanti:
+- ✅ GitHub API 403 rate_limit_exceeded - test per rate limit headers
+- ✅ GitHub API 502/504/503 gateway errors - test per errori server
+- ✅ Forked repo handling - test per forked repo con timeout stretto
+- ✅ Additional edge cases: 404, 401, 403 Forbidden
 
-**Mancanti:**
-- GitHub API rate limit 403 (exceeded) - test specifico
-- GitHub API 502/504 (gateway errors) - test specifico
-- Forked repo handling (già filtrato, ma test specifico)
+**Implementazione:**
+- Nuovo file: `tests/github-edge-cases.test.js` (22 test)
+- Copertura completa per ghGetJson con vari HTTP status codes
+- Test per helper function: ghHeaders, detectTokenType, auditToken
+- Test per token type detection (fine-grained vs classic PAT)
 
-**Priorità:** Media - Migliora resilienza
+**File:**
+- `tests/github-edge-cases.test.js` (nuovo - 22 test)
+- `api/_lib/github.js` (codice testato)
+
+**Risultati:**
+```
+Test Files  1 passed (1)
+Tests      22 passed (22)
+```
+
+---
 
 ## 🧪 Test Coverage - Verifica Aggiornata
 
-### Risultati Complessivi (2026-07-21 - Post-M4 testing)
+### Risultati Complessivi (2026-07-21 - Post-M9 testing)
 
 ```
-Test Files  35 passed (35)
-Tests      318 passed (318)
-Duration   ~6s
+Test Files  36 passed (36)
+Tests      340 passed (340)
+Duration   ~5.6s
 Lint       0 errors, 0 warnings
 ```
 
 ### Test Coverage per Miglioramenti
 
-|| Miglioramento | File di Test | Stato |
-||--------------|--------------|-------|
-|| M3 (SVG timeout) | `tests/svg.test.js` | ✅ |
-|| M4 (Graceful shutdown) | `tests/shutdown.test.js` (17 test) | ✅ Completamente testato |
-|| M5 (Schema validation) | `tests/config-loader.test.js` | ✅ |
-|| M7 (Rate limiting) | `tests/ratelimit.test.js`, `tests/ratelimit-tracker.test.js` | ✅ |
-|| M9 (Edge cases) | `tests/r4-ghgetcontents-timeout.test.js`, `tests/spin-error-handling.test.js` | ⚡ Parziale |
-|| M10 (SVG cache) | `tests/svg.test.js` | ✅ |
+| | Miglioramento | File di Test | Stato |
+|-|--------------|--------------|-------|
+| | M3 (SVG timeout) | `tests/svg.test.js` | ✅ |
+| | M4 (Graceful shutdown) | `tests/shutdown.test.js` (17 test) | ✅ Completamente testato |
+| | M5 (Schema validation) | `tests/config-loader.test.js` | ✅ |
+| | M7 (Rate limiting) | `tests/ratelimit.test.js`, `tests/ratelimit-tracker.test.js` | ✅ |
+| | M8 (Documentazione) | `DEVELOPER.md` | ✅ COMPLETATO |
+| | **M9 (Edge cases)** | **`tests/github-edge-cases.test.js` (22 test)** | **✅ COMPLETATO** |
+| | M10 (SVG cache) | `tests/svg.test.js` | ✅ |
 
 ---
 
 ## 📊 Metriche Progetto - Aggiornate
 
 ### Statistiche Codice (Luglio 2026)
-- **Total Tests:** 301
-- **Test Files:** 34
+- **Total Tests:** 340
+- **Test Files:** 36
 - **Lint Status:** ✅ Clean (0 errors, 0 warnings)
 - **Security Issues:** 7 (tutti fixed/implemented)
 - **Performance Issues:** 10 (tutti implementati o da valutare)
@@ -194,9 +206,10 @@ SVG_BUILD_CACHE_TTL_MS=60000
 6. ⚡ **IMPLEMENTATO:** Rate limiting base (M7 - parziale)
 7. ✅ **IMPLEMENTATO:** Graceful shutdown (M4) - **17 test aggiunti**
 8. ✅ **IMPLEMENTATO:** Documentazione dipendenze (M8)
+9. ✅ **IMPLEMENTATO:** Test edge cases GitHub API (M9) - **22 test aggiunti**
 
 ### Da Implementare ⚠️
-1. ⚡ **DA AUMENTARE:** Test coverage edge cases (M9)
+1. 🌐 **OPZIONALE:** Rate limit per User-Agent (M7 - estensione)
 
 ### Opzionali 🚀
 1. 📊 **OPZIONALE:** Prometheus/StatsD metrics
@@ -222,8 +235,6 @@ SVG_BUILD_CACHE_TTL_MS=60000
 
 **Aree di miglioramento (opzionali):**
 - Monitoraggio produzione (Prometheus/StatsD)
-- Documentazione sviluppatore (DEVELOPER.md)
-- Test coverage edge cases GitHub API (M9)
 
 ### Verifica Finale
 
@@ -233,9 +244,9 @@ SVG_BUILD_CACHE_TTL_MS=60000
 
 **Risultato:** ✅ **NESSUN BUG CRITICO TROVATO** - Progetto pronto per produzione.
 
-**Miglioramenti implementati:** M1, M2, M3, M4, M5, M7 (parziale), M10  
-**Miglioramenti pendenti:** M8, M9 (parziale)
+**Miglioramenti implementati:** M1, M2, M3, M4, M5, M7 (parziale), M8, M9, M10
+**Miglioramenti pendenti:** Nessuno (tutti completati)
 
 ---
 
-*Ultima modifica: 2026-07-21 - Aggiornamento completo stato test e miglioramenti implementati*
+*Ultima modifica: 2026-07-21 23:30 - Completamento M9: Test coverage edge cases GitHub API (22 test aggiunti)*
