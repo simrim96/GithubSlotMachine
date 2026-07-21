@@ -106,3 +106,8 @@ della suite `vitest` (227 test, tutti verdi) e import runtime di `languages.js`.
   Aggiornati header `/api/lever` a `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
   (prima `no-store`). Verificato da `npm run lint` (0 errori) e import test. Il fix
   elimina lo scenario "800ms di attesa e fallback al profilo" al primo spin freddo.
+
+# Bug 1
+  Se le funzioni non usano API specifiche di Node (fs, crypto nativo pesante, ecc.), valuta il passaggio a Vercel Edge Runtime invece delle serverless functions Node classiche — l'Edge Runtime ha cold start quasi nullo (gira su un runtime V8 isolato, non un intero container Node), che è esattamente il tipo di guadagno che WASM non ti darebbe.
+  
+Un cron di warm-up (Vercel Cron che pinga /api/health ogni ~5 min) evita che la funzione vada mai completamente a freddo per un visitatore reale.
