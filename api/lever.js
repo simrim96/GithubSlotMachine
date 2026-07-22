@@ -276,9 +276,9 @@ export default async function handler(req, res) {
     status: 200,
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400',
-      'ETag': `"lever-${Date.now()}"`, // ETag statico per cache validation
-      Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
+      'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
+      'ETag': `"lever-${Date.now()}"`,
+      Expires: new Date(Date.now() + 5000).toUTCString(),
     },
     body: svg,
   });
