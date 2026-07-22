@@ -227,7 +227,7 @@ const ANIMATIONS = `
   
   .idling {
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
-    animation-delay: ${IDLE_DELAY_MS}ms;
+    animation-delay: 0ms;
   }
 </style>
 `;
@@ -244,12 +244,16 @@ export default async function handler(req, res) {
   // Verifica lo stato per determinare l'animazione
   const pullState = await getPullState();
   
-  let currentClass = '';
-  if (pullState.isPulling && pullState.pullPhase) {
+  // Logica animazione:
+  // 1. Idle loop SEMPRE presente (se non c'è pull recente, mostra idle)
+  // 2. Pull effect solo se timeSincePull < 300ms
+  let currentClass = 'idling'; // Default: idle loop sempre attivo
+  
+  if (pullState.isPulling && pullState.timeSincePull < PULL_DURATION_MS) {
+    // Pull recente (0-300ms): mostra animazione di trazione
     currentClass = 'pulling';
-  } else if (pullState.isPulling && pullState.idlePhase) {
-    currentClass = 'idling';
   }
+  // Altrimenti: idle loop (con o senza lastPullTimestamp)
 
   // Costruisci SVG con animazioni CSS
   let svg = LEVER_SVG_TEMPLATE;
