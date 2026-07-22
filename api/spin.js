@@ -279,6 +279,7 @@ export default async function handler(req, res) {
 
     const { state, sha: stateSha } = stateBundle;
     state.totalSpins = (state.totalSpins || 0) + 1;
+    state.lastPullTimestamp = Date.now(); // Timestamp per animazione leva
 
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
