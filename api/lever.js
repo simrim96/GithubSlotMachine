@@ -1,6 +1,10 @@
 // ─── Lever endpoint ──────────────────────────────────────────────────────────
-// SVG statico: leva laterale di una slot machine. Stile coerente col cabinet
+// SVG della leva laterale di una slot machine. Stile coerente col cabinet
 // (pomello rosso laccato, montatura cromata).
+//
+// Animazione "pull": quando la leva viene tirata (state.lastPullTimestamp recente),
+// l'SVG mostra un'animazione CSS che parte con un "pull" verso il basso e
+// ritorna gradualmente all'idle loop.
 //
 // Geometria semplificata per eliminare ogni glitch:
 //   • L'asta è un singolo <line> con stroke-linecap="round" → nessun spigolo
@@ -15,6 +19,8 @@
 
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
+import { kvGet } from './_lib/kv.js';
+import { logger } from './_lib/logger.js';
 
 const W = 52;
 const H = 150;
@@ -45,7 +51,62 @@ const _ux = _dx / _len,
 // angolo dell'asta in gradi (rotazione dell'ellisse-anello)
 const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
-const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+// Chiave KV per lo stato
+const STATE_KEY = 'gsm:state';
+
+// Durate animazione in ms
+const PULL_DURATION_MS = 300; // Durata della fase "pull"
+const IDLE_DELAY_MS = 500; // Dopo il pull, attesa prima di iniziare l'idle loop
+const IDLE_LOOP_MS = 2000; // Durata del loop idle
+
+// Angoli di rotazione
+const IDLE_ANGLE = -5; // Angolo idle (leggermente inclinato)
+const PULL_ANGLE = 25; // Angolo massimo durante il pull (verso il basso)
+
+// Recupera lo stato da KV e verifica se la leva è stata appena tirata
+async function getPullState() {
+  try {
+    const state = await kvGet(STATE_KEY);
+    if (!state) {
+      return { isPulling: false, reason: 'no_state' };
+    }
+    
+    const lastPullTimestamp = state.lastPullTimestamp;
+    if (!lastPullTimestamp) {
+      return { isPulling: false, reason: 'no_timestamp' };
+    }
+    
+    const now = Date.now();
+    const timeSincePull = now - lastPullTimestamp;
+    
+    // Se la leva è stata tirata entro i prossimi 3 secondi, mostriamo l'animazione
+    if (timeSincePull < 3000) {
+      // Calcola la fase dell'animazione:
+      // - 0-300ms: pull in corso
+      // - 300-800ms: pausa prima dell'idle loop
+      // - 800ms+: idle loop
+      const pullPhase = timeSincePull < PULL_DURATION_MS;
+      const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
+      
+      return {
+        isPulling: true,
+        pullPhase,
+        idlePhase,
+        timeSincePull,
+        reason: 'recent_pull'
+      };
+    }
+    
+    return { isPulling: false, reason: 'too_old' };
+  } catch (err) {
+    logger.warn('lever.js: error reading state', { error: err?.message || err });
+    return { isPulling: false, reason: 'error' };
+  }
+}
+
+// SVG statico: leva laterale di una slot machine
+const LEVER_SVG_TEMPLATE = `
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
   width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
   role="button" aria-label="Pulla la leva per girare la slot machine" tabindex="0">
   <title>Leva slot machine</title>
@@ -89,7 +150,7 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
           fill="url(#leverChrome)"/>
 
   <!-- ── Leva (gruppo rotante) ── -->
-  <g class="leverArm">
+  <g class="leverArm" id="leverGroup">
     <!-- Halo rosso attorno al pomello -->
     <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
             fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
@@ -131,15 +192,80 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
   <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
   <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY}" r="3"
           fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
-</svg>`;
+</svg>
+`;
 
-export default function handler(req, res) {
+// Animazioni CSS per il pull e l'idle loop
+const ANIMATIONS = `
+<style>
+  #leverGroup {
+    transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  @keyframes pull {
+    0% {
+      transform: rotate(${IDLE_ANGLE}deg);
+    }
+    100% {
+      transform: rotate(${PULL_ANGLE}deg);
+    }
+  }
+  
+  @keyframes idleLoop {
+    0%, 100% {
+      transform: rotate(${IDLE_ANGLE}deg);
+    }
+    50% {
+      transform: rotate(${IDLE_ANGLE - 3}deg);
+    }
+  }
+  
+  .pulling {
+    animation: pull ${PULL_DURATION_MS}ms ease-in-out forwards;
+  }
+  
+  .idling {
+    animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
+    animation-delay: ${IDLE_DELAY_MS}ms;
+  }
+</style>
+`;
+
+export default async function handler(req, res) {
   // ── CORS (ISSUE-25: wildcard `*`, la leva è embeddata cross-origin
   //    su github.com e altri domini non deterministici) ──
   applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
     sendResponse(res, { status: 204 });
     return;
+  }
+
+  // Verifica lo stato per determinare l'animazione
+  const pullState = await getPullState();
+  
+  let currentClass = '';
+  if (pullState.isPulling && pullState.pullPhase) {
+    currentClass = 'pulling';
+  } else if (pullState.isPulling && pullState.idlePhase) {
+    currentClass = 'idling';
+  }
+
+  // Costruisci SVG con animazioni CSS
+  let svg = LEVER_SVG_TEMPLATE;
+  
+  // Inserisci le animazioni CSS prima dei defs
+  svg = svg.replace(
+    '<defs>',
+    ANIMATIONS + '\n  <defs>'
+  );
+  
+  // Aggiungi la classe appropriata al gruppo della leva
+  if (currentClass) {
+    svg = svg.replace(
+      '<g class="leverArm" id="leverGroup">',
+      `<g class="leverArm ${currentClass}" id="leverGroup">`
+    );
   }
 
   sendResponse(res, {
@@ -150,6 +276,6 @@ export default function handler(req, res) {
       'ETag': `"lever-${Date.now()}"`, // ETag statico per cache validation
       Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
     },
-    body: LEVER_SVG,
+    body: svg,
   });
 }

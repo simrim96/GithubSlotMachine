@@ -200,6 +200,8 @@ const DEFAULTS = {
   totalWins: 0,
   lastWin: null, // { langId, langName, fact, repoUrl, repoName, ts }
   version: STATE_VERSION,
+  // Timestamp dell'ultimo pull della leva (per animazione)
+  lastPullTimestamp: 0,
   // v2 fields:
   settings: {
     theme: 'auto', // 'auto' | 'light' | 'dark'
