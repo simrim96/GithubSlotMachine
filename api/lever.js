@@ -25,14 +25,13 @@ import { logger } from './_lib/logger.js';
 const W = 52;
 const H = 150;
 
-// Pivot del bumper: clippato a metà sul bordo sinistro, così quando il SVG
-// viene affiancato al cabinet la leva si "incastra" nel fianco della slot.
-const BUMPER_CX = 0;
+// Pivot del bumper: centrato nell'SVG (W=52)
+const BUMPER_CX = 26;
 const BUMPER_CY = 100;
 const BUMPER_R = 10;
 
-// Tip dell'asta (= centro del pomello). Quasi verticale: dx=10, dy=78.
-const TIP_X = 10;
+// Tip dell'asta: centrato orizzontalmente, verso il basso
+const TIP_X = 26;
 const TIP_Y = 22;
 
 // Pomello rosso (stesso colore del cabinet).
@@ -43,25 +42,27 @@ const MID_X = (BUMPER_CX + TIP_X) / 2;
 const MID_Y = (BUMPER_CY + TIP_Y) / 2;
 
 // Vettore unitario lungo l'asta (per orientare highlight e anello).
+// Leva ora verticale: dx=0, dy=-78
 const _dx = TIP_X - BUMPER_CX;
 const _dy = TIP_Y - BUMPER_CY;
 const _len = Math.hypot(_dx, _dy);
 const _ux = _dx / _len,
   _uy = _dy / _len;
 // angolo dell'asta in gradi (rotazione dell'ellisse-anello)
+// Leva verticale: -90°
 const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
 // Chiave KV per lo stato
 const STATE_KEY = 'gsm:state';
 
 // Durate animazione in ms
-const PULL_DURATION_MS = 300; // Durata della fase "pull"
-const IDLE_DELAY_MS = 500; // Dopo il pull, attesa prima di iniziare l'idle loop
+const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
+const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
 
 // Angoli di rotazione
-const IDLE_ANGLE = -5; // Angolo idle (leggermente inclinato)
-const PULL_ANGLE = 25; // Angolo massimo durante il pull (verso il basso)
+const IDLE_ANGLE = 0; // Angolo idle (verticale)
+const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aumentato da 25)
 
 // Recupera lo stato da KV e verifica se la leva è stata appena tirata
 async function getPullState() {
@@ -82,9 +83,8 @@ async function getPullState() {
     // Se la leva è stata tirata entro i prossimi 3 secondi, mostriamo l'animazione
     if (timeSincePull < 3000) {
       // Calcola la fase dell'animazione:
-      // - 0-300ms: pull in corso
-      // - 300-800ms: pausa prima dell'idle loop
-      // - 800ms+: idle loop
+      // - 0-500ms: pull in corso (durata aumentata da 300ms)
+      // - 500ms+: idle loop (nessun delay)
       const pullPhase = timeSincePull < PULL_DURATION_MS;
       const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
       
