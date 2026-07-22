@@ -279,11 +279,9 @@ export default async function handler(req, res) {
 
     const { state, sha: stateSha } = stateBundle;
     state.totalSpins = (state.totalSpins || 0) + 1;
-    // Impostiamo lastPullTimestamp a un valore leggermente FUTURO (+500ms)
-    // così l'animazione di pull dura 500ms + 2.5s di idle loop = 3s totali
-    // Questo garantisce che anche se la pagina viene ricaricata entro 2.5s,
-    // l'animazione di pull verrà mostrata
-    state.lastPullTimestamp = spinStart + 500; // +500ms per estendere la finestra
+    // Impostiamo lastPullTimestamp al tempo reale dello spin
+    // Questo permette all'animazione di pull di essere mostrata per ~3 secondi dopo lo spin
+    state.lastPullTimestamp = spinStart;
 
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
