@@ -81,10 +81,13 @@ async function getPullState() {
     const timeSincePull = now - lastPullTimestamp;
     
     // Se la leva è stata tirata entro i prossimi 3 secondi, mostriamo l'animazione
+    // - 0-500ms: pull in corso
+    // - 500ms-3000ms: idle loop
+    // - >3000ms: idle statico
     if (timeSincePull < 3000) {
       // Calcola la fase dell'animazione:
-      // - 0-500ms: pull in corso (durata aumentata da 300ms)
-      // - 500ms+: idle loop (nessun delay)
+      // - 0-500ms: pull in corso
+      // - 500ms+: idle loop
       const pullPhase = timeSincePull < PULL_DURATION_MS;
       const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
       
