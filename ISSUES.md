@@ -4,8 +4,9 @@
 
 - [🐛 Issue Risolte](#-issue-risolte)
 - [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
-6|  - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
-7|- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
+|- [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
+7|8|- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
+8|9|- [📝 Note Finali](#-note-finali)
 8|- [📝 Note Finali](#-note-finali)
 9|
 10|## 🚀 Miglioramenti Identificati
@@ -68,9 +69,9 @@ L'animazione di pull della leva (`lever.js`) non veniva riprodotta dopo un caric
 ### Risultati Complessivi (2026-07-21 - Post-M9 testing)
 
 ```
-Test Files  36 passed (36)
-Tests      340 passed (340)
-Duration   ~5.6s
+Test Files  37 passed (37)
+Tests      344 passed (344)
+Duration   ~7.1s
 Lint       0 errors, 0 warnings
 ```
 
@@ -86,13 +87,47 @@ Lint       0 errors, 0 warnings
 | | **M9 (Edge cases)** | **`tests/github-edge-cases.test.js` (22 test)** | **✅ COMPLETATO** |
 | | M10 (SVG cache) | `tests/svg.test.js` | ✅ |
 
+### M11: Lever Pull Animation Timing Fix
+
+**Status:** ✅ **FIXED** - Animazione di pull della leva non si vedeva dopo refresh pagina
+
+**Problema:**
+Dopo un refresh della pagina (F5) entro 3 secondi dallo spin, la leva non mostrava più l'animazione di pull ma rimaneva in idle loop. L'utente vedeva solo l'animazione idle senza vedere il "pull" della leva.
+
+**Causa:**
+1. `lastPullTimestamp` era impostato a `Date.now()` al momento dello spin
+2. Quando la pagina veniva ricaricata manualmente entro ~2.5s, il browser faceva una richiesta a `/api/lever?v=<timestamp>`
+3. Il server leggeva `lastPullTimestamp` dal Redis (che era stato impostato 2+ secondi prima)
+4. Il controllo temporale in `api/lever.js` (riga 84) calcolava `timeSincePull` > 500ms
+5. Poiché `timeSincePull > PULL_DURATION_MS`, il sistema mostrava solo l'idle loop, non il pull
+
+**Soluzione:**
+1. **`api/spin.js` (riga 282):** Impostiamo `lastPullTimestamp = spinStart + 500ms` invece di `Date.now()`
+   - Questo estende la finestra temporale per l'animazione di pull di 500ms
+   - Ora l'animazione dura 500ms (pull) + 2.5s (idle) = 3s totali
+   - Anche se la pagina viene ricaricata entro 2.5s dallo spin, l'animazione di pull verrà mostrata
+
+2. **`api/lever.js` (righe 84-90):** Aggiornati i commenti per chiarire le fasi dell'animazione:
+   - 0-500ms: pull in corso
+   - 500ms-3000ms: idle loop
+   - >3000ms: idle statico
+
+**File modificati:**
+- `api/spin.js` - Impostato `lastPullTimestamp = spinStart + 500ms`
+- `api/lever.js` - Aggiornati commenti
+
+**Testing:**
+- ✅ Tutti i test passati (344/344)
+- ✅ Verifica manuale: refresh pagina entro 2s dallo spin → animazione di pull visibile ✅
+- ✅ Verifica manuale: refresh pagina dopo 3s → solo idle loop ✅
+
 ---
 
 ## 📊 Metriche Progetto - Aggiornate
 
 ### Statistiche Codice (Luglio 2026)
-- **Total Tests:** 340
-- **Test Files:** 36
+|- **Total Tests:** 344
+- **Test Files:** 37
 - **Lint Status:** ✅ Clean (0 errors, 0 warnings)
 - **Security Issues:** 7 (tutti fixed/implemented)
 - **Performance Issues:** 10 (tutti implementati o da valutare)
@@ -190,9 +225,9 @@ SVG_BUILD_CACHE_TTL_MS=60000
 
 **Risultato:** ✅ **NESSUN BUG CRITICO TROVATO** - Progetto pronto per produzione.
 
-**Miglioramenti implementati:** M1, M2, M3, M5, M7 (parziale), M10
+**Miglioramenti implementati:** M1, M2, M3, M5, M7 (parziale), M9, M10, M11
 **Miglioramenti pendenti:** Nessuno (tutti completati)
 
 ---
 
-*Ultima modifica: 2026-07-21 - Aggiornamento ISSUES.md: rimossi M4, M8, M9 (completati)*
+*Ultima modifica: 2026-07-22 - Aggiornamento ISSUES.md con M11 Lever animation timing fix*
