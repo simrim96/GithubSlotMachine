@@ -431,6 +431,10 @@ export default async function handler(req, res) {
             /api\/image\?(?:v|cache_buster)=[0-9]*/g,
             `api/image?v=${spinStart}`
           );
+          newReadme = newReadme.replace(
+            /api\/lever(?:\?(?:v|cache_buster)=[0-9]*)?/g,
+            `api/lever?v=${spinStart}`
+          );
           newReadme = updateReadmeMarkers(
             newReadme,
             state,

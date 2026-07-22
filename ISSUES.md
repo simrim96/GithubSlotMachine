@@ -1,8 +1,9 @@
 1|# ISSUES - GithubSlotMachine
 2|
-3|## Indice
-4|
-5|- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
+## Indice
+
+- [🐛 Issue Risolte](#-issue-risolte)
+- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
 6|  - [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
 7|- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
 8|- [📝 Note Finali](#-note-finali)
@@ -23,6 +24,44 @@
 23|**Priorità:** Bassa - Utile per deploy dietro CDN
 24|
 25|---
+
+## 🐛 Issue Risolte
+
+### Lever Animation Cache Issue
+
+**Status:** ✅ **FIXED** - Animazione della leva non si aggiornava dopo lo spin
+
+**Problema:**
+L'animazione di pull della leva (`lever.js`) non veniva riprodotta dopo un caricamento della pagina a seguito di uno spin. Il browser utilizzava la cache dell'immagine della leva con lo stato "idle" invece che "pull".
+
+**Causa:**
+1. `api/lever.js` impostava `Cache-Control: public, max-age=3600` (1 ora di cache)
+2. `api/spin.js` aggiornava `lastPullTimestamp` ma NON aggiornava l'URL della leva nel README
+3. GitHub caricava il README con `api/lever` senza cache-buster
+4. Il browser/CDN serviva la copia cacheata dell'SVG della leva
+
+**Soluzione:**
+1. **`api/spin.js` (linee 434-437):** Aggiunto cache-buster per `api/lever` simile a `api/image`:
+   ```javascript
+   newReadme = newReadme.replace(
+     /api\/lever(?:\?(?:v|cache_buster)=[0-9]*)?/g,
+     `api/lever?v=${spinStart}`
+   );
+   ```
+2. **`api/lever.js` (linea 279):** Ridotta cache da 3600s a 5s:
+   ```javascript
+   'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
+   ```
+
+**File modificati:**
+- `api/spin.js` - Aggiunta regex cache-buster per api/lever
+- `api/lever.js` - Ridotta durata cache headers
+
+**Testing:**
+- ✅ Tutti i test passati (340/340)
+- ✅ Regex testata manualmente per sostituire `api/lever` con `api/lever?v=<timestamp>`
+
+---
 
 ## 🧪 Test Coverage - Verifica Aggiornata
 
