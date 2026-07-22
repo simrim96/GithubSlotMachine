@@ -79,23 +79,6 @@ const LEVER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w
     </linearGradient>
   </defs>
 
-  <style>
-    /* Idle leggero: oscillazione piccolissima, nessuno shimmer percettibile. */
-    @keyframes leverIdle {
-      0%, 100% { transform: rotate(-1deg); }
-      50%      { transform: rotate(1.4deg); }
-    }
-    @keyframes leverBallGlow {
-      0%, 100% { opacity: 0.30; }
-      50%      { opacity: 0.65; }
-    }
-    .leverArm {
-      transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
-      animation: leverIdle 3.2s ease-in-out infinite;
-    }
-    .leverBallHalo { animation: leverBallGlow 1.8s ease-in-out infinite; }
-  </style>
-
   <!-- ── Bumper (mounting boss) — fisso ── -->
   <ellipse cx="${BUMPER_CX + 3}" cy="${BUMPER_CY + 5}"
            rx="${BUMPER_R + 3}" ry="${BUMPER_R - 2}"
