@@ -1,0 +1,16 @@
+{
+  "totalSpins": 193,
+  "totalWins": 193,
+  "lastWin": null,
+  "version": 2,
+  "lastPullTimestamp": 1784789532842,
+  "settings": {
+    "theme": "auto",
+    "sound": true
+  },
+  "stats": {
+    "longestStreak": 0,
+    "currentStreak": 0,
+    "winsByLang": {}
+  }
+}
