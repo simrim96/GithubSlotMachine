@@ -64,42 +64,72 @@ const IDLE_LOOP_MS = 2000; // Durata del loop idle
 const IDLE_ANGLE = 0; // Angolo idle (verticale)
 const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aumentato da 25)
 
-// Recupera lo stato da KV e verifica se la leva è stata appena tirata
-async function getPullState() {
-  try {
-    const state = await kvGet(STATE_KEY);
-    if (!state) {
-      return { isPulling: false, reason: 'no_state' };
-    }
-    
-    const lastPullTimestamp = state.lastPullTimestamp;
-    if (!lastPullTimestamp) {
-      return { isPulling: false, reason: 'no_timestamp' };
-    }
-    
-    const now = Date.now();
-    const timeSincePull = now - lastPullTimestamp;
-    
-    // Se la leva è stata tirata entro i prossimi 3 secondi, mostriamo l'animazione
-    // - 0-500ms: pull in corso
-    // - 500ms-3000ms: idle loop
-    // - >3000ms: idle statico
-    if (timeSincePull < 3000) {
-      // Calcola la fase dell'animazione:
-      // - 0-500ms: pull in corso
-      // - 500ms+: idle loop
+// Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
+// riprodurre l'animazione di pull prima di tornare all'idle loop.
+const PULL_RECENCY_WINDOW_MS = 3000;
+
+// Determina se la leva deve riprodurre l'animazione di pull.
+//
+// FONTE PRIMARIA (deterministica): lo spin scrive nel README
+// `api/lever?v=<spinStart>` (vedi api/spin.js). Quel `v` È il timestamp
+// dello spin, già nell'URL dell'immagine embeddata su GitHub. Usarlo è
+// deterministico e NON dipende da KV: funziona anche se in produzione
+// Upstash non è la fonte attiva dello state (il bug originario era che
+// lever.js leggeva SOLO kvGet('gsm:state') e, se KV era vuoto/sbagliato,
+// restava sempre in idle).
+//
+// FALLBACK: se l'URL non porta `v` (es. chiamata diretta), leggiamo
+// `lastPullTimestamp` da KV. Questo copre i casi in cui il profilo è già
+// stato aggiornato e l'immagine viene ricaricata senza cache-buster.
+async function getPullState(req) {
+  const now = Date.now();
+
+  // 1) Fonte deterministica: timestamp di spin nell'URL (?v=spinStart)
+  const vRaw = req?.query?.v;
+  const spinV = typeof vRaw === 'string' ? parseInt(vRaw, 10) : 0;
+  if (spinV && Number.isFinite(spinV)) {
+    const timeSincePull = now - spinV;
+    if (timeSincePull >= 0 && timeSincePull < PULL_RECENCY_WINDOW_MS) {
       const pullPhase = timeSincePull < PULL_DURATION_MS;
       const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
-      
       return {
         isPulling: true,
         pullPhase,
         idlePhase,
         timeSincePull,
-        reason: 'recent_pull'
+        reason: 'recent_pull_url',
       };
     }
-    
+    // v presente ma troppo vecchio: niente pull, vai dritto in idle.
+    return { isPulling: false, reason: 'url_too_old' };
+  }
+
+  // 2) Fallback: lastPullTimestamp su KV (copre chiamate senza ?v)
+  try {
+    const state = await kvGet(STATE_KEY);
+    if (!state) {
+      return { isPulling: false, reason: 'no_state' };
+    }
+
+    const lastPullTimestamp = state.lastPullTimestamp;
+    if (!lastPullTimestamp) {
+      return { isPulling: false, reason: 'no_timestamp' };
+    }
+
+    const timeSincePull = now - lastPullTimestamp;
+
+    if (timeSincePull >= 0 && timeSincePull < PULL_RECENCY_WINDOW_MS) {
+      const pullPhase = timeSincePull < PULL_DURATION_MS;
+      const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
+      return {
+        isPulling: true,
+        pullPhase,
+        idlePhase,
+        timeSincePull,
+        reason: 'recent_pull_kv',
+      };
+    }
+
     return { isPulling: false, reason: 'too_old' };
   } catch (err) {
     logger.warn('lever.js: error reading state', { error: err?.message || err });
@@ -251,16 +281,16 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Verifica lo stato per determinare l'animazione
-  const pullState = await getPullState();
+  // Verifica lo stato per determinare l'animazione.
+  // getPullState(req) usa come fonte PRIMARIA il timestamp di spin nell'URL
+  // (?v=spinStart, scritto da spin.js nel README) -> deterministico, non
+  // dipende da KV. Fallback a lastPullTimestamp su KV se l'URL non ha ?v.
+  const pullState = await getPullState(req);
 
   // Logica animazione:
-  // - Se c'è stato uno spin RECENTE (finestra di 3s definita in getPullState,
-  //   → pullState.isPulling), riproduciamo l'animazione di pull, che poi
-  //   sfuma nel loop idle. La finestra è stata allargata dai 500ms originali
-  //   a 3s perché l'SVG viene richiesto da GitHub solo DOPO il redirect e il
-  //   reload del profilo: con 500ms la richiesta arrivava sempre troppo tardi
-  //   e la leva mostrava solo l'idle loop (bug "il pull non parte mai").
+  // - Se c'è stato uno spin RECENTE (finestra di 3s, fonte URL o KV ->
+  //   pullState.isPulling), riproduciamo l'animazione di pull, che poi
+  //   sfuma nel loop idle.
   // - Altrimenti: solo loop idle di riposo.
   const currentClass = pullState.isPulling ? 'pulling' : 'idling';
 
