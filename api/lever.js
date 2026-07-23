@@ -203,16 +203,14 @@ const ANIMATIONS = `
 <style>
   #leverGroup {
     transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
-    transition: transform 0.3s ease-in-out;
   }
-  
+
+  /* Pull-and-release: la leva viene tirata in basso (PULL_ANGLE) e poi
+     rilasciata, tornando alla posizione di riposo (IDLE_ANGLE). */
   @keyframes pull {
-    0% {
-      transform: rotate(${IDLE_ANGLE}deg);
-    }
-    100% {
-      transform: rotate(${PULL_ANGLE}deg);
-    }
+    0%   { transform: rotate(${IDLE_ANGLE}deg); }
+    35%  { transform: rotate(${PULL_ANGLE}deg); }
+    100% { transform: rotate(${IDLE_ANGLE}deg); }
   }
   
   @keyframes idleLoop {
@@ -224,13 +222,22 @@ const ANIMATIONS = `
     }
   }
   
+  /* Stato "pull appena avvenuto": riproduce il pull e, al termine, entra
+     nel loop idle senza soluzione di continuità. */
   .pulling {
-    animation: pull ${PULL_DURATION_MS}ms ease-in-out forwards;
+    animation:
+      pull ${PULL_DURATION_MS}ms ease-in-out forwards,
+      idleLoop ${IDLE_LOOP_MS}ms ease-in-out ${PULL_DURATION_MS}ms infinite;
   }
-  
+
+  /* Stato di riposo (nessuno spin recente): solo loop idle. */
   .idling {
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
-    animation-delay: 0ms;
+  }
+
+  /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
+  @media (prefers-reduced-motion: reduce) {
+    #leverGroup { animation: none !important; }
   }
 </style>
 `;
@@ -246,17 +253,16 @@ export default async function handler(req, res) {
 
   // Verifica lo stato per determinare l'animazione
   const pullState = await getPullState();
-  
+
   // Logica animazione:
-  // 1. Idle loop SEMPRE presente (se non c'è pull recente, mostra idle)
-  // 2. Pull effect solo se timeSincePull < 300ms
-  let currentClass = 'idling'; // Default: idle loop sempre attivo
-  
-  if (pullState.isPulling && pullState.timeSincePull < PULL_DURATION_MS) {
-    // Pull recente (0-300ms): mostra animazione di trazione
-    currentClass = 'pulling';
-  }
-  // Altrimenti: idle loop (con o senza lastPullTimestamp)
+  // - Se c'è stato uno spin RECENTE (finestra di 3s definita in getPullState,
+  //   → pullState.isPulling), riproduciamo l'animazione di pull, che poi
+  //   sfuma nel loop idle. La finestra è stata allargata dai 500ms originali
+  //   a 3s perché l'SVG viene richiesto da GitHub solo DOPO il redirect e il
+  //   reload del profilo: con 500ms la richiesta arrivava sempre troppo tardi
+  //   e la leva mostrava solo l'idle loop (bug "il pull non parte mai").
+  // - Altrimenti: solo loop idle di riposo.
+  const currentClass = pullState.isPulling ? 'pulling' : 'idling';
 
   // Costruisci SVG con animazioni CSS
   let svg = LEVER_SVG_TEMPLATE;
