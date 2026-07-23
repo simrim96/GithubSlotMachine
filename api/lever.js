@@ -100,13 +100,17 @@ async function getLastPullFromRawGithub() {
 
 // Determina se la leva deve riprodurre l'animazione di pull.
 //
-// ORDINE DELLE FONTI (tutte devono dire "recente" entro PULL_RECENCY_WINDOW_MS):
+// ORDINE DELLE FONTI (le prime due sono SENZA rete, il percorso caldo resta
+// veloce; la fetch raw è solo ultimo fallback):
 //  1) ?v=<spinStart> nell'URL (scritto da spin.js nel README) -> deterministico,
 //     primario. Funziona finché il README si aggiorna.
-//  2) state.json PUBBLICO su GitHub (raw) -> fonte di verità aggiornata a ogni
-//     spin da spin.js. Copre il caso in cui il ?v nel README è bloccato da
-//     rate-limit GitHub sull'API Contents (il bug "funziona 2-3 volte poi smette").
-//  3) KV (fallback per chiamate dirette / dev locale).
+//  2) KV gsm:state -> fonte veloci e autorevole: spin.js scrive state.json/KV
+//     (con lastPullTimestamp) a OGNI spin in parallelo prima del redirect
+//     (vedi spin.js Promise.allSettled + state.js kvSet), INDEPENDENTEMENTE
+//     dal rate-limit della README Contents API. Copre quindi il bug
+//     "funziona 2-3 volte poi smette" senza alcuna chiamata di rete.
+//  3) state.json PUBBLICO su GitHub (raw) -> fallback LENTO (40-800ms di rete)
+//     usato solo se KV non è attivo (es. dev locale / chiamate dirette).
 async function getPullState(req) {
   const now = Date.now();
   const withinWindow = (ts) =>
@@ -126,24 +130,8 @@ async function getPullState(req) {
     };
   }
 
-  // 2) Fonte di verità: state.json pubblico su GitHub (aggiornato a ogni spin)
-  try {
-    const ghTs = await getLastPullFromRawGithub();
-    if (withinWindow(ghTs)) {
-      const timeSincePull = now - ghTs;
-      return {
-        isPulling: true,
-        pullPhase: timeSincePull < PULL_DURATION_MS,
-        idlePhase: timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS,
-        timeSincePull,
-        reason: 'recent_pull_github',
-      };
-    }
-  } catch (err) {
-    logger.warn('lever.js: raw github state read failed', { error: err?.message || err });
-  }
-
-  // 3) Fallback KV (chiamate dirette / dev locale)
+  // 2) Fonte veloce e autorevole: KV gsm:state (scritto a ogni spin da spin.js).
+  //    Ordinata PRIMA della fetch raw così il percorso caldo non fa mai rete.
   try {
     const state = await kvGet(STATE_KEY);
     if (state?.lastPullTimestamp && withinWindow(state.lastPullTimestamp)) {
@@ -158,6 +146,24 @@ async function getPullState(req) {
     }
   } catch (err) {
     logger.warn('lever.js: error reading state', { error: err?.message || err });
+  }
+
+  // 3) Fallback LENTO: state.json pubblico su GitHub (raw). Solo se KV è vuoto
+  //    o assente — non sul percorso caldo, per non appesantire la leva.
+  try {
+    const ghTs = await getLastPullFromRawGithub();
+    if (withinWindow(ghTs)) {
+      const timeSincePull = now - ghTs;
+      return {
+        isPulling: true,
+        pullPhase: timeSincePull < PULL_DURATION_MS,
+        idlePhase: timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS,
+        timeSincePull,
+        reason: 'recent_pull_github',
+      };
+    }
+  } catch (err) {
+    logger.warn('lever.js: raw github state read failed', { error: err?.message || err });
   }
 
   return { isPulling: false, reason: 'no_recent_pull' };
