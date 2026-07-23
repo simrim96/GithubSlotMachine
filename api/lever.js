@@ -55,6 +55,11 @@ const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 // Chiave KV per lo stato
 const STATE_KEY = 'gsm:state';
 
+// Owner/repo per leggere state.json pubblico (fonte di verità alternativa a ?v).
+// Deve combaciare con quanto usato da spin.js (PROFILE_REPO / SLOT_REPO).
+const OWNER = process.env.PROFILE_REPO_OWNER || process.env.GITHUB_OWNER || 'simrim96';
+const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
+
 // Durate animazione in ms
 const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
@@ -66,75 +71,96 @@ const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aument
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
-const PULL_RECENCY_WINDOW_MS = 3000;
+// 30s copre il ritardo con cui GitHub refetcha l'SVG embeddata sul profilo
+// e il rate-limit dell'API Contents (il README con ?v puo' non aggiornarsi
+// subito ad ogni spin). Vedi nota in getPullState.
+const PULL_RECENCY_WINDOW_MS = 30000;
+
+// Legge lastPullTimestamp dallo state.json PUBBLICO su GitHub (raw, no token).
+// spin.js aggiorna state.json a OGNI spin (commit). Questa è la fonte di
+// verità indipendente dal README: anche se l'API Contents va in rate-limit
+// e il ?v nel README si "blocca", qui leggiamo l'ultimo spin reale.
+// Timeout corto: se GitHub è lento, skip e cascadiamo al fallback KV.
+async function getLastPullFromRawGithub() {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 800);
+    const res = await fetch(
+      `https://raw.githubusercontent.com/${OWNER}/${SLOT_REPO}/main/state.json`,
+      { cache: 'no-store', signal: controller.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.lastPullTimestamp || null;
+  } catch {
+    return null;
+  }
+}
 
 // Determina se la leva deve riprodurre l'animazione di pull.
 //
-// FONTE PRIMARIA (deterministica): lo spin scrive nel README
-// `api/lever?v=<spinStart>` (vedi api/spin.js). Quel `v` È il timestamp
-// dello spin, già nell'URL dell'immagine embeddata su GitHub. Usarlo è
-// deterministico e NON dipende da KV: funziona anche se in produzione
-// Upstash non è la fonte attiva dello state (il bug originario era che
-// lever.js leggeva SOLO kvGet('gsm:state') e, se KV era vuoto/sbagliato,
-// restava sempre in idle).
-//
-// FALLBACK: se l'URL non porta `v` (es. chiamata diretta), leggiamo
-// `lastPullTimestamp` da KV. Questo copre i casi in cui il profilo è già
-// stato aggiornato e l'immagine viene ricaricata senza cache-buster.
+// ORDINE DELLE FONTI (tutte devono dire "recente" entro PULL_RECENCY_WINDOW_MS):
+//  1) ?v=<spinStart> nell'URL (scritto da spin.js nel README) -> deterministico,
+//     primario. Funziona finché il README si aggiorna.
+//  2) state.json PUBBLICO su GitHub (raw) -> fonte di verità aggiornata a ogni
+//     spin da spin.js. Copre il caso in cui il ?v nel README è bloccato da
+//     rate-limit GitHub sull'API Contents (il bug "funziona 2-3 volte poi smette").
+//  3) KV (fallback per chiamate dirette / dev locale).
 async function getPullState(req) {
   const now = Date.now();
+  const withinWindow = (ts) =>
+    ts && Number.isFinite(ts) && now - ts >= 0 && now - ts < PULL_RECENCY_WINDOW_MS;
 
   // 1) Fonte deterministica: timestamp di spin nell'URL (?v=spinStart)
   const vRaw = req?.query?.v;
   const spinV = typeof vRaw === 'string' ? parseInt(vRaw, 10) : 0;
-  if (spinV && Number.isFinite(spinV)) {
+  if (withinWindow(spinV)) {
     const timeSincePull = now - spinV;
-    if (timeSincePull >= 0 && timeSincePull < PULL_RECENCY_WINDOW_MS) {
-      const pullPhase = timeSincePull < PULL_DURATION_MS;
-      const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
-      return {
-        isPulling: true,
-        pullPhase,
-        idlePhase,
-        timeSincePull,
-        reason: 'recent_pull_url',
-      };
-    }
-    // v presente ma troppo vecchio: niente pull, vai dritto in idle.
-    return { isPulling: false, reason: 'url_too_old' };
+    return {
+      isPulling: true,
+      pullPhase: timeSincePull < PULL_DURATION_MS,
+      idlePhase: timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS,
+      timeSincePull,
+      reason: 'recent_pull_url',
+    };
   }
 
-  // 2) Fallback: lastPullTimestamp su KV (copre chiamate senza ?v)
+  // 2) Fonte di verità: state.json pubblico su GitHub (aggiornato a ogni spin)
   try {
-    const state = await kvGet(STATE_KEY);
-    if (!state) {
-      return { isPulling: false, reason: 'no_state' };
-    }
-
-    const lastPullTimestamp = state.lastPullTimestamp;
-    if (!lastPullTimestamp) {
-      return { isPulling: false, reason: 'no_timestamp' };
-    }
-
-    const timeSincePull = now - lastPullTimestamp;
-
-    if (timeSincePull >= 0 && timeSincePull < PULL_RECENCY_WINDOW_MS) {
-      const pullPhase = timeSincePull < PULL_DURATION_MS;
-      const idlePhase = timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS;
+    const ghTs = await getLastPullFromRawGithub();
+    if (withinWindow(ghTs)) {
+      const timeSincePull = now - ghTs;
       return {
         isPulling: true,
-        pullPhase,
-        idlePhase,
+        pullPhase: timeSincePull < PULL_DURATION_MS,
+        idlePhase: timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS,
+        timeSincePull,
+        reason: 'recent_pull_github',
+      };
+    }
+  } catch (err) {
+    logger.warn('lever.js: raw github state read failed', { error: err?.message || err });
+  }
+
+  // 3) Fallback KV (chiamate dirette / dev locale)
+  try {
+    const state = await kvGet(STATE_KEY);
+    if (state?.lastPullTimestamp && withinWindow(state.lastPullTimestamp)) {
+      const timeSincePull = now - state.lastPullTimestamp;
+      return {
+        isPulling: true,
+        pullPhase: timeSincePull < PULL_DURATION_MS,
+        idlePhase: timeSincePull >= PULL_DURATION_MS + IDLE_DELAY_MS,
         timeSincePull,
         reason: 'recent_pull_kv',
       };
     }
-
-    return { isPulling: false, reason: 'too_old' };
   } catch (err) {
     logger.warn('lever.js: error reading state', { error: err?.message || err });
-    return { isPulling: false, reason: 'error' };
   }
+
+  return { isPulling: false, reason: 'no_recent_pull' };
 }
 
 // SVG statico: leva laterale di una slot machine
