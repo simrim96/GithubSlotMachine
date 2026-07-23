@@ -1,20 +1,30 @@
 /**
  * Test per verificare che api/lever.js riproduca l'animazione di pull in modo
- * DETERMINISTICO usando il timestamp di spin nell'URL (?v=spinStart), e NON
- * dipenda da KV (che in produzione puo' non essere la fonte attiva dello state).
+ * robusto, con piu' fonti di verita' ordinate, e NON dipenda da un'unica
+ * sorgente fragile.
  *
- * Radice del bug: lever.js leggeva SOLO kvGet('gsm:state').lastPullTimestamp.
- * Se KV non e' la fonte attiva in prod (e' esattamente cio' che rompe oggi:
- * lever.js cieco), lastPullTimestamp e' sempre assente -> isPulling sempre
- * false -> leva sempre "idling" dopo il refresh. Lo spin pero' scrive gia'
- * api/lever?v=<spinStart> nel README: quel timestamp nell'URL e' la fonte
- * deterministica che dobbiamo usare.
+ * Radice del bug "funziona 2-3 volte poi smette": lever.js decideva pulling/
+ * idling leggendo SOLO kvGet('gsm:state') (vuoto in prod) o ?v nel README.
+ * Il ?v nel README e' aggiornato da spin.js via GitHub Contents API, che va
+ * in rate-limit: dopo 2-3 spin il ?v si "blocca" e la leva resta idle.
+ *
+ * Fix: getPullState(req) prova in ordine:
+ *   1) ?v=spinStart nell'URL (deterministico, primario)
+ *   2) state.json PUBBLICO su GitHub (aggiornato a ogni spin da spin.js -> fonte
+ *      di verita' indipendente dal README, copre il rate-limit del README)
+ *   3) KV (fallback chiamate dirette / dev locale)
+ * Finestra di recency: 30s (copre il ritardo di refetch di GitHub).
+ *
+ * Il test mocka global.fetch per isolare la fonte #2 (state.json GitHub)
+ * senza I/O di rete reale.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// KV vuoto: simula il caso di produzione in cui la fonte attiva NON e' KV
-// (e' esattamente cio' che rompe oggi: lever.js cieco).
+const PULL_WINDOW_MS = 30000;
+
+// KV vuoto di default: simula il caso di produzione in cui la fonte attiva
+// NON e' KV.
 const kvGetMock = vi.fn(async () => null);
 const kvSetMock = vi.fn(async () => true);
 
@@ -36,48 +46,65 @@ vi.mock('../api/_lib/response-bridge.js', () => ({
 }));
 
 vi.mock('../api/_lib/logger.js', () => ({
-  logger: {
-    warn: () => {},
-    info: () => {},
-    error: () => {},
-    debug: () => {},
-  },
+  logger: { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} },
 }));
+
+// fetch mock per la fonte #2 (state.json pubblico su GitHub).
+// githubTs e' configurabile per test: null => fetch fallito/non recente.
+let githubTs = null;
+const fetchMock = vi.fn(async (url) => {
+  if (String(url).includes('raw.githubusercontent.com')) {
+    return {
+      ok: githubTs !== null,
+      json: async () => ({ lastPullTimestamp: githubTs }),
+    };
+  }
+  return { ok: false, json: async () => ({}) };
+});
+vi.stubGlobal('fetch', fetchMock);
 
 const leverHandler = (await import('../api/lever.js')).default;
 
 function makeReq(v) {
-  return {
-    method: 'GET',
-    query: v !== undefined ? { v: String(v) } : {},
-  };
+  return { method: 'GET', query: v !== undefined ? { v: String(v) } : {} };
 }
-
 function makeRes() {
   return {};
 }
 
-describe('Lever pull deterministico (fonte URL, non KV)', () => {
+describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
   beforeEach(() => {
     captured = null;
+    githubTs = null;
     kvGetMock.mockClear();
     kvSetMock.mockClear();
+    fetchMock.mockClear();
   });
 
-  it('con ?v=spin recente emette classe pulling ANCHE se KV e vuoto', async () => {
+  it('FONTE 1: ?v=spin recente emette pulling ANCHE se KV e GitHub vuoti', async () => {
     const recent = Date.now();
     await leverHandler(makeReq(recent), makeRes());
     expect(captured).not.toBeNull();
     expect(captured.body).toContain('class="leverArm pulling"');
+    // La fonte 1 vince: non deve nemmeno interrogare GitHub.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('con ?v=spin vecchio (>3s) emette classe idling', async () => {
-    const old = Date.now() - 10000;
+  it('FONTE 1: ?v=spin vecchio (>30s) NON emette pulling', async () => {
+    const old = Date.now() - (PULL_WINDOW_MS + 5000);
     await leverHandler(makeReq(old), makeRes());
     expect(captured.body).toContain('class="leverArm idling"');
   });
 
-  it('senza ?v ma con lastPullTimestamp recente su KV -> pulling (fallback)', async () => {
+  it('FONTE 2: senza ?v, GitHub state.json recente -> pulling', async () => {
+    githubTs = Date.now() - 2000; // 2s fa, dentro la finestra
+    await leverHandler(makeReq(), makeRes());
+    expect(captured.body).toContain('class="leverArm pulling"');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('FONTE 3: senza ?v, GitHub non recente ma KV recente -> pulling (fallback)', async () => {
+    githubTs = Date.now() - (PULL_WINDOW_MS + 5000); // GitHub vecchio
     kvGetMock.mockImplementationOnce(async () => ({
       totalSpins: 1,
       totalWins: 0,
@@ -91,7 +118,7 @@ describe('Lever pull deterministico (fonte URL, non KV)', () => {
     expect(captured.body).toContain('class="leverArm pulling"');
   });
 
-  it('senza ?v e KV vuoto -> idling (default sicuro)', async () => {
+  it('DEFAULT SICURO: senza ?v, GitHub e KV vuoti -> idling', async () => {
     await leverHandler(makeReq(), makeRes());
     expect(captured.body).toContain('class="leverArm idling"');
   });
