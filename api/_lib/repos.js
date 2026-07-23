@@ -214,3 +214,21 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
   // Se hasData && fresh → serviamo immediatamente, nessuna refresh.
   return cache.byLangId[lang.id] || null;
 }
+
+// Lettura diagnostica della cache SENZA triggerare refresh GitHub.
+// Usata da /api/health?full=1: misura se la cache repo è calda (popolata,
+// fresco) senza mai lanciare fetch a api.github.com. Questo evita che
+// l'endpoint di health lasci fetch pendenti che, su Vercel, fanno crashare
+// la lambda al cleanup con FUNCTION_INVOCATION_FAILED (500).
+export async function getRepoCacheStats() {
+  await loadFromKv();
+  const langIds = Object.keys(cache.byLangId);
+  const ageMs = cache.ts ? Date.now() - cache.ts : null;
+  return {
+    populated: langIds.length > 0,
+    lang_count: langIds.length,
+    ts: cache.ts || 0,
+    age_ms: ageMs,
+    fresh: ageMs !== null ? ageMs < TTL_MS : false,
+  };
+}

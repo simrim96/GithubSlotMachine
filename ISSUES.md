@@ -28,6 +28,46 @@
 
 ## 🐛 Issue Risolte
 
+### Health endpoint `?full=1` → 500 FUNCTION_INVOCATION_FAILED (bug warmup morto)
+
+**Status:** ✅ **FIXED** - 2026-07-23
+
+**Problema:**
+`GET /api/health?full=1` ritornava `500 FUNCTION_INVOCATION_FAILED`. Di conseguenza
+il cron di warmup giornaliero (vercel.json → `/api/health`) era silenziosamente morto
+e non dava più alcun segnale di vita.
+
+**Causa radice:**
+`health?full` chiamava `getRepoForLanguage(token, OWNER, LANGUAGES[0], LANGUAGES)`.
+A cold-start (cache KV repo vuota, `hasData === false`) quella funzione in
+`api/_lib/repos.js` entrava nel branch `!hasData` e faceva:
+```js
+const lang = await Promise.race([refreshCache(token, owner), timeout(800)]);
+```
+`refreshCache` è **asincrono e non-astato**: dopo che il `race` lo "perdeva" (timeout
+800ms), le sue `fetch` a `api.github.com` restavano PENDENTI in background.
+`health` ritornava subito la response JSON; Vercel vedeva la lambda "finita" e la
+terminava → le fetch pendenti venivano abortite brutalmente → `FUNCTION_INVOCATION_FAILED`.
+
+**Fix:**
+`/api/health` è ora puramente diagnostico e NON scatena mai `refreshCache`:
+- Aggiunta `getRepoCacheStats()` in `api/_lib/repos.js`: legge `cache.byLangId`
+  (in-memory) + `loadFromKv()` (lettura KV, nessun fetch GitHub) e ritorna
+  `{ populated, lang_count, ts, age_ms, fresh }`.
+- `health?full` usa `getRepoCacheStats()` al posto di `getRepoForLanguage`. Misura
+  se la cache repo è calda senza lasciare fetch pendenti → niente più crash.
+
+**File modificati:**
+- `api/_lib/repos.js` — nuovo export `getRepoCacheStats()`
+- `api/health.js` — sezione `full` riscritta; rimosso import `getRepoForLanguage`/`LANGUAGES`
+- `tests/health-no-pending-fetch.test.js` — regression test (garantisce che health
+  importi solo `getRepoCacheStats` e risponda 200 con cache vuota)
+
+**Nota deploy:** le modifiche sono nel repo; servirà un `vercel deploy` per essere
+effettive in produzione. Il cron Hermes di warmup dal laptop è stato RIMOSSO su
+richiesta (il warmup lato laptop non risolveva il cold-start serverless residuo
+e teneva il laptop vincolato).
+
 ### Lever Animation Cache Issue
 
 **Status:** ✅ **FIXED** - Animazione della leva non si aggiornava dopo lo spin
