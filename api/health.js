@@ -6,11 +6,10 @@
 // GET /api/health?full=1 → aggiunge anche la scansione repo (cold cache).
 
 import { kvEnabled, kvWritable, kvGet, kvSet } from './_lib/kv.js';
-import { getRepoForLanguage } from './_lib/repos.js';
+import { getRepoCacheStats } from './_lib/repos.js';
 import { ghHeaders } from './_lib/github.js';
 import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
-import { LANGUAGES } from './_lib/languages.js';
 import { logger } from './_lib/logger.js';
 
 const OWNER = process.env.SLOT_OWNER || 'simrim96';
@@ -106,14 +105,20 @@ export default async function handler(req, res) {
     steps.github_note = 'GITHUB_PAT assente: skip misurazione GitHub.';
   }
 
-  // ── 3. (opzionale) repo scan su cold cache ───────────────────────────────
+  // ── 3. (opzionale) stato cache repo ────────────────────────────────────
+  // NOTA: leggiamo SOLO lo stato della cache, NON chiamiamo getRepoForLanguage
+  // (che a cold-start lancia refreshCache in background e lascia fetch GitHub
+  // pendenti → FUNCTION_INVOCATION_FAILED su Vercel). Health è puramente
+  // diagnostico: misura se la cache è calda senza mai scatenare il crash.
   if (full && token) {
     const t0 = now();
     try {
-      await getRepoForLanguage(token, OWNER, LANGUAGES[0], LANGUAGES);
+      const stats = await getRepoCacheStats();
+      steps.repo_cache = stats;
       steps.repo_scan_ms = now() - t0;
-      steps.repo_scan_note =
-        'Include lo stall delle GitHub API se la cache KV è fredda.';
+      steps.repo_scan_note = stats.populated
+        ? 'Cache repo popolata — il primo spin non paga lo stall GitHub.'
+        : 'Cache repo VUOTA — il prossimo spin a freddo pagherà ~575ms di stall GitHub.';
     } catch (e) {
       steps.repo_scan_ms = now() - t0;
       steps.repo_scan_error = e.message;
