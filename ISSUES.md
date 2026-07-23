@@ -233,7 +233,54 @@ SVG_BUILD_CACHE_TTL_MS=60000
 *Ultima modifica: 2026-07-22 - Aggiornamento ISSUES.md con M11 Lever animation timing fix*
 ---
 
-## 🔧 Nuovi Fix Implementati (2026-07-22)
+## 🔧 Nuovi Fix Implementati (2026-07-23)
+
+### PERF: Regressione velocità leva — fetch rete a raw.githubusercontent.com sul percorso caldo
+
+**Status:** ✅ **FIXED** - Endpoint leva tornato a zero rete sul percorso caldo
+
+**Problema:**
+Dopo il commit `9d7f471` ("leva legge state.json GitHub come fonte di verità"),
+l'endpoint `/api/lever` era percepito più lento: ogni volta che il `?v` nell'URL
+non era "recente" (es. README andata in rate-limit sull'API Contents, oppure
+>30s dopo l'ultimo spin) la leva faceva una `fetch` bloccante a
+`raw.githubusercontent.com/.../state.json` (timeout 800ms).
+
+**Causa:**
+In `getPullState()` l'ordine delle fonti era:
+  1) `?v` URL (veloce)
+  2) `raw.githubusercontent.com` → **fetch di rete (40–800ms)** sul percorso caldo
+  3) KV `gsm:state` (veloce, fallback)
+La fetch raw veniva quindi eseguita PRIMA del KV su quasi ogni visualizzazione
+del profilo → la slot "sembrava più lenta".
+
+**Soluzione:**
+Invertito l'ordine in `api/lever.js → getPullState()`:
+  1) `?v` URL (deterministico, veloce)
+  2) KV `gsm:state` (veloce, autorevole — spin.js lo scrive a OGNI spin in
+     parallelo prima del redirect via `Promise.allSettled` + `state.js kvSet`,
+     indipendentemente dal rate-limit della README Contents API)
+  3) `raw.githubusercontent.com` → SOLO fallback lento, fuori dal percorso caldo
+
+Il bug "smette dopo 2-3 spin" resta risolto perché il KV è già fonte autorevole:
+non serviva la fetch raw per coprirlo.
+
+**File modificati:**
+- `api/lever.js` - riordino fonti in `getPullState()` + commenti aggiornati
+
+**Testing:**
+- ✅ Tutti i test passati (349/349)
+- ✅ `node --check` OK, `npm run lint` pulito (0 errori)
+- ✅ Latenza raw.githubusercontent.com misurata 40–260ms (rete calda); su Vercel
+  cross-region il percorso caldo ora la evita del tutto
+
+---
+
+*Ultima modifica: 2026-07-23 - Fix regressione velocità leva (reorder fonti getPullState)*
+
+---
+
+
 
 ### BUG: Animazione della leva non funzionava localmente
 
