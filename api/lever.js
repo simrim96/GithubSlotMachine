@@ -67,7 +67,13 @@ const IDLE_LOOP_MS = 2000; // Durata del loop idle
 
 // Angoli di rotazione
 const IDLE_ANGLE = 0; // Angolo idle (verticale)
-const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aumentato da 25)
+const PULL_ANGLE = 30; // Angolo massimo durante il pull
+
+// Prospettiva 3D + inclinazione fissa (rotateX) applicata in TUTTE le fasi
+// (idle e pull): la leva "esce" verso l'utente invece di restare piatta.
+const LEVER_TILT_DEG = -32;  // inclinazione forward (il pomello viene verso l'utente)
+const PERSPECTIVE_PX = 600;  // profondità di campo del palco 3D
+const PULL_TZ_PX = 38;       // translateZ verso l'utente al picco del pull
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -214,8 +220,11 @@ const LEVER_SVG_TEMPLATE = `
   <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 3}"
           fill="url(#leverChrome)"/>
 
-  <!-- ── Leva (gruppo rotante) ── -->
-  <g class="leverArm" id="leverGroup">
+  <!-- ── Leva: palco 3D (perspective) + tilt fisso in ogni fase ── -->
+  <g id="leverStage" style="perspective: ${PERSPECTIVE_PX}px; transform-style: preserve-3d;">
+    <g id="lever3d" style="transform: rotateX(${LEVER_TILT_DEG}deg); transform-style: preserve-3d;">
+      <!-- Gruppo rotante interno (animazioni pull/idle) -->
+      <g class="leverArm" id="leverGroup">
     <!-- Halo rosso attorno al pomello -->
     <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
             fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
@@ -252,6 +261,8 @@ const LEVER_SVG_TEMPLATE = `
             fill="url(#leverBallShine)"/>
     <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
             fill="#ffffff" opacity="0.95"/>
+      </g>
+    </g>
   </g>
 
   <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
@@ -263,24 +274,27 @@ const LEVER_SVG_TEMPLATE = `
 // Animazioni CSS per il pull e l'idle loop
 const ANIMATIONS = `
 <style>
-  #leverGroup {
+  /* Origine di rotazione = pivot del bumper, per tutti i gruppi 3D. */
+  #lever3d, #leverGroup {
     transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
+    transform-style: preserve-3d;
   }
 
-  /* Pull-and-release: la leva viene tirata in basso (PULL_ANGLE) e poi
-     rilasciata, tornando alla posizione di riposo (IDLE_ANGLE). */
+  /* Pull-and-release: la leva viene tirata verso l'utente (translateZ)
+     con una leggera rotazione, poi rilasciata tornando al riposo.
+     Il tilt 3D (rotateX su #lever3d) resta fisso in ogni fase. */
   @keyframes pull {
-    0%   { transform: rotate(${IDLE_ANGLE}deg); }
-    35%  { transform: rotate(${PULL_ANGLE}deg); }
-    100% { transform: rotate(${IDLE_ANGLE}deg); }
+    0%   { transform: rotate(${IDLE_ANGLE}deg) translateZ(0px); }
+    35%  { transform: rotate(${PULL_ANGLE}deg) translateZ(${PULL_TZ_PX}px); }
+    100% { transform: rotate(${IDLE_ANGLE}deg) translateZ(0px); }
   }
   
   @keyframes idleLoop {
     0%, 100% {
-      transform: rotate(${IDLE_ANGLE}deg);
+      transform: rotate(${IDLE_ANGLE}deg) translateZ(0px);
     }
     50% {
-      transform: rotate(${IDLE_ANGLE - 3}deg);
+      transform: rotate(${IDLE_ANGLE - 3}deg) translateZ(4px);
     }
   }
   
@@ -297,7 +311,8 @@ const ANIMATIONS = `
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
   }
 
-  /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
+  /* Accessibilità: niente animazioni per chi ha disattivato il motion.
+     Il tilt 3D resta comunque (è sul wrapper #lever3d, fuori dall'animazione). */
   @media (prefers-reduced-motion: reduce) {
     #leverGroup { animation: none !important; }
   }
