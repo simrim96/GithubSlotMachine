@@ -65,13 +65,13 @@ const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
 
-// Pull verticale "verso il giocatore": la leva si avvicina (profondità 3D
-// della classica leva slot machine) senza ruotare di lato. Si ottiene con uno
-// scale >1 sull'origine = BUMPER (in basso): il pomello in alto CRESCE e sale
-// dritto verso il giocatore (la leva "esce" dalla macchina), l'asta resta
-// agganciata alla base (niente stacco). Direzione opposta al "rimpicciolire".
-const PULL_SCALE = 1.3;    // a riposo 1; al picco la leva si ingrandisce (verso il giocatore)
-const PULL_DROP = -12;     // il pomello sale verso l'alto (fuori dalla macchina)
+// Pull verticale "verso il giocatore": la leva viene tirata GIÙ verso il
+// giocatore (effetto tiro classico della leva slot) senza ruotare di lato.
+// Origine = BUMPER in basso: scalando <1 il pomello in alto scende dritto
+// verso il basso/giocatore, l'asta resta agganciata alla base (niente stacco).
+// La base resta FISSA. Nessun grow verso l'alto.
+const PULL_SCALE = 0.66;   // a riposo 1; al picco la leva si accorcia verso il giocatore
+const PULL_DROP = 16;      // il pomello scende nettamente verso il basso (verso il giocatore)
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -176,7 +176,7 @@ async function getPullState(req) {
 // SVG statico: leva laterale di una slot machine
 const LEVER_SVG_TEMPLATE = `
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-  width="${W}" height="${H + 44}" viewBox="0 -44 ${W} ${H + 44}"
+  width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
   role="button" aria-label="Pulla la leva per girare la slot machine" tabindex="0">
   <title>Leva slot machine</title>
   <desc>Elemento interattivo per avviare la rotazione dei rulli della slot machine.</desc>
