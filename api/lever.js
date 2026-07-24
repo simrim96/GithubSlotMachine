@@ -73,6 +73,8 @@ const IDLE_LOOP_MS = 2000; // Durata del loop idle
 const PULL_SCALE_X = 1;    // larghezza invariata (niente restringimento)
 const PULL_SCALE_Y = 0.8;  // l'asta si accorcia in verticale: pomello scende
 const PULL_DROP = 4;       // minima traslazione verticale aggiuntiva verso il basso
+const PULL_BALL_SCALE = 1.22; // il pomello rosso si ingrandisce LEGGERMENTE durante
+                              // il pull (effetto avvicinamento al giocatore)
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -221,9 +223,24 @@ const LEVER_SVG_TEMPLATE = `
 
   <!-- ── Leva (gruppo rotante) ── -->
   <g class="leverArm" id="leverGroup">
-    <!-- Halo rosso attorno al pomello -->
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
-            fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
+    <!-- Pomello + halo: gruppo dedicato per l'ingrandimento durante il pull -->
+    <g class="leverBallGroup">
+      <!-- Halo rosso attorno al pomello -->
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
+              fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
+
+      <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
+      <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
+              fill="#000" opacity="0.4"/>
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
+              fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
+              fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
+      <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
+              fill="url(#leverBallShine)"/>
+      <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
+              fill="#ffffff" opacity="0.95"/>
+    </g>
 
     <!-- Asta: line singola con cap arrotondato → niente spigoli ai bordi.
          Va dal pivot del bumper al centro del pomello, quindi ball e arm
@@ -245,18 +262,6 @@ const LEVER_SVG_TEMPLATE = `
              rx="3.6" ry="5.5"
              transform="rotate(${ARM_ANGLE_DEG.toFixed(2)} ${MID_X.toFixed(2)} ${MID_Y.toFixed(2)})"
              fill="url(#leverChrome)" stroke="#000" stroke-width="0.6"/>
-
-    <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
-    <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
-            fill="#000" opacity="0.4"/>
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
-            fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
-            fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
-    <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
-            fill="url(#leverBallShine)"/>
-    <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
-            fill="#ffffff" opacity="0.95"/>
   </g>
 
   <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
@@ -279,6 +284,13 @@ const ANIMATIONS = `
     transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
   }
 
+  /* Il pomello è un gruppo a sé: durante il pull si ingrandisce leggermente
+     (origine sul suo centro) per dare l'idea di avvicinarsi al giocatore,
+     mentre l'asta resta a dimensione piena. */
+  .leverBallGroup {
+    transform-origin: ${TIP_X}px ${TIP_Y}px;
+  }
+
   /* Pull-and-release: il pomello viene tirato GIU' verso il giocatore
      (scale Y 0.8, X 1 = leva a dimensione piena, no restringimento),
      poi rilasciato tornando a riposo. Base fissa (origine sul bumper). */
@@ -286,6 +298,13 @@ const ANIMATIONS = `
     0%   { transform: scale(1,1) translateY(0px); }
     35%  { transform: scale(${PULL_SCALE_X}, ${PULL_SCALE_Y}) translateY(${PULL_DROP}px); }
     100% { transform: scale(1,1) translateY(0px); }
+  }
+
+  /* Ingrandimento del solo pomello durante il pull (avvicinamento). */
+  @keyframes ballGrow {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(${PULL_BALL_SCALE}); }
+    100% { transform: scale(1); }
   }
 
   @keyframes idleLoop {
@@ -304,6 +323,9 @@ const ANIMATIONS = `
       pull ${PULL_DURATION_MS}ms ease-in-out forwards,
       idleLoop ${IDLE_LOOP_MS}ms ease-in-out ${PULL_DURATION_MS}ms infinite;
   }
+  .pulling .leverBallGroup {
+    animation: ballGrow ${PULL_DURATION_MS}ms ease-in-out forwards;
+  }
 
   /* Stato di riposo (nessuno spin recente): solo loop idle. */
   .idling {
@@ -312,7 +334,7 @@ const ANIMATIONS = `
 
   /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
   @media (prefers-reduced-motion: reduce) {
-    #leverGroup { animation: none !important; }
+    #leverGroup, .leverBallGroup { animation: none !important; }
   }
 </style>
 `;
