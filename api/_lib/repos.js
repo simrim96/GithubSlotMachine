@@ -52,7 +52,7 @@ const TTL_MS = 1000 * 60 * 30; // 30 min
 // Al cold start (cache mai popolata) aspettiamo al massimo questo timeout prima
 // di arrenderci e ritornare null — così il PRIMO spin ha i repo se la rete
 // risponde (ISSUE-28), senza però appenderci all'infinito sullo stall GitHub.
-const COLD_START_WAIT_MS = 800;
+const COLD_START_WAIT_MS = 3000;
 const KV_KEY = 'gsm:repoCache';
 // Tier "lastgood" (R5): snapshot SEMPRE disponibile dei repo, scritto in
 // parallelo al layer fresh ma SENZA TTL. Sopravvive ai cold start e anche se
@@ -138,25 +138,43 @@ function saveToKv() {
 }
 
 async function refreshCache(token, owner, languages, slotRepo) {
-  const headers = ghHeaders(token);
-  const r = await ghFetchWithTimeout(
-    `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
-    headers
-  );
-  if (!r.ok) throw new Error(`repos list: ${r.status}`);
-  const repos = (await r.json()).filter(
-    (rep) =>
-      !rep.fork &&
-      !rep.archived &&
-      !isRepoExcluded(rep.name, owner, slotRepo)
-  );
+  // I repo pubblici e i loro /languages sono leggibili ANCHE SENZA token
+  // (rate-limit anonimo 60/h, più che sufficiente per pochi repo e refresh
+  // ogni 30 min). Usiamo il token SOLO se presente, ma se la chiamata
+  // autenticata fallisce (es. scope del PAT senza public_repo, o token
+  // con soli permessi di lettura README) facciamo FALLBACK ANONIMO così la
+  // cache repo si popola comunque e il link alla repo vincente appare.
+  const authedHeaders = token ? ghHeaders(token) : {};
+  const anonHeaders = { Accept: 'application/vnd.github+json' };
+
+  async function fetchRepos(headers) {
+    const r = await ghFetchWithTimeout(
+      `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
+      headers
+    );
+    if (!r.ok) throw new Error(`repos list: ${r.status}`);
+    return (await r.json()).filter(
+      (rep) =>
+        !rep.fork &&
+        !rep.archived &&
+        !isRepoExcluded(rep.name, owner, slotRepo)
+    );
+  }
+
+  let repos;
+  try {
+    repos = await fetchRepos(authedHeaders);
+  } catch (e) {
+    logger.warn('repos refresh authed failed, retry anon', { error: e.message });
+    repos = await fetchRepos(anonHeaders);
+  }
 
   // Per ogni repo, fetch /languages a BATCH (cap pratico: 100 repo × 1 call,
   // ma mai più di REPO_SEARCH_CONCURRENCY in parallelo). Una fetch
   // lenta/piantata è protetta da AbortController (timeout).
   const langMaps = await mapBatch(repos, REPO_SEARCH_CONCURRENCY, async (rep) => {
     try {
-      const lr = await ghFetchWithTimeout(rep.languages_url, headers);
+      const lr = await ghFetchWithTimeout(rep.languages_url, authedHeaders);
       if (!lr.ok) return null;
       return await lr.json();
     } catch {
