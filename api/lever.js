@@ -65,9 +65,13 @@ const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
 
-// Angoli di rotazione
-const IDLE_ANGLE = 0; // Angolo idle (verticale)
-const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aumentato da 25)
+// Pull verticale: la leva "scende" verso il giocatore (effetto profondità 3D
+// della classica leva slot machine) senza ruotare di lato. Si ottiene con uno
+// scale verso il basso sull'origine = BUMPER (in basso), così il pomello in
+// alto scende dritto verso il giocatore e l'asta si accorcia, restando
+// agganciata alla base (niente stacco).
+const PULL_SCALE = 0.72;   // a riposo 1; al picco si accorcia verso il bumper
+const PULL_DROP = 6;       // leggera traslazione verticale aggiuntiva verso il basso
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -261,29 +265,36 @@ const LEVER_SVG_TEMPLATE = `
 `;
 
 // Animazioni CSS per il pull e l'idle loop
+// Geometria verticale (pomello rosso in alto, bumper in basso): il pull è una
+// discesa VERTICALE verso il giocatore — NON una rotazione di lato. Uso uno
+// scale con origine sul bumper (in basso): l'asta si accorcia "tirata giù"
+// verso il giocatore (profondità 3D della leva slot), l'asta resta sempre
+// agganciata alla base (niente stacco). Nessun rotate → niente scivolata a dx.
 const ANIMATIONS = `
 <style>
+  /* Origine sul bumper (in basso): scalando verso il basso il pomello in
+     alto scende dritto verso il giocatore. */
   #leverGroup {
     transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
   }
 
-  /* Pull-and-release: la leva viene tirata in basso (PULL_ANGLE) e poi
-     rilasciata, tornando alla posizione di riposo (IDLE_ANGLE). */
+  /* Pull-and-release: la leva viene tirata verso il basso/davanti (scale↓)
+     e poi rilasciata tornando alla posizione di riposo. */
   @keyframes pull {
-    0%   { transform: rotate(${IDLE_ANGLE}deg); }
-    35%  { transform: rotate(${PULL_ANGLE}deg); }
-    100% { transform: rotate(${IDLE_ANGLE}deg); }
+    0%   { transform: scale(1) translateY(0px); }
+    35%  { transform: scale(${PULL_SCALE}) translateY(${PULL_DROP}px); }
+    100% { transform: scale(1) translateY(0px); }
   }
-  
+
   @keyframes idleLoop {
     0%, 100% {
-      transform: rotate(${IDLE_ANGLE}deg);
+      transform: scale(1) translateY(0px);
     }
     50% {
-      transform: rotate(${IDLE_ANGLE - 3}deg);
+      transform: scale(0.99) translateY(1px);
     }
   }
-  
+
   /* Stato "pull appena avvenuto": riproduce il pull e, al termine, entra
      nel loop idle senza soluzione di continuità. */
   .pulling {
