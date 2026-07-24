@@ -311,10 +311,10 @@ const ANIMATIONS = `
 
   @keyframes idleLoop {
     0%, 100% {
-      transform: scale(1) translateY(0px);
+      transform: rotate(0deg);
     }
     50% {
-      transform: scale(0.99) translateY(1px);
+      transform: rotate(-3deg);
     }
   }
 
