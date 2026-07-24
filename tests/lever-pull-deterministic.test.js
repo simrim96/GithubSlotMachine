@@ -122,4 +122,32 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
     await leverHandler(makeReq(), makeRes());
     expect(captured.body).toContain('class="leverArm idling"');
   });
+
+  it('COLD-START: kvGet va in TIMEOUT/lancia -> non rompe, degrada a idling', async () => {
+    // Simula Upstash lento/cross-region a freddo: kvGet impiega >500ms e lancia.
+    kvGetMock.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 600));
+      throw new Error('kv timeout');
+    });
+    const start = Date.now();
+    await leverHandler(makeReq(), makeRes());
+    const elapsed = Date.now() - start;
+    // Non deve lanciare e non deve impiegare più del timeout KV (~500ms)
+    // + il fallback raw GitHub (800ms). Se supera di molto, il percorso
+    // caldo è rotto a freddo.
+    expect(captured.body).toContain('class="leverArm idling"');
+    expect(elapsed).toBeLessThan(2000);
+  });
+
+  it('COLD-START KV lento ma raw GitHub recente -> pulling (fallback funziona)', async () => {
+    // KV lento/timeout, ma raw GitHub risponde con timestamp recente:
+    // il fallback LENTO deve comunque tirare la leva.
+    kvGetMock.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 600));
+      throw new Error('kv timeout');
+    });
+    githubTs = Date.now() - 2000; // 2s fa, dentro finestra
+    await leverHandler(makeReq(), makeRes());
+    expect(captured.body).toContain('class="leverArm pulling"');
+  });
 });
