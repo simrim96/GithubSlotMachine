@@ -22,35 +22,34 @@ import { sendResponse } from './_lib/response-bridge.js';
 import { kvGet } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
 
-const W = 52;
+const W = 60;
 const H = 150;
 
-// Pivot del bumper: centrato nell'SVG (W=52)
-const BUMPER_CX = 26;
-const BUMPER_CY = 100;
-const BUMPER_R = 10;
+// ── Base guida FRONTALE (ruotata 90°: dalla faccia della slot, verso l'utente) ──
+// La leva esce dalla FACCIA FRONTALE della slot (non più dal fianco) e punta
+// dritta verso l'utente. In prospettiva 2D (l'SVG è embeddato come <img>, il
+// 3D CSS non è supportato) otteniamo il "verso l'utente" con: asta a trapezio
+// (più larga vicino al pomello), pomello più grande in basso, e pull = scale-up
+// + translateY verso il basso.
+const BASE_X = 6, BASE_Y = 22, BASE_W = 48, BASE_H = 18; // piastra di montaggio
+const BOC_CX = W / 2;                 // 30: centro boccola (foro da cui esce l'asta)
+const BOC_CY = BASE_Y + BASE_H / 2;   // ~31: y della boccola
+const BOC_RX = 7, BOC_RY = 4;         // foro ovale (visto di fronte)
 
-// Tip dell'asta: centrato orizzontalmente, verso il basso
-const TIP_X = 26;
-const TIP_Y = 22;
+// ── Asta (punta verso l'utente: trapezio, più larga vicino al pomello) ──
+const ARM_TOP_W = 6;   // larghezza in alto (lontano, alla boccola)
+const ARM_BOT_W = 15;  // larghezza in basso (vicino, al pomello)
+const BALL_CX = BOC_CX; // asta centrata sull'asse verticale
 
-// Pomello rosso (stesso colore del cabinet).
-const BALL_R = 11;
+// ── Pomello ──
+const BALL_REST_CY = 98;   // y a riposo (lontano)
+const BALL_REST_R = 11;    // raggio a riposo (lontano)
+const BALL_PULL_CY = 112;  // y al picco del pull (più vicino all'utente)
+const BALL_PULL_R = 15;    // raggio al picco del pull (più grande)
 
-// Punto medio dell'asta (anello cromato).
-const MID_X = (BUMPER_CX + TIP_X) / 2;
-const MID_Y = (BUMPER_CY + TIP_Y) / 2;
-
-// Vettore unitario lungo l'asta (per orientare highlight e anello).
-// Leva ora verticale: dx=0, dy=-78
-const _dx = TIP_X - BUMPER_CX;
-const _dy = TIP_Y - BUMPER_CY;
-const _len = Math.hypot(_dx, _dy);
-const _ux = _dx / _len,
-  _uy = _dy / _len;
-// angolo dell'asta in gradi (rotazione dell'ellisse-anello)
-// Leva verticale: -90°
-const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
+// Parametri animazione pull (2D, verso l'utente)
+const PULL_SCALE = 1.2;    // ingrandimento al picco (più vicino)
+const PULL_DROP = 9;       // traslazione verso il basso (fuori schermo) al picco
 
 // Chiave KV per lo stato
 const STATE_KEY = 'gsm:state';
@@ -64,16 +63,6 @@ const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
-
-// Angoli di rotazione
-const IDLE_ANGLE = 0; // Angolo idle (verticale)
-const PULL_ANGLE = 30; // Angolo massimo durante il pull
-
-// Prospettiva 3D + inclinazione fissa (rotateX) applicata in TUTTE le fasi
-// (idle e pull): la leva "esce" verso l'utente invece di restare piatta.
-const LEVER_TILT_DEG = -32;  // inclinazione forward (il pomello viene verso l'utente)
-const PERSPECTIVE_PX = 600;  // profondità di campo del palco 3D
-const PULL_TZ_PX = 38;       // translateZ verso l'utente al picco del pull
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -176,6 +165,13 @@ async function getPullState(req) {
 }
 
 // SVG statico: leva laterale di una slot machine
+// Geometria dell'asta (trapezio: più larga vicino al pomello = più vicina
+// all'utente). Coordinata y del lato alto = boccola; lato basso = pomello.
+const _armTopY = BOC_CY;
+const _armBotY = BALL_REST_CY - BALL_REST_R + 2; // sbuca appena dentro il pomello
+const _armTopHalf = ARM_TOP_W / 2;
+const _armBotHalf = ARM_BOT_W / 2;
+
 const LEVER_SVG_TEMPLATE = `
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
   width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
@@ -194,110 +190,108 @@ const LEVER_SVG_TEMPLATE = `
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <!-- Cromature (bumper, anello) -->
+    <!-- Cromature (boccola, anello) -->
     <radialGradient id="leverChrome" cx="35%" cy="30%" r="80%">
       <stop offset="0%"  stop-color="#ffffff"/>
       <stop offset="25%" stop-color="#d8d8e0"/>
       <stop offset="60%" stop-color="#7a7a85"/>
       <stop offset="100%" stop-color="#2a2a32"/>
     </radialGradient>
-    <!-- Asta cilindrica: gradient orizzontale sul bounding box della line -->
+    <!-- Asta cilindrica: gradient orizzontale per effetto tubo -->
     <linearGradient id="leverArmGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#0a0a0a"/>
-      <stop offset="35%"  stop-color="#3a3a3e"/>
-      <stop offset="55%"  stop-color="#7a7a85"/>
-      <stop offset="75%"  stop-color="#2a2a2e"/>
+      <stop offset="40%"  stop-color="#4a4a52"/>
+      <stop offset="55%"  stop-color="#9a9aa5"/>
+      <stop offset="72%"  stop-color="#3a3a42"/>
       <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <!-- Base guida (piastra frontale cromata) -->
+    <linearGradient id="leverBaseGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5a5a64"/>
+      <stop offset="50%"  stop-color="#2a2a32"/>
+      <stop offset="100%" stop-color="#101016"/>
     </linearGradient>
   </defs>
 
-  <!-- ── Bumper (mounting boss) — fisso ── -->
-  <ellipse cx="${BUMPER_CX + 3}" cy="${BUMPER_CY + 5}"
-           rx="${BUMPER_R + 3}" ry="${BUMPER_R - 2}"
-           fill="#000" opacity="0.4"/>
-  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R}"
-          fill="#1a0606" stroke="#000" stroke-width="1"/>
-  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 3}"
-          fill="url(#leverChrome)"/>
-
-  <!-- ── Leva: palco 3D (perspective) + tilt fisso in ogni fase ── -->
-  <g id="leverStage" style="perspective: ${PERSPECTIVE_PX}px; transform-style: preserve-3d;">
-    <g id="lever3d" style="transform: rotateX(${LEVER_TILT_DEG}deg); transform-style: preserve-3d;">
-      <!-- Gruppo rotante interno (animazioni pull/idle) -->
-      <g class="leverArm" id="leverGroup">
-    <!-- Halo rosso attorno al pomello -->
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
-            fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
-
-    <!-- Asta: line singola con cap arrotondato → niente spigoli ai bordi.
-         Va dal pivot del bumper al centro del pomello, quindi ball e arm
-         restano sempre solidali. -->
-    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
-          stroke="#000" stroke-width="9" stroke-linecap="round" opacity="0.55"
-          transform="translate(1 2)"/>
-    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
-          stroke="url(#leverArmGrad)" stroke-width="7" stroke-linecap="round"/>
-    <!-- Highlight cilindrico sull'asta (linea chiara, parallela alla principale) -->
-    <line x1="${(BUMPER_CX + _uy * 1.2).toFixed(2)}"
-          y1="${(BUMPER_CY - _ux * 1.2).toFixed(2)}"
-          x2="${(TIP_X + _uy * 1.2).toFixed(2)}"
-          y2="${(TIP_Y - _ux * 1.2).toFixed(2)}"
-          stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.55"/>
-
-    <!-- Anello cromato a metà asta -->
-    <ellipse cx="${MID_X.toFixed(2)}" cy="${MID_Y.toFixed(2)}"
-             rx="3.6" ry="5.5"
-             transform="rotate(${ARM_ANGLE_DEG.toFixed(2)} ${MID_X.toFixed(2)} ${MID_Y.toFixed(2)})"
+  <!-- ── Base guida FRONTALE (ruotata 90° rispetto alla leva laterale:
+       dalla faccia della slot, verso l'utente) ── -->
+  <g id="leverBase">
+    <!-- ombra a terra -->
+    <ellipse cx="${BASE_X + BASE_W / 2}" cy="${BASE_Y + BASE_H + 3}"
+             rx="${BASE_W / 2}" ry="4" fill="#000" opacity="0.35"/>
+    <!-- piastra di montaggio (vista di fronte: rettangolo arrotondato) -->
+    <rect x="${BASE_X}" y="${BASE_Y}" width="${BASE_W}" height="${BASE_H}" rx="5"
+          fill="url(#leverBaseGrad)" stroke="#000" stroke-width="1"/>
+    <rect x="${BASE_X + 2}" y="${BASE_Y + 2}" width="${BASE_W - 4}" height="3"
+          rx="1.5" fill="#ffffff" opacity="0.18"/>
+    <!-- boccola (foro ovale da cui esce l'asta verso l'utente) -->
+    <ellipse cx="${BOC_CX}" cy="${BOC_CY}" rx="${BOC_RX + 2}" ry="${BOC_RY + 1.5}"
+             fill="#000" opacity="0.5"/>
+    <ellipse cx="${BOC_CX}" cy="${BOC_CY}" rx="${BOC_RX}" ry="${BOC_RY}"
              fill="url(#leverChrome)" stroke="#000" stroke-width="0.6"/>
-
-    <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
-    <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
-            fill="#000" opacity="0.4"/>
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
-            fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
-    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
-            fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
-    <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
-            fill="url(#leverBallShine)"/>
-    <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
-            fill="#ffffff" opacity="0.95"/>
-      </g>
-    </g>
+    <ellipse cx="${BOC_CX}" cy="${BOC_CY}" rx="${BOC_RX - 2}" ry="${BOC_RY - 1}"
+             fill="#0a0a0a"/>
   </g>
 
-  <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
-  <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY}" r="3"
-          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
+  <!-- ── Leva (punta verso l'utente): gruppo animato ── -->
+  <g class="leverArm" id="leverGroup">
+    <!-- Asta a trapezio: più larga in basso (più vicina) -->
+    <polygon
+      points="${BOC_CX - _armTopHalf},${_armTopY}
+               ${BOC_CX + _armTopHalf},${_armTopY}
+               ${BALL_CX + _armBotHalf},${_armBotY}
+               ${BALL_CX - _armBotHalf},${_armBotY}"
+      fill="url(#leverArmGrad)" stroke="#000" stroke-width="0.6"/>
+    <!-- Highlight tubo (linea chiara sul lato sinistro dell'asta) -->
+    <line x1="${BOC_CX - _armTopHalf + 1}" y1="${_armTopY + 1}"
+          x2="${BALL_CX - _armBotHalf + 1.5}" y2="${_armBotY - 1}"
+          stroke="#ffffff" stroke-width="1" opacity="0.5" stroke-linecap="round"/>
+
+    <!-- Anello cromato a metà asta (visto di fronte = ellisse orizzontale) -->
+    <ellipse cx="${BALL_CX}" cy="${(_armTopY + _armBotY) / 2}"
+             rx="${(ARM_TOP_W + ARM_BOT_W) / 4 + 1}" ry="${(ARM_TOP_W + ARM_BOT_W) / 4}"
+             fill="none" stroke="url(#leverChrome)" stroke-width="1.4"/>
+
+    <!-- Pomello rosso: a riposo lontano (piccolo), al pull vicino (grande) -->
+    <circle cx="${BALL_CX}" cy="${BALL_REST_CY}" r="${BALL_REST_R}"
+            fill="#000" opacity="0.4" transform="translate(1.5 2)"/>
+    <circle cx="${BALL_CX}" cy="${BALL_REST_CY}" r="${BALL_REST_R}"
+            fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
+    <circle cx="${BALL_CX}" cy="${BALL_REST_CY}" r="${BALL_REST_R - 0.8}"
+            fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
+    <circle cx="${BALL_CX - 3.5}" cy="${BALL_REST_CY - 4}" r="5"
+            fill="url(#leverBallShine)"/>
+    <circle cx="${BALL_CX - 4}" cy="${BALL_REST_CY - 4.5}" r="1.4"
+            fill="#ffffff" opacity="0.95"/>
+  </g>
 </svg>
 `;
 
-// Animazioni CSS per il pull e l'idle loop
+// Animazioni CSS per il pull e l'idle loop.
+// La leva è FRONTALE (punta verso l'utente): il "pull verso l'utente" si
+// ottiene con scale-up + translateY verso il basso (fuori dallo schermo).
+// Nessun 3D CSS perché l'SVG è embeddato come <img> (non supportato).
 const ANIMATIONS = `
 <style>
-  /* Origine di rotazione = pivot del bumper, per tutti i gruppi 3D. */
-  #lever3d, #leverGroup {
-    transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
-    transform-style: preserve-3d;
+  /* Origine di scalatura = base/boccola, così il pomello "esce" verso il
+     basso senza staccarsi dalla base. */
+  #leverGroup {
+    transform-origin: ${BOC_CX}px ${BOC_CY}px;
   }
 
-  /* Pull-and-release: la leva viene tirata verso l'utente (translateZ)
-     con una leggera rotazione, poi rilasciata tornando al riposo.
-     Il tilt 3D (rotateX su #lever3d) resta fisso in ogni fase. */
+  /* Pull-and-release: il pomello si avvicina (scale) e scende verso l'utente,
+     poi torna al riposo. */
   @keyframes pull {
-    0%   { transform: rotate(${IDLE_ANGLE}deg) translateZ(0px); }
-    35%  { transform: rotate(${PULL_ANGLE}deg) translateZ(${PULL_TZ_PX}px); }
-    100% { transform: rotate(${IDLE_ANGLE}deg) translateZ(0px); }
+    0%   { transform: scale(1) translateY(0px); }
+    35%  { transform: scale(${PULL_SCALE}) translateY(${PULL_DROP}px); }
+    100% { transform: scale(1) translateY(0px); }
   }
-  
+
   @keyframes idleLoop {
-    0%, 100% {
-      transform: rotate(${IDLE_ANGLE}deg) translateZ(0px);
-    }
-    50% {
-      transform: rotate(${IDLE_ANGLE - 3}deg) translateZ(4px);
-    }
+    0%, 100% { transform: scale(1) translateY(0px); }
+    50%      { transform: scale(1.04) translateY(2px); }
   }
-  
+
   /* Stato "pull appena avvenuto": riproduce il pull e, al termine, entra
      nel loop idle senza soluzione di continuità. */
   .pulling {
@@ -311,8 +305,7 @@ const ANIMATIONS = `
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
   }
 
-  /* Accessibilità: niente animazioni per chi ha disattivato il motion.
-     Il tilt 3D resta comunque (è sul wrapper #lever3d, fuori dall'animazione). */
+  /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
   @media (prefers-reduced-motion: reduce) {
     #leverGroup { animation: none !important; }
   }
