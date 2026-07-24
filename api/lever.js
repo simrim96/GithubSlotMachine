@@ -1,19 +1,21 @@
 // ─── Lever endpoint ──────────────────────────────────────────────────────────
-// SVG della leva VERTICALE di una slot machine. Stile coerente col cabinet
+// SVG della leva laterale di una slot machine. Stile coerente col cabinet
 // (pomello rosso laccato, montatura cromata).
 //
 // Animazione "pull": quando la leva viene tirata (state.lastPullTimestamp recente),
-// la punta SUPERIORE (il pomello rosso, in alto) scende VERTICALMENTE verso il
-// basso / il giocatore. Nessuna rotazione, nessuno spostamento laterale: è una
-// pura translateY dell'intero gruppo leva.
+// l'SVG mostra un'animazione CSS che parte con un "pull" verso il basso e
+// ritorna gradualmente all'idle loop.
 //
-// Geometria:
-//   • Leva verticale: pomello rosso in ALTO, base/tubo-guida in BASSO.
-//   • L'asta parte BEN DENTRO il tubo-guida (fisso, disegnato sopra la base
-//     dell'asta) così, anche quando il gruppo scende di qualche px, la base
-//     dell'asta resta nascosta nel tubo → nessuno "stacco" visibile.
-//   • Il tubo-guida + giunto cromato restano FUORI dal gruppo animato → fissi
+// Geometria semplificata per eliminare ogni glitch:
+//   • L'asta è un singolo <line> con stroke-linecap="round" → nessun spigolo
+//     può sbucare durante la rotazione del gruppo.
+//   • Pomello, anello cromato e highlight sono ALLINEATI ESATTAMENTE sulla
+//     retta pivot→tip e ruotano tutti insieme nel `leverArm`.
+//   • Il bumper (mounting boss) resta FUORI dal gruppo che ruota → fisso
 //     rispetto al cabinet.
+//
+// Layout: leva quasi verticale (delta x = 10px su delta y = 78px) → quindi
+// "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
 
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
@@ -23,33 +25,32 @@ import { logger } from './_lib/logger.js';
 const W = 52;
 const H = 150;
 
-// ── Base / tubo-guida (FISSO, SOTTO la leva) ──
-// Tubo verticale da cui l'asta esce e scorre; nasconde la base dell'asta anche
-// durante la discesa del pull. Il giunto cromato è in cima al tubo.
-const GUIDE_X = W / 2;     // 26: centro tubo (asta centrata sull'asse)
-const GUIDE_W = 18;        // larghezza tubo
-const GUIDE_TOP = 95;      // y superiore del tubo
-const GUIDE_BOT = H;       // 150: il tubo arriva al fondo SVG
-const BUMPER_CX = GUIDE_X;
-const BUMPER_CY = GUIDE_TOP + 6; // giunto cromato in cima al tubo
-const BUMPER_R = 12;
+// Pivot del bumper: centrato nell'SVG (W=52)
+const BUMPER_CX = 26;
+const BUMPER_CY = 100;
+const BUMPER_R = 10;
 
-// ── Asta (verticale) ──
-// Parte BEN DENTRO il tubo-guida (asta coperta dal tubo a riposo) e sale fino
-// al pomello in alto.
-const ARM_BOT_Y = 134;     // base asta (nascosta nel tubo)
-const TIP_X = GUIDE_X;     // asta centrata sull'asse verticale
-const TIP_Y = 30;          // pomello rosso in ALTO
-const BALL_R = 12;         // raggio pomello
+// Tip dell'asta: centrato orizzontalmente, verso il basso
+const TIP_X = 26;
+const TIP_Y = 22;
 
-// Vettore asta (dal basso al tip): punta verso l'ALTO
-const _ux = 0;
-const _uy = -1;
-const MID_X = (GUIDE_X + TIP_X) / 2;
-const MID_Y = (ARM_BOT_Y + TIP_Y) / 2;
+// Pomello rosso (stesso colore del cabinet).
+const BALL_R = 11;
 
-// Parametri animazione pull (2D, discesa verticale verso il giocatore)
-const PULL_DROP = 26;      // px di discesa della punta verso il basso al picco
+// Punto medio dell'asta (anello cromato).
+const MID_X = (BUMPER_CX + TIP_X) / 2;
+const MID_Y = (BUMPER_CY + TIP_Y) / 2;
+
+// Vettore unitario lungo l'asta (per orientare highlight e anello).
+// Leva ora verticale: dx=0, dy=-78
+const _dx = TIP_X - BUMPER_CX;
+const _dy = TIP_Y - BUMPER_CY;
+const _len = Math.hypot(_dx, _dy);
+const _ux = _dx / _len,
+  _uy = _dy / _len;
+// angolo dell'asta in gradi (rotazione dell'ellisse-anello)
+// Leva verticale: -90°
+const ARM_ANGLE_DEG = (Math.atan2(_uy, _ux) * 180) / Math.PI;
 
 // Chiave KV per lo stato
 const STATE_KEY = 'gsm:state';
@@ -63,6 +64,10 @@ const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
+
+// Angoli di rotazione
+const IDLE_ANGLE = 0; // Angolo idle (verticale)
+const PULL_ANGLE = 30; // Angolo massimo durante il pull (verso il basso, aumentato da 25)
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -164,10 +169,7 @@ async function getPullState(req) {
   return { isPulling: false, reason: 'no_recent_pull' };
 }
 
-// SVG statico: leva VERTICALE di una slot machine.
-// Il gruppo animato (leverGroup) contiene SOLO asta + pomello: durante il pull
-// scende di translateY verso il basso. La base dell'asta è nascosta nel tubo-guida
-// (disegnato DOPO, sopra la base dell'asta) → nessuno stacco visibile.
+// SVG statico: leva laterale di una slot machine
 const LEVER_SVG_TEMPLATE = `
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
   width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
@@ -186,14 +188,14 @@ const LEVER_SVG_TEMPLATE = `
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <!-- Cromature (tubo, giunto) -->
+    <!-- Cromature (bumper, anello) -->
     <radialGradient id="leverChrome" cx="35%" cy="30%" r="80%">
       <stop offset="0%"  stop-color="#ffffff"/>
       <stop offset="25%" stop-color="#d8d8e0"/>
       <stop offset="60%" stop-color="#7a7a85"/>
       <stop offset="100%" stop-color="#2a2a32"/>
     </radialGradient>
-    <!-- Asta cilindrica: gradient orizzontale per effetto tubo -->
+    <!-- Asta cilindrica: gradient orizzontale sul bounding box della line -->
     <linearGradient id="leverArmGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#0a0a0a"/>
       <stop offset="35%"  stop-color="#3a3a3e"/>
@@ -201,30 +203,45 @@ const LEVER_SVG_TEMPLATE = `
       <stop offset="75%"  stop-color="#2a2a2e"/>
       <stop offset="100%" stop-color="#0a0a0a"/>
     </linearGradient>
-    <!-- Tubo-guida (base fissa) -->
-    <linearGradient id="leverGuideGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"   stop-color="#0a0a0a"/>
-      <stop offset="40%"  stop-color="#3a3a42"/>
-      <stop offset="55%"  stop-color="#8a8a94"/>
-      <stop offset="75%"  stop-color="#26262e"/>
-      <stop offset="100%" stop-color="#0a0a0a"/>
-    </linearGradient>
   </defs>
 
-  <!-- ── Leva (verticale): pomello in ALTO + asta. Gruppo animato ── -->
+  <!-- ── Bumper (mounting boss) — fisso ── -->
+  <ellipse cx="${BUMPER_CX + 3}" cy="${BUMPER_CY + 5}"
+           rx="${BUMPER_R + 3}" ry="${BUMPER_R - 2}"
+           fill="#000" opacity="0.4"/>
+  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R}"
+          fill="#1a0606" stroke="#000" stroke-width="1"/>
+  <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 3}"
+          fill="url(#leverChrome)"/>
+
+  <!-- ── Leva (gruppo rotante) ── -->
   <g class="leverArm" id="leverGroup">
-    <!-- Asta verticale: dal fondo del tubo (nascosta) fino al pomello in alto -->
-    <line x1="${GUIDE_X}" y1="${ARM_BOT_Y}" x2="${TIP_X}" y2="${TIP_Y}"
+    <!-- Halo rosso attorno al pomello -->
+    <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
+            fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
+
+    <!-- Asta: line singola con cap arrotondato → niente spigoli ai bordi.
+         Va dal pivot del bumper al centro del pomello, quindi ball e arm
+         restano sempre solidali. -->
+    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
           stroke="#000" stroke-width="9" stroke-linecap="round" opacity="0.55"
           transform="translate(1 2)"/>
-    <line x1="${GUIDE_X}" y1="${ARM_BOT_Y}" x2="${TIP_X}" y2="${TIP_Y}"
+    <line x1="${BUMPER_CX}" y1="${BUMPER_CY}" x2="${TIP_X}" y2="${TIP_Y}"
           stroke="url(#leverArmGrad)" stroke-width="7" stroke-linecap="round"/>
-    <!-- Highlight cilindrico sull'asta (linea chiara, parallela) -->
-    <line x1="${GUIDE_X + _uy * 1.2}" y1="${ARM_BOT_Y - _ux * 1.2}"
-          x2="${TIP_X + _uy * 1.2}" y2="${TIP_Y - _ux * 1.2}"
+    <!-- Highlight cilindrico sull'asta (linea chiara, parallela alla principale) -->
+    <line x1="${(BUMPER_CX + _uy * 1.2).toFixed(2)}"
+          y1="${(BUMPER_CY - _ux * 1.2).toFixed(2)}"
+          x2="${(TIP_X + _uy * 1.2).toFixed(2)}"
+          y2="${(TIP_Y - _ux * 1.2).toFixed(2)}"
           stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.55"/>
 
-    <!-- Pomello rosso in ALTO (punta della leva) -->
+    <!-- Anello cromato a metà asta -->
+    <ellipse cx="${MID_X.toFixed(2)}" cy="${MID_Y.toFixed(2)}"
+             rx="3.6" ry="5.5"
+             transform="rotate(${ARM_ANGLE_DEG.toFixed(2)} ${MID_X.toFixed(2)} ${MID_Y.toFixed(2)})"
+             fill="url(#leverChrome)" stroke="#000" stroke-width="0.6"/>
+
+    <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
     <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
             fill="#000" opacity="0.4"/>
     <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
@@ -237,59 +254,36 @@ const LEVER_SVG_TEMPLATE = `
             fill="#ffffff" opacity="0.95"/>
   </g>
 
-  <!-- ── Tubo-guida + giunto (FISSI, SOTTO la leva): disegnati DOPO il gruppo
-       animato così nascondono la base dell'asta anche durante la discesa ── -->
-  <g id="leverGuide">
-    <!-- ombra a terra -->
-    <ellipse cx="${GUIDE_X}" cy="${GUIDE_BOT - 2}" rx="${(GUIDE_W / 2) + 4}" ry="5"
-             fill="#000" opacity="0.35"/>
-    <!-- tubo verticale -->
-    <rect x="${GUIDE_X - GUIDE_W / 2}" y="${GUIDE_TOP}" width="${GUIDE_W}"
-          height="${GUIDE_BOT - GUIDE_TOP}" rx="4"
-          fill="url(#leverGuideGrad)" stroke="#000" stroke-width="1"/>
-    <rect x="${GUIDE_X - GUIDE_W / 2 + 2}" y="${GUIDE_TOP + 2}" width="3"
-          height="${GUIDE_BOT - GUIDE_TOP - 4}" rx="1.5"
-          fill="#ffffff" opacity="0.18"/>
-    <!-- giunto cromato in cima al tubo (da cui esce l'asta) -->
-    <ellipse cx="${BUMPER_CX + 3}" cy="${BUMPER_CY + 5}" rx="${BUMPER_R + 2}" ry="${BUMPER_R - 3}"
-             fill="#000" opacity="0.4"/>
-    <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R}"
-            fill="#1a0606" stroke="#000" stroke-width="1"/>
-    <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="${BUMPER_R - 3}"
-            fill="url(#leverChrome)"/>
-    <!-- foro centrale del giunto (sopra l'asta che sbuca) -->
-    <circle cx="${BUMPER_CX}" cy="${BUMPER_CY}" r="3"
-            fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
-  </g>
+  <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
+  <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY}" r="3"
+          fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
 </svg>
 `;
 
-// Animazioni CSS per il pull e l'idle loop.
-// Leva VERTICALE: il pull è una pura translateY dell'intero gruppo verso il
-// basso (la punta con il pomello rosso scende dritta verso il giocatore).
-// Nessuna rotazione, nessuno spostamento laterale.
-// L'asta resta nascosta nel tubo-guida (disegnato sopra la base dell'asta),
-// quindi la discesa non mostra alcuno "stacco".
+// Animazioni CSS per il pull e l'idle loop
 const ANIMATIONS = `
 <style>
-  /* Il gruppo leva scende verticalmente: nessuna trasformazione orizzontale. */
   #leverGroup {
-    transform-origin: ${GUIDE_X}px ${TIP_Y}px;
+    transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
   }
 
-  /* Pull-and-release: la punta (pomello rosso in alto) scende verso il basso
-     / il giocatore, poi torna su. Solo translateY, verticale puro. */
+  /* Pull-and-release: la leva viene tirata in basso (PULL_ANGLE) e poi
+     rilasciata, tornando alla posizione di riposo (IDLE_ANGLE). */
   @keyframes pull {
-    0%   { transform: translateY(0px); }
-    35%  { transform: translateY(${PULL_DROP}px); }
-    100% { transform: translateY(0px); }
+    0%   { transform: rotate(${IDLE_ANGLE}deg); }
+    35%  { transform: rotate(${PULL_ANGLE}deg); }
+    100% { transform: rotate(${IDLE_ANGLE}deg); }
   }
-
+  
   @keyframes idleLoop {
-    0%, 100% { transform: translateY(0px); }
-    50%      { transform: translateY(2px); }
+    0%, 100% {
+      transform: rotate(${IDLE_ANGLE}deg);
+    }
+    50% {
+      transform: rotate(${IDLE_ANGLE - 3}deg);
+    }
   }
-
+  
   /* Stato "pull appena avvenuto": riproduce il pull e, al termine, entra
      nel loop idle senza soluzione di continuità. */
   .pulling {
