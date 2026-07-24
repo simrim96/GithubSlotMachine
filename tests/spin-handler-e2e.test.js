@@ -182,8 +182,8 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(ghPut).toHaveBeenCalled();
   });
 
-  // ── 1b) redirect 302 verso il repo del linguaggio vincente (win reale) ───
-  it('su vincita reindirizza 302 verso il repo del linguaggio e scrive su GitHub/KV', async () => {
+  // ── 1b) su vincita NON reindirizza più alla repo: resta sul profilo owner ───
+  it('su vincita NON reindirizza alla repo (link cliccabile nel README), ma scrive su GitHub/KV', async () => {
     // Forza una vincita (count=3, NON jackpot) sul linguaggio 'javascript'.
     checkWins.mockReturnValue([
       { payline: 0, count: 3, symbol: 'javascript', positions: [], color: '#ffd700' },
@@ -198,15 +198,14 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     const res = makeRes();
     await handler(req(), res);
 
-    // Destinazione = repo del linguaggio vincente (non jackpot → usa repoMatch.url).
+    // Comportamento voluto: la leva NON reindirizza alla repo vincente, ma
+    // riporta al profilo owner (il link cliccabile alla repo appare nel
+    // marker "🏆 Last win" del README, non nel redirect).
     expect(res.statusCode).toBe(302);
-    expect(res.headers.Location).toBe('https://github.com/simrim96/DemoRepo');
+    expect(res.headers.Location).toBe('https://github.com/simrim96');
+    expect(res.headers.Location).not.toContain('DemoRepo');
 
-    // Le scrittureNetwork avvengono davvero:
-    //  • slot.svg salvato (KV/GitHub)
-    //  • state aggiornato
-    //  • README GET+PUT eseguiti
-    //  • cache README popolata in KV (chiave gsm:readme:<owner>)
+    // Le scritture di rete avvengono davvero (slot.svg, state, README, cache):
     const { saveSlotSvg } = await import('../api/_lib/github.js');
     const { writeState } = await import('../api/_lib/state.js');
     expect(saveSlotSvg).toHaveBeenCalled();

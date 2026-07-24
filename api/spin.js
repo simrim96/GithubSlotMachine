@@ -337,6 +337,14 @@ export default async function handler(req, res) {
     // ?user= è validato con isValidUser(): solo login GitHub [A-Za-z0-9-]{1,39}.
     // Qualsiasi valore non valido (path, slash, caratteri strani) cade sul
     // proprietario di default → chiude l'open-redirect verso altri host/percorsi.
+    //
+    // NOTA (comportamento voluto): NON reindirizziamo più verso la repo
+    // vincente. La leva riporta sempre al profilo dell'owner, dove il marker
+    // "🏆 Last win → [repo](url)" nel README mostra il link cliccabile alla
+    // repo del linguaggio uscito (vedi updateReadmeMarkers in github.js).
+    // Nei README di GitHub lo slot è servito come <img>, quindi i link
+    // dentro l'SVG non sarebbero cliccabili: il link cliccabile vive quindi
+    // nel marker del README, non nel redirect.
     const rawUser = req.query?.user ? String(req.query.user).trim() : '';
     const targetOwner = rawUser && isValidUser(rawUser) ? rawUser : OWNER;
     let dest;
@@ -346,7 +354,7 @@ export default async function handler(req, res) {
       );
       dest = `https://github.com/${targetOwner}?tab=repositories&language=${ghLang}`;
     } else {
-      dest = repoMatch?.url || `https://github.com/${OWNER}`;
+      dest = `https://github.com/${OWNER}`;
     }
 
     // ── Scritture ────────────────────────────────────────────────────────────
