@@ -223,25 +223,6 @@ const LEVER_SVG_TEMPLATE = `
 
   <!-- ── Leva (gruppo rotante) ── -->
   <g class="leverArm" id="leverGroup">
-    <!-- Pomello + halo: gruppo dedicato per l'ingrandimento durante il pull -->
-    <g class="leverBallGroup">
-      <!-- Halo rosso attorno al pomello -->
-      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
-              fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
-
-      <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
-      <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
-              fill="#000" opacity="0.4"/>
-      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
-              fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
-      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
-              fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
-      <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
-              fill="url(#leverBallShine)"/>
-      <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
-              fill="#ffffff" opacity="0.95"/>
-    </g>
-
     <!-- Asta: line singola con cap arrotondato → niente spigoli ai bordi.
          Va dal pivot del bumper al centro del pomello, quindi ball e arm
          restano sempre solidali. -->
@@ -262,6 +243,27 @@ const LEVER_SVG_TEMPLATE = `
              rx="3.6" ry="5.5"
              transform="rotate(${ARM_ANGLE_DEG.toFixed(2)} ${MID_X.toFixed(2)} ${MID_Y.toFixed(2)})"
              fill="url(#leverChrome)" stroke="#000" stroke-width="0.6"/>
+
+    <!-- Pomello + halo: gruppo dedicato per l'ingrandimento durante il pull.
+         Disegnato DOPO l'asta → il pomello rosso resta in PRIMO PIANO
+         (davanti al corpo della leva), non più coperto dall'asta. -->
+    <g class="leverBallGroup">
+      <!-- Halo rosso attorno al pomello -->
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R + 8}"
+              fill="#ff5a4a" opacity="0.32" class="leverBallHalo"/>
+
+      <!-- Pomello rosso, centrato esattamente sul tip dell'asta -->
+      <circle cx="${TIP_X + 1.5}" cy="${TIP_Y + 2}" r="${BALL_R}"
+              fill="#000" opacity="0.4"/>
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R}"
+              fill="url(#leverBall)" stroke="#3a0404" stroke-width="1.2"/>
+      <circle cx="${TIP_X}" cy="${TIP_Y}" r="${BALL_R - 0.8}"
+              fill="none" stroke="#ff6a4a" stroke-width="0.5" opacity="0.5"/>
+      <circle cx="${TIP_X - 3.5}" cy="${TIP_Y - 4}" r="5"
+              fill="url(#leverBallShine)"/>
+      <circle cx="${TIP_X - 4}" cy="${TIP_Y - 4.5}" r="1.4"
+              fill="#ffffff" opacity="0.95"/>
+    </g>
   </g>
 
   <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
