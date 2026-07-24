@@ -65,13 +65,14 @@ const PULL_DURATION_MS = 500; // Durata della fase "pull" (aumentato da 300ms)
 const IDLE_DELAY_MS = 0; // Dopo il pull, attesa prima di iniziare l'idle loop
 const IDLE_LOOP_MS = 2000; // Durata del loop idle
 
-// Pull verticale "verso il giocatore": la leva viene tirata GIÙ verso il
-// giocatore (effetto tiro classico della leva slot) senza ruotare di lato.
-// Origine = BUMPER in basso: scalando <1 il pomello in alto scende dritto
-// verso il basso/giocatore, l'asta resta agganciata alla base (niente stacco).
-// La base resta FISSA. Nessun grow verso l'alto.
-const PULL_SCALE = 0.66;   // a riposo 1; al picco la leva si accorcia verso il giocatore
-const PULL_DROP = 16;      // il pomello scende nettamente verso il basso (verso il giocatore)
+// Pull verticale "verso il giocatore": il pomello in alto viene tirato GIU'
+// dritto verso il basso (il giocatore), mantenendo la leva a dimensione
+// PIENA (niente rimpicciolimento, che darebbe sensazione di allontanamento).
+// Origine = BUMPER in basso (fisso): con scale X=1 Y=0.8 l'asta si allunga
+// verso il basso e il pomello scende, la base resta ferma (niente stacco).
+const PULL_SCALE_X = 1;    // larghezza invariata (niente restringimento)
+const PULL_SCALE_Y = 0.8;  // l'asta si accorcia in verticale: pomello scende
+const PULL_DROP = 4;       // minima traslazione verticale aggiuntiva verso il basso
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -278,12 +279,13 @@ const ANIMATIONS = `
     transform-origin: ${BUMPER_CX}px ${BUMPER_CY}px;
   }
 
-  /* Pull-and-release: la leva viene tirata verso il basso/davanti (scale↓)
-     e poi rilasciata tornando alla posizione di riposo. */
+  /* Pull-and-release: il pomello viene tirato GIU' verso il giocatore
+     (scale Y 0.8, X 1 = leva a dimensione piena, no restringimento),
+     poi rilasciato tornando a riposo. Base fissa (origine sul bumper). */
   @keyframes pull {
-    0%   { transform: scale(1) translateY(0px); }
-    35%  { transform: scale(${PULL_SCALE}) translateY(${PULL_DROP}px); }
-    100% { transform: scale(1) translateY(0px); }
+    0%   { transform: scale(1,1) translateY(0px); }
+    35%  { transform: scale(${PULL_SCALE_X}, ${PULL_SCALE_Y}) translateY(${PULL_DROP}px); }
+    100% { transform: scale(1,1) translateY(0px); }
   }
 
   @keyframes idleLoop {
