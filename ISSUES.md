@@ -377,3 +377,54 @@ node scripts/simple-dev.mjs
 ```
 
 ---
+
+### BUG: Cliccando la leva a volte si viene reindirizzati alla pagina GitHub del progetto
+
+**Status:** ✅ **FIXED** - 2026-07-24
+
+**Problema:**
+Cliccando la leva (`<a href="/api/spin">` che avvolge l'SVG della leva nel
+README), a volte invece di "girare" e portare a un repo del profilo, l'utente
+veniva rimbalzato dentro il repo della slot stessa
+(`github.com/simrim96/GithubSlotMachine`). Da fuori sembrava che la leva "non
+avesse girato" e ti avesse solo portato su GitHub. Il comportamento era
+**intermittente** (dipendeva dal linguaggio estratto a caso).
+
+**Causa radice:**
+`api/spin.js` reindirizza verso il repo dell'owner il cui linguaggio (≥30%)
+coincide con quello uscito dalla slot. `GithubSlotMachine` è un progetto
+Node/JS/TS, quindi per vittorie su **JavaScript / TypeScript / React** veniva
+selezionato come repo "migliore" e lo spin rimandava l'utente DENTRO il repo
+sorgente della slot. Anche il repo profilo (`simrim96/simrim96`) concorreva.
+
+**Soluzione (`api/_lib/repos.js`):**
+1. Nuova export `isRepoExcluded(repName, owner, slotRepo)` che esclude il repo
+   profilo (`<owner>/<owner>`) e il repo della slot (`SLOT_REPO`) dalla
+   candidatura come destinazione di redirect.
+2. `refreshCache()` filtra questi due repo già a monte (`!isRepoExcluded(...)`)
+   quando costruisce `byLangId`.
+3. Rimossa la logica "isProfile" nel loop di selezione (ora ridondante): si
+   privilegia semplicemente repo con % linguaggio più alta, poi più stelle.
+4. **Difesa finale** in `getRepoForLanguage()`: se la cache (magari popolata
+   *prima* della fix, in memoria o KV) contiene ancora un repo escluso come
+   candidato, lo si tratta come "nessun repo" → lo spin cade sul profilo
+   invece di rimandare dentro la slot.
+5. `slotRepo` è letto da `process.env.SLOT_REPO || 'GithubSlotMachine'` così la
+   fix è corretta anche se il nome del repo cambiasse.
+
+**File modificati:**
+- `api/_lib/repos.js` - `isRepoExcluded()`, filtro in `refreshCache`, difesa
+  in uscita in `getRepoForLanguage`, rimossa logica isProfile
+- `tests/repo-exclusion.test.js` - NUOVO (4 test di regressione)
+
+**Testing:**
+- ✅ `npm run lint` pulito (0 errori)
+- ✅ `npx vitest run` → 357/357 test passati (inclusi i 4 nuovi)
+- ✅ Verifica manuale regex isRepoExcluded: GithubSlotMachine / simrim96
+  esclusi, repo progetto legittimi NON esclusi
+
+---
+
+*Ultima modifica: 2026-07-24 - Fix bug redirect dentro il repo della slot (isRepoExcluded)*
+
+---
