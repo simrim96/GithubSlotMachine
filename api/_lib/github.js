@@ -241,39 +241,18 @@ export async function loadSlotSvg(token, owner, repo) {
   };
 }
 
-export function updateReadmeMarkers(readme, state, lang, repoMatch, fact) {
+// Aggiorna SOLO il blocco tra i marker con il link cliccabile alla repo
+// vincente. Nessun contatore ("Total community spins"), nessun "Last win:",
+// nessun funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo.
+// Se non c'è una repo vincente (repoMatch assente), il blocco resta vuoto.
+export function updateReadmeMarkers(readme, state, lang, repoMatch) {
   const START = '<!-- SLOT_LAST_WIN_START -->';
   const END = '<!-- SLOT_LAST_WIN_END -->';
   if (!readme.includes(START) || !readme.includes(END)) return readme;
 
-  const total = state.totalSpins || 0;
-  const wins = state.totalWins || 0;
   let block = `${START}\n`;
-  block += `> 🎰 **Total community spins:** \`${total.toLocaleString('en-US')}\` · **Wins:** \`${wins.toLocaleString('en-US')}\`\n`;
-  // Helper: estrae le due lingue dal fact (string o {it,en}) per retro-compat.
-  // Output ordinato: EN primario, IT secondario (linea successiva).
-  const factLines = (f) => {
-    if (!f) return [];
-    if (typeof f === 'string') return [f];
-    return [f.en, f.it].filter(Boolean);
-  };
   if (lang && repoMatch) {
-    block += `>\n> 🏆 **Last win:** \`${lang.name}\` → [${repoMatch.name}](${repoMatch.url})  \n`;
-    for (const line of factLines(fact)) {
-      block += `> _${escapeMarkdown(line)}_  \n`;
-    }
-  } else if (lang) {
-    // Win senza repo pubblica ≥30%: mostriamo solo il fact, niente messaggi sospetti.
-    block += `>\n> 🏆 **Last win:** \`${lang.name}\`  \n`;
-    for (const line of factLines(fact)) {
-      block += `> _${escapeMarkdown(line)}_  \n`;
-    }
-  } else if (state.lastWin) {
-    const lw = state.lastWin;
-    block += `>\n> 🏆 **Last win:** \`${lw.langName}\`${lw.repoUrl ? ` → [${lw.repoName}](${lw.repoUrl})` : ''}  \n`;
-    for (const line of factLines(lw.fact)) {
-      block += `> _${escapeMarkdown(line)}_  \n`;
-    }
+    block += `[${repoMatch.name}](${repoMatch.url})\n`;
   }
   block += END;
 
