@@ -25,6 +25,29 @@ import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
 import { logger } from '../_lib/logger.js';
 
+// ─── Repo da NON usare MAI come destinazione di redirect (ISSUE) ────────────
+// Uno spin vincente reindirizza l'utente verso un repo dell'owner che usa il
+// linguaggio uscito per ≥30%. Due repo devono essere ESCLUSI dalla
+// candidatura:
+//   • il repo profilo (`<owner>/<owner>`, es. simrim96/simrim96) — contiene
+//     solo il README, non è un progetto "reale" da mostrare;
+//   • il repo della slot stessa (SLOT_REPO, es. GithubSlotMachine) — è un
+//     progetto Node/JS/TS, quindi per vittorie su JavaScript/TypeScript/React
+//     verrebbe selezionato come repo "migliore" e lo spin rimanderebbe
+//     l'utente DENTRO il repo sorgente della slot. Da fuori sembra che la
+//     leva "non abbia girato" e ti abbia solo rimbalzato su github.com:
+//     è esattamente il bug "cliccando la leva a volte vengo reindirizzato
+//     alla pagina github del progetto".
+// Escludendoli a monte, la vittoria reindirizza a un repo qualificante reale
+// oppure (nessun altro repo idoneo) cade sul profilo, mai dentro la slot.
+export function isRepoExcluded(repName, owner, slotRepo) {
+  const n = String(repName).toLowerCase();
+  return (
+    n === String(owner).toLowerCase() ||
+    n === String(slotRepo).toLowerCase()
+  );
+}
+
 const TTL_MS = 1000 * 60 * 30; // 30 min
 // Al cold start (cache mai popolata) aspettiamo al massimo questo timeout prima
 // di arrenderci e ritornare null — così il PRIMO spin ha i repo se la rete
@@ -114,14 +137,19 @@ function saveToKv() {
   kvSet(KV_LASTGOOD_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(() => {});
 }
 
-async function refreshCache(token, owner, languages) {
+async function refreshCache(token, owner, languages, slotRepo) {
   const headers = ghHeaders(token);
   const r = await ghFetchWithTimeout(
     `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
     headers
   );
   if (!r.ok) throw new Error(`repos list: ${r.status}`);
-  const repos = (await r.json()).filter((rep) => !rep.fork && !rep.archived);
+  const repos = (await r.json()).filter(
+    (rep) =>
+      !rep.fork &&
+      !rep.archived &&
+      !isRepoExcluded(rep.name, owner, slotRepo)
+  );
 
   // Per ogni repo, fetch /languages a BATCH (cap pratico: 100 repo × 1 call,
   // ma mai più di REPO_SEARCH_CONCURRENCY in parallelo). Una fetch
@@ -159,12 +187,13 @@ async function refreshCache(token, owner, languages) {
         pct,
       };
       const cur = byLangId[lang.id];
-      // Privilegia repo non-profile e con percentuale più alta, poi più stelle.
-      const isProfile = rep.name.toLowerCase() === owner.toLowerCase();
+      // Privilegia repo con percentuale più alta, poi più stelle.
+      // (Il repo profilo / della slot sono già stati esclusi a monte in
+      // refreshCache tramite isRepoExcluded, così non competono mai.)
       if (
         !cur ||
-        (!isProfile &&
-          (pct > cur.pct || (pct === cur.pct && candidate.stars > cur.stars)))
+        pct > cur.pct ||
+        (pct === cur.pct && candidate.stars > cur.stars)
       ) {
         byLangId[lang.id] = candidate;
       }
@@ -181,6 +210,11 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
   const hasData = Object.keys(cache.byLangId).length > 0;
   const fresh = Date.now() - cache.ts < TTL_MS;
 
+  // SLOT_REPO: il repo della slot stessa NON deve mai essere candidato come
+  // destinazione di redirect (vedi isRepoExcluded + ISSUE sopra). Lo leggiamo
+  // da env quando disponibile, altrimenti resta il default del codice.
+  const slotRepo = process.env.SLOT_REPO || 'GithubSlotMachine';
+
   if (!hasData) {
     // COLD START GENUINO: nessun dato in memoria né in KV (né fresh né
     // lastgood). È l'UNICO punto in cui attendiamo la rete, e lo facciamo
@@ -190,7 +224,7 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
     // null → redirect al profilo), senza appenderci all'infinito.
     try {
       await Promise.race([
-        refreshCache(token, owner, languages),
+        refreshCache(token, owner, languages, slotRepo),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error('cold-start timeout')),
@@ -207,12 +241,20 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
     // Abbiamo dati (memoria o KV lastgood) ma sono stale: li serviamo SUBITO
     // e refreschiamo in background. Mai bloccare il redirect su uno stall KV
     // o GitHub (R5: neanche un round-trip Upstash cross-region ci ferma).
-    refreshCache(token, owner, languages).catch((e) =>
+    refreshCache(token, owner, languages, slotRepo).catch((e) =>
       logger.warn('repos cache refresh failed', { error: e.message })
     );
   }
   // Se hasData && fresh → serviamo immediatamente, nessuna refresh.
-  return cache.byLangId[lang.id] || null;
+  const match = cache.byLangId[lang.id] || null;
+  // Difesa finale: se anche la cache (memoria/KV, magari popolata prima
+  // della fix) contiene ancora il repo della slot o il repo profilo come
+  // candidato, lo trattiamo come "nessun repo" → lo spin cade sul profilo
+  // invece di rimandare dentro la slot stessa.
+  if (match && isRepoExcluded(match.name, owner, slotRepo)) {
+    return null;
+  }
+  return match;
 }
 
 // Lettura diagnostica della cache SENZA triggerare refresh GitHub.
