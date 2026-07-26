@@ -125,6 +125,9 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
 
     // ── 1° spin: cache MISS → GET GitHub + PUT ──
     await handler(req, makeRes());
+    // La PUT del README è ritardata di ~6.2s (sincronizzazione rulli):
+    // aspettiamo che il background job completi prima di asserire sulla cache.
+    await new Promise((r) => setTimeout(r, 7_000));
     expect(ghGetJson).toHaveBeenCalledTimes(1);
     // La chiave di cache è gsm:readme:<owner>
     const cacheCalls = kvSet.mock.calls.filter((c) =>
@@ -138,13 +141,15 @@ describe('P1 — README non ri-letta da GitHub a ogni spin (cache KV)', () => {
 
     // ── 2° spin: cache HIT → NESSUNA nuova GET ──
     await handler(req, makeRes());
+    await new Promise((r) => setTimeout(r, 7_000));
     // ghGetJson NON deve essere stato chiamato una seconda volta.
     expect(ghGetJson).toHaveBeenCalledTimes(1);
 
     // ── 3° spin: ancora cache HIT ──
     await handler(req, makeRes());
+    await new Promise((r) => setTimeout(r, 7_000));
     expect(ghGetJson).toHaveBeenCalledTimes(1);
-  });
+  }, 60000);
 
   it('la GET scatta di nuovo solo quando la cache è assente (kvEnabled=false)', async () => {
     // Forza un ambiente senza KV: la GET deve avvenire a OGNI spin.

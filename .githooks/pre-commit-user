@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Guard pre-commit (ISSUE-7): state.json e slot.svg sono artefatti di runtime
+# che cambiano a ogni spin. NON devono mai essere committati nel repo (sporcano
+# la git history e sono già coperti dal .gitignore). Questo hook blocca anche
+# i `git add -f` accidentali.
+#
+# Attivazione (repo locale, da eseguire una volta):
+#   git config core.hooksPath .githooks
+#
+# Se hai davvero bisogno di commettere uno di questi file (es. bootstrap
+# iniziale), rimuovi temporaneamente l'hook o usa `git commit --no-verify`
+# solo se consapevole delle conseguenze.
+
+set -euo pipefail
+
+BANNED="state.json
+slot.svg"
+
+# Elenco AUTOREVOLE dei file che finirebbero nel prossimo commit = l'albero
+# dell'index corrente (non il diff vs HEAD, altrimenti un `git rm --cached`
+# seguito da `git add -f` sfuggirebbe al controllo).
+tree=$(git write-tree)
+staged=$(git ls-tree -r --name-only "$tree")
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if printf '%s\n' "$staged" | grep -qx "$f"; then
+    echo "ERROR: '$f' è un artefatto di runtime e non deve essere committato (vedi ISSUE-7)."
+    echo "       Commit annullato. Per sbloccare temporaneamente: git commit --no-verify"
+    exit 1
+  fi
+done <<< "$BANNED"
+
+exit 0

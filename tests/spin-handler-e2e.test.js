@@ -168,6 +168,9 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
   it('redirect 302 con Location valido verso il profilo owner (spin senza vincita)', async () => {
     const res = makeRes();
     await handler(req(), res);
+    // La PUT del README è ritardata (~6.2s): aspettiamo prima di asserire
+    // che le scritture di rete siano avvenute.
+    await new Promise((r) => setTimeout(r, 7_000));
 
     expect(res.statusCode).toBe(302);
     expect(res.headers.Location).toBeDefined();
@@ -176,7 +179,7 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(res.statusCode).not.toBe(500);
     // Lo slot è stato persistito (scrittura reale, non solo calcolo).
     expect(ghPut).toHaveBeenCalled();
-  });
+  }, 30000);
 
   // ── 1b) su vincita NON reindirizza più alla repo: resta sul profilo owner ───
   it('su vincita NON reindirizza alla repo (link cliccabile nel README), ma scrive su GitHub/KV', async () => {
@@ -193,6 +196,9 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
 
     const res = makeRes();
     await handler(req(), res);
+    // La PUT del README è ritardata (~6.2s): aspettiamo prima di asserire
+    // che le scritture di rete siano avvenute.
+    await new Promise((r) => setTimeout(r, 7_000));
 
     // Comportamento voluto: la leva NON reindirizza alla repo vincente, ma
     // riporta al profilo owner (il link cliccabile alla repo appare nel
@@ -212,7 +218,7 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
       String(c[0]).startsWith('gsm:readme:')
     );
     expect(cacheCalls.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 
   // ── 2) degradazione graceful quando il PAT è assente (mai 500) ───────────
   it('senza GITHUB_PAT risponde con 302 graceful (no 500, no pagina rotta)', async () => {
