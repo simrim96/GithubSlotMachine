@@ -1,34 +1,43 @@
-#!/usr/bin/env bash
-# Guard pre-commit (ISSUE-7): state.json e slot.svg sono artefatti di runtime
-# che cambiano a ogni spin. NON devono mai essere committati nel repo (sporcano
-# la git history e sono già coperti dal .gitignore). Questo hook blocca anche
-# i `git add -f` accidentali.
-#
-# Attivazione (repo locale, da eseguire una volta):
-#   git config core.hooksPath .githooks
-#
-# Se hai davvero bisogno di commettere uno di questi file (es. bootstrap
-# iniziale), rimuovi temporaneamente l'hook o usa `git commit --no-verify`
-# solo se consapevole delle conseguenze.
+#!/bin/sh
+# GITBUTLER_MANAGED_HOOK_V1
+# This hook is managed by GitButler to prevent accidental commits on the workspace branch.
+# Your original pre-commit hook has been preserved as 'pre-commit-user'.
 
-set -euo pipefail
+HOOKS_DIR=$(dirname "$0")
 
-BANNED="state.json
-slot.svg"
+# Run user's hook first if it exists - if it fails, stop here
+if [ -x "$HOOKS_DIR/pre-commit-user" ]; then
+    "$HOOKS_DIR/pre-commit-user" "$@" || exit $?
+fi
 
-# Elenco AUTOREVOLE dei file che finirebbero nel prossimo commit = l'albero
-# dell'index corrente (non il diff vs HEAD, altrimenti un `git rm --cached`
-# seguito da `git add -f` sfuggirebbe al controllo).
-tree=$(git write-tree)
-staged=$(git ls-tree -r --name-only "$tree")
+# Get the current branch name
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 
-while IFS= read -r f; do
-  [ -z "$f" ] && continue
-  if printf '%s\n' "$staged" | grep -qx "$f"; then
-    echo "ERROR: '$f' è un artefatto di runtime e non deve essere committato (vedi ISSUE-7)."
-    echo "       Commit annullato. Per sbloccare temporaneamente: git commit --no-verify"
+if [ "$BRANCH" = "gitbutler/workspace" ]; then
+    echo ""
+    echo "GITBUTLER_ERROR: Cannot commit directly to gitbutler/workspace branch."
+    echo ""
+    echo "GitButler manages commits on this branch. Please use GitButler to commit your changes:"
+    echo "  - Use the GitButler app to create commits"
+    echo "  - Or run 'but commit' from the command line"
+    echo ""
+    echo "If you want to exit GitButler mode and use normal git:"
+    echo "  - Run 'but teardown' to switch to a regular branch"
+    echo "  - Or directly checkout another branch: git checkout <branch>"
+    echo ""
+    echo "If you no longer have the GitButler CLI installed, you can simply remove this hook and checkout another branch:"
+    printf '  rm "%s/pre-commit"\n' "$HOOKS_DIR"
+    echo ""
     exit 1
-  fi
-done <<< "$BANNED"
+fi
+
+# Not on workspace branch - run user's original hook if it exists
+if [ -x "$HOOKS_DIR/pre-commit-user" ]; then
+    echo ""
+    echo "WARNING: GitButler's pre-commit hook is still installed but you're not on gitbutler/workspace."
+    echo "If you're no longer using GitButler, you can restore your original hook:"
+    printf '  mv "%s/pre-commit-user" "%s/pre-commit"\n' "$HOOKS_DIR" "$HOOKS_DIR"
+    echo ""
+fi
 
 exit 0
