@@ -29,12 +29,14 @@ import {
   saveSlotSvg,
   loadSlotSvg,
   updateReadmeMarkers,
+  clearReadmeMarkers,
   auditToken,
 } from './_lib/github.js';
 import { kvGet, kvSet, kvEnabled } from './_lib/kv.js';
 import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
+import { DUR } from './_lib/svg/constants.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { getRandomRepo } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
@@ -380,9 +382,10 @@ export default async function handler(req, res) {
     //   - slot.svg (KV): ~10-20ms
     //   - state (KV):    ~10-20ms
     //   - README GET+PUT GitHub: ~270ms (vedi /api/health github_readme_get_ms)
-    // Quindi lo spin aggiunge ~270-350ms, NON i "secondi" della regressione
-    // causata dalla coda serializzante di RateLimitQueue (rimossa).
-    const README_TIMEOUT_MS = 3500;
+    // Timeout di sicurezza per il path README: deve coprire la FASE 1
+    // (svuota subito, ~0.5s) + FASE 2 (delay 6.2s + GET/PUT GitHub ~1.5s).
+    // 9s dà margine senza mai bloccare il redirect più di tanto.
+    const README_TIMEOUT_MS = 9000;
 
     // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
     // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
@@ -403,8 +406,11 @@ export default async function handler(req, res) {
     const README_CACHE_KEY = `gsm:readme:${PROFILE_REPO}`;
     const README_CACHE_TTL_SEC = 60;
 
-    const readmePromise = (async () => {
-      logger.info('[readme-update] START', { spin: spinStart });
+    // ── FASE 1: SVUOTA i marker SUBITO (prima del redirect) ───────────────
+    // Così, mentre i rulli girano (6.2s), il README NON mostra il link
+    // della vincita precedente. Il riempimento avviene solo in FASE 2.
+    const clearPromise = (async () => {
+      logger.info('[readme-clear] START', { spin: spinStart });
       const MAX_RETRIES = 2;
       const RETRY_DELAY_MS = 500;
       let lastError = null;
@@ -419,18 +425,18 @@ export default async function handler(req, res) {
               typeof cached === 'string' ? JSON.parse(cached) : cached;
             if (parsed && parsed.content) {
               rf = { content: parsed.content, sha: parsed.sha ?? null };
-              logger.info('[readme-update] cache HIT — skip GitHub GET');
+              logger.info('[readme-clear] cache HIT — skip GitHub GET');
             }
           }
         } catch (e) {
-          logger.warn('[readme-update] cache read failed, fallback GET:', { error: e.message });
+          logger.warn('[readme-clear] cache read failed, fallback GET:', { error: e.message });
         }
       }
 
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
           if (!rf) {
-            logger.info('[readme-update] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
+            logger.info('[readme-clear] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
             rf = await ghGetJson(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
             if (rf && kvEnabled) {
               try {
@@ -439,17 +445,124 @@ export default async function handler(req, res) {
                   { content: rf.content, sha: rf.sha },
                   README_CACHE_TTL_SEC
                 );
-                logger.info('[readme-update] cache populated from GitHub GET');
+                logger.info('[readme-clear] cache populated from GitHub GET');
               } catch (e) {
-                logger.warn('[readme-update] cache set failed:', { error: e.message });
+                logger.warn('[readme-clear] cache set failed:', { error: e.message });
               }
             }
           }
           if (!rf) {
-            logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
+            logger.info('[readme-clear] ghGetJson returned null (README assente/illegibile)');
             return;
           }
-          logger.info('[readme-update] ghGetJson OK', { sha_present: Boolean(rf.sha) });
+          logger.info('[readme-clear] ghGetJson OK', { sha_present: Boolean(rf.sha) });
+
+          const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
+          const newReadme = clearReadmeMarkers(oldReadme);
+          if (newReadme !== oldReadme) {
+            await ghPut(
+              token,
+              PROFILE_REPO,
+              PROFILE_REPO,
+              'README.md',
+              newReadme,
+              rf.sha,
+              '🎰 Clear slot markers'
+            );
+            logger.info('[readme-clear] ghPut OK');
+            // Refresh cache con il contenuto appena scritto (P1).
+            if (kvEnabled) {
+              try {
+                await kvSet(
+                  README_CACHE_KEY,
+                  {
+                    content: Buffer.from(newReadme, 'utf-8').toString('base64'),
+                    sha: rf.sha,
+                  },
+                  README_CACHE_TTL_SEC
+                );
+                logger.info('[readme-clear] cache refreshed after PUT');
+              } catch (e) {
+                logger.warn('[readme-clear] cache refresh failed:', { error: e.message });
+              }
+            }
+          } else {
+            logger.info('[readme-clear] README already clear, skip PUT');
+          }
+          return; // Successo
+        } catch (e) {
+          lastError = e;
+          logger.warn('README clear attempt failed', { attempt: attempt + 1, error: e.message });
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          }
+        }
+      }
+      logger.error('README clear failed', { max_retries: MAX_RETRIES, last_error: lastError?.message });
+    })();
+
+    // ── FASE 2: RIEMPI i marker DOPO la rotazione dei rulli ───────────────
+    // RITARDO SINCRONIZZATO CON LA ROTAZIONE DEI RULLI (ISSUE utente):
+    // il link nel README del profilo NON deve comparire prima che i rulli
+    // abbiano finito di girare. L'ultima colonna si ferma a DUR[COLS-1]
+    // secondi (vedi api/_lib/svg/reels.js → DUR = [3.0,3.8,4.6,5.4,6.2]).
+    // Aspettiamo esattamente quel tempo PRIMA di leggere/scrivere il README,
+    // così la PUT parte solo quando l'animazione è conclusa. Il redirect
+    // verso github.com resta immediato (lo slot.svg + redirect non aspettano),
+    // quindi chi atterra vede i rulli girare e il link apparire alla fine.
+    const fillPromise = (async () => {
+      const REEL_SETTLE_MS = Math.round((DUR[COLS - 1] || 6.2) * 1000);
+      logger.info('[readme-fill] delay before write to match reel stop', {
+        ms: REEL_SETTLE_MS,
+      });
+      await new Promise((res) => setTimeout(res, REEL_SETTLE_MS));
+
+      logger.info('[readme-fill] START', { spin: spinStart });
+      const MAX_RETRIES = 2;
+      const RETRY_DELAY_MS = 500;
+      let lastError = null;
+
+      // Lettura da cache KV (P1). Se presente, saltiamo la GET GitHub.
+      let rf = null;
+      if (kvEnabled) {
+        try {
+          const cached = await kvGet(README_CACHE_KEY);
+          if (cached) {
+            const parsed =
+              typeof cached === 'string' ? JSON.parse(cached) : cached;
+            if (parsed && parsed.content) {
+              rf = { content: parsed.content, sha: parsed.sha ?? null };
+              logger.info('[readme-fill] cache HIT — skip GitHub GET');
+            }
+          }
+        } catch (e) {
+          logger.warn('[readme-fill] cache read failed, fallback GET:', { error: e.message });
+        }
+      }
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          if (!rf) {
+            logger.info('[readme-fill] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
+            rf = await ghGetJson(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
+            if (rf && kvEnabled) {
+              try {
+                await kvSet(
+                  README_CACHE_KEY,
+                  { content: rf.content, sha: rf.sha },
+                  README_CACHE_TTL_SEC
+                );
+                logger.info('[readme-fill] cache populated from GitHub GET');
+              } catch (e) {
+                logger.warn('[readme-fill] cache set failed:', { error: e.message });
+              }
+            }
+          }
+          if (!rf) {
+            logger.info('[readme-fill] ghGetJson returned null (README assente/illegibile)');
+            return;
+          }
+          logger.info('[readme-fill] ghGetJson OK', { sha_present: Boolean(rf.sha) });
 
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
           let newReadme = oldReadme.replace(
@@ -476,7 +589,7 @@ export default async function handler(req, res) {
               rf.sha,
               '🎰 Update slot'
             );
-            logger.info('[readme-update] ghPut OK', { version: spinStart });
+            logger.info('[readme-fill] ghPut OK', { version: spinStart });
             // Refresh cache con il contenuto appena scritto (P1).
             if (kvEnabled) {
               try {
@@ -488,34 +601,34 @@ export default async function handler(req, res) {
                   },
                   README_CACHE_TTL_SEC
                 );
-                logger.info('[readme-update] cache refreshed after PUT');
+                logger.info('[readme-fill] cache refreshed after PUT');
               } catch (e) {
-                logger.warn('[readme-update] cache refresh failed:', { error: e.message });
+                logger.warn('[readme-fill] cache refresh failed:', { error: e.message });
               }
             }
           } else {
-            logger.info('[readme-update] README unchanged, skip PUT');
+            logger.info('[readme-fill] README unchanged, skip PUT');
           }
           return; // Successo
         } catch (e) {
           lastError = e;
-          logger.warn('README update attempt failed', { attempt: attempt + 1, error: e.message });
+          logger.warn('README fill attempt failed', { attempt: attempt + 1, error: e.message });
           if (attempt < MAX_RETRIES - 1) {
             await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
           }
         }
       }
-      logger.error('README update failed', { max_retries: MAX_RETRIES, last_error: lastError?.message });
+      logger.error('README fill failed', { max_retries: MAX_RETRIES, last_error: lastError?.message });
     })();
 
     // slot.svg + state + README girano in parallelo. Se la README supera il
     // timeout di sicurezza, non blocchiamo il redirect: lo slot funziona lo
     // stesso (solo la combinazione nel profilo si aggiorna al giro dopo).
     const readmeWithTimeout = Promise.race([
-      readmePromise,
+      Promise.allSettled([clearPromise, fillPromise]),
       new Promise((res) =>
         setTimeout(() => {
-          logger.warn('[readme-update] timeout di sicurezza, skip per non bloccare redirect');
+          logger.warn('[readme] timeout di sicurezza, skip per non bloccare redirect');
           res();
         }, README_TIMEOUT_MS)
       ),
