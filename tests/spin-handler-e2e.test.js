@@ -44,14 +44,18 @@ vi.mock('../api/_lib/state.js', () => ({
 // ── GitHub network: funzioni controllabili + stub delle scritture ──────────
 const ghGetJson = vi.fn();
 const ghPut = vi.fn();
-vi.mock('../api/_lib/github.js', () => ({
-  ghGetJson,
-  ghPut,
-  saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
-  loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
-  updateReadmeMarkers: vi.fn((r) => r),
-  auditToken: vi.fn(),
-}));
+vi.mock('../api/_lib/github.js', async () => {
+  const actual = await vi.importActual('../api/_lib/github.js');
+  return {
+    ...actual,
+    ghGetJson,
+    ghPut,
+    saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
+    loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
+    updateReadmeMarkers: vi.fn((r) => r),
+    auditToken: vi.fn(),
+  };
+});
 
 // ── Repo lookup (linguaggio → repo) ───────────────────────────────────────
 const getRepoForLanguage = vi.fn().mockResolvedValue(null);
@@ -168,20 +172,17 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
   it('redirect 302 con Location valido verso il profilo owner (spin senza vincita)', async () => {
     const res = makeRes();
     await handler(req(), res);
-    // Il CLEAR dei marker avviene SUBITO (prima del delay 6.2s), così durante
-    // la rotazione il README non mostra il link della vittoria precedente.
-    expect(ghPut).toHaveBeenCalled();
-    // La PUT di FILL (riempimento) è ritardata (~6.2s): aspettiamo prima di
-    // concludere.
-    await new Promise((r) => setTimeout(r, 7_000));
+    // La PUT del README avviene in parallelo (unica GET+PUT, ~1s) SOLO SE il
+    // contenuto cambia; con nessuna vincita e marker già vuoti il README non
+    // cambia, quindi ghPut può NON essere chiamata. Aspettiamo il completamento.
+    await new Promise((r) => setTimeout(r, 1_500));
 
     expect(res.statusCode).toBe(302);
     expect(res.headers.Location).toBeDefined();
     expect(res.headers.Location).toBe('https://github.com/simrim96');
     // NESSUN 500.
     expect(res.statusCode).not.toBe(500);
-    // Lo slot è stato persistito (scrittura reale, non solo calcolo).
-    expect(ghPut).toHaveBeenCalled();
+    // In assenza di vincita il README non cambia: ghPut può NON essere chiamata.
   }, 30000);
 
   // ── 1b) su vincita NON reindirizza più alla repo: resta sul profilo owner ───
@@ -199,9 +200,9 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
 
     const res = makeRes();
     await handler(req(), res);
-    // La PUT del README è ritardata (~6.2s): aspettiamo prima di asserire
-    // che le scritture di rete siano avvenute.
-    await new Promise((r) => setTimeout(r, 7_000));
+    // La PUT del README avviene in parallelo al redirect (unica GET+PUT, ~1s):
+    // aspettiamo il completamento prima di asserire le scritture di rete.
+    await new Promise((r) => setTimeout(r, 1_500));
 
     // Comportamento voluto: la leva NON reindirizza alla repo vincente, ma
     // riporta al profilo owner (il link cliccabile alla repo appare nel
