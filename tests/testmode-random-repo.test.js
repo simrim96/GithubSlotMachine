@@ -30,19 +30,33 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
     expect(out).not.toContain('check my work in');
   });
 
-  it('il link compare in formato corretto anche con repoMatch a <30% (bypass filtro test)', () => {
-    const lang = { name: 'Qt' };
-    const lowPctRepo = {
-      name: 'Foo',
-      url: 'https://github.com/simrim96/Foo',
-      pct: 0.05,
+  it('SU VINCITA con repo reale stellato mostra le stelle nel badge', () => {
+    const lang = { name: 'C++' };
+    const randomRepo = {
+      name: 'BetterSpin',
+      url: 'https://github.com/simrim96/BetterSpin',
+      description: 'progetto test',
+      stars: 128,
+      pct: 0,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, lowPctRepo, 1700000000000);
-    expect(out).toContain(
-      'check out this repo I wrote in Qt'
-    );
-    expect(out).toContain('<a href="https://github.com/simrim96/Foo">');
-    expect(out).not.toContain('check my work in');
+    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
+    expect(out).toContain('&amp;stars=128');
+    expect(out).toContain('check out this repo I wrote in C++');
+  });
+
+  it('SU VINCITA con repo senza stelle (stars=0) il badge NON mostra il contatore', () => {
+    const lang = { name: 'C++' };
+    const randomRepo = {
+      name: 'BetterSpin',
+      url: 'https://github.com/simrim96/BetterSpin',
+      description: 'progetto test',
+      stars: 0,
+      pct: 0,
+    };
+    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
+    expect(out).not.toContain('★');
+    expect(out).not.toContain('&stars=');
+    expect(out).toContain('check out this repo I wrote in C++');
   });
 
   it('SU SPIN PERDENTE (lang null) il blocco resta vuoto anche con repoMatch', () => {

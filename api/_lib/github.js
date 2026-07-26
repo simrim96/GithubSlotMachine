@@ -283,9 +283,15 @@ export function updateReadmeMarkers(readme, state, lang, repoMatch, spinStart) {
     const langName =
       lang.name || (lang.id != null ? String(lang.id) : '').trim();
     const v = spinStart != null ? `?v=${spinStart}` : '';
+    // Stelle della repo vincente (rep.stargazers_count), già valorizzato in
+    // repoMatch da repos.js. Le passiamo al badge che le mostrerà accanto
+    // alla stella decorativa — così la stella NON è più solo grafica ma
+    // riferita al conteggio reale della repo. Sanitizziamo a intero ≥0.
+    const starsRaw = Number(repoMatch.stars);
+    const stars = Number.isFinite(starsRaw) && starsRaw > 0 ? Math.floor(starsRaw) : 0;
     const badgeUrl = `https://github-slot-machine.vercel.app/api/badge${v}&amp;lang=${encodeURIComponent(
       langName
-    )}`;
+    )}${stars ? `&amp;stars=${stars}` : ''}`;
     // <a> cliccabile verso la repo, <img> puntante al badge SVG animato.
     // escapeXml su langName è ridondante (già pulito da encodeURIComponent +
     // l'endpoint badge.js fa safeLang), ma lo teniamo per coerenza col README.
