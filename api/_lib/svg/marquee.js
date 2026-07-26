@@ -8,7 +8,7 @@ import { getMX, getGY } from './coordinates.js';
 export function generateMarqueeBulbs(uid, isWin, ED) {
   const bulbR = 5.5;
   const bulbStep = 26;
-  const bulbInset = FRAME_PAD / 2;
+  const bulbInset = 3;
   const SCR_X = getMX() - FRAME_PAD;
   const GY = getGY();
   const SCR_Y = GY - FRAME_PAD;
