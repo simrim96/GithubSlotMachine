@@ -7,6 +7,7 @@ import {
   escapeRegex,
   escapeMarkdown,
   updateReadmeMarkers,
+  clearReadmeMarkers,
 } from '../api/_lib/github.js';
 
 describe('escapeRegex', () => {
@@ -142,6 +143,32 @@ describe('updateReadmeMarkers', () => {
     expect(out).toContain('check my work in C: https://github.com/x/crepo');
     expect(out).toContain('## Altre sezioni');
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
+  });
+});
+
+describe('clearReadmeMarkers', () => {
+  const START = '<!-- SLOT_LAST_WIN_START -->';
+  const END = '<!-- SLOT_LAST_WIN_END -->';
+
+  it('ritorna il readme invariato se i marker non ci sono', () => {
+    const r = '# nessun marker';
+    expect(clearReadmeMarkers(r)).toBe(r);
+  });
+
+  it('svuota il blocco tra i marker (link della vittoria precedente rimosso)', () => {
+    const filled = `${START}\ncheck my work in C: https://github.com/x/crepo\n${END}`;
+    const out = clearReadmeMarkers(filled);
+    expect(out).toBe(`${START}\n${END}`);
+    expect(out).not.toContain('check my work in');
+    expect(out).not.toContain('https://github.com/x/crepo');
+  });
+
+  it('lascia intatto il resto del README', () => {
+    const body = `## Slot\n${START}\ncheck my work in Rust: https://github.com/x/r\n${END}\n## Altre sezioni`;
+    const out = clearReadmeMarkers(body);
+    expect(out).toContain('## Slot');
+    expect(out).toContain('## Altre sezioni');
+    expect(out).toBe(`## Slot\n${START}\n${END}\n## Altre sezioni`);
   });
 });
 
