@@ -228,9 +228,17 @@ async function refreshCache(token, owner, languages, slotRepo) {
 // ogni spin generi un link a un progetto reale dell'owner nel README, anche
 // senza vincita o senza repo ≥30%. Esclude il repo profilo e quello della slot
 // (vedi isRepoExcluded), così il link punta sempre a un progetto "vero".
-// NOTA: è una funzione di TEST — non altera il redirect (che resta sul
-// profilo owner), ma forza la generazione del link nel marker del README così
-// si può verificare che la catena spin→repo→link funzioni in ogni caso.
+// FALLBACK HARDCODED (scelta utente): se NON esistono repo validi (es. la
+// pagina dell'owner ha solo profilo + slot + fork, come simrim96), si ritorna
+// un repo di test predefinito così la catena spin→link è comunque verificabile.
+// Overridabile via env SLOT_TEST_REPO_URL / SLOT_TEST_REPO_NAME.
+const TEST_REPO_FALLBACK = {
+  url: process.env.SLOT_TEST_REPO_URL || 'https://github.com/simrim96/simrim96',
+  name: process.env.SLOT_TEST_REPO_NAME || 'simrim96',
+  description: 'Repo di test (fallback modalità test)',
+  stars: 0,
+  pct: 0,
+};
 export async function getRandomRepo(
   token,
   owner,
@@ -242,14 +250,20 @@ export async function getRandomRepo(
       `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
       headers
     );
-    if (!r.ok) return null;
+    if (!r.ok) return TEST_REPO_FALLBACK;
     const repos = (await r.json()).filter(
       (rep) =>
         !rep.fork &&
         !rep.archived &&
         !isRepoExcluded(rep.name, owner, slotRepo)
     );
-    if (repos.length === 0) return null;
+    if (repos.length === 0) {
+      // Nessun repo "esterno": fallback hardcoded di test (vedi nota sopra).
+      logger.info('[test-mode] nessun repo valido, uso fallback hardcoded', {
+        url: TEST_REPO_FALLBACK.url,
+      });
+      return TEST_REPO_FALLBACK;
+    }
     const rep = repos[Math.floor(Math.random() * repos.length)];
     return {
       url: rep.html_url,
@@ -259,8 +273,8 @@ export async function getRandomRepo(
       pct: 0,
     };
   } catch (e) {
-    logger.warn('getRandomRepo failed', { error: e?.message });
-    return null;
+    logger.warn('getRandomRepo failed, uso fallback hardcoded', { error: e?.message });
+    return TEST_REPO_FALLBACK;
   }
 }
 
