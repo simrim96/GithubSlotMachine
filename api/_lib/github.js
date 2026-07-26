@@ -244,19 +244,22 @@ export async function loadSlotSvg(token, owner, repo) {
 // Aggiorna SOLO il blocco tra i marker con il link cliccabile alla repo
 // vincente. Nessun contatore ("Total community spins"), nessun "Last win:",
 // nessun funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo.
-// Se non c'è una repo vincente (repoMatch assente), il blocco resta vuoto.
+// REGOLA: il link compare SOLO quando c'è una vincita (lang presente) E un
+// repo vincente (repoMatch). Su spin perdenti il blocco resta vuoto.
+// Formato (valido sia per test che per produzione):
+//   check my work in <linguaggio vincente>: [<repo>](<url>)
 export function updateReadmeMarkers(readme, state, lang, repoMatch) {
   const START = '<!-- SLOT_LAST_WIN_START -->';
   const END = '<!-- SLOT_LAST_WIN_END -->';
   if (!readme.includes(START) || !readme.includes(END)) return readme;
 
   let block = `${START}\n`;
-  // Scrive il link al repo ogni volta che esiste un repoMatch (vincente reale
-  // O, in modalità test SLOT_TEST_RANDOM_REPO, un repo casuale forzato anche
-  // senza vincita). La presenza di `lang` non è più richiesta: il link è
-  // guidato da repoMatch, non dalla vincita.
-  if (repoMatch) {
-    block += `[${repoMatch.name}](${repoMatch.url})\n`;
+  // Link SOLO su vincita: serve sia `lang` (il linguaggio vinto) che
+  // `repoMatch` (il progetto da linkare). Senza vincita → blocco vuoto.
+  if (lang && repoMatch) {
+    const langName =
+      lang.name || (lang.id != null ? String(lang.id) : '').trim();
+    block += `check my work in ${langName}: [${repoMatch.name}](${repoMatch.url})\n`;
   }
   block += END;
 

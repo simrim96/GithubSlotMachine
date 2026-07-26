@@ -59,7 +59,7 @@ describe('updateReadmeMarkers', () => {
     expect(out.split(END).length - 1).toBe(1);
   });
 
-  it('scrive SOLO il link alla repo vincente (niente contatori/fact)', () => {
+  it('scrive SOLO il link alla repo vincente, nel formato "check my work in <lang>: [repo](url)"', () => {
     const lang = { name: 'Python', githubLang: 'python' };
     const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo' };
     const out = updateReadmeMarkers(
@@ -69,13 +69,27 @@ describe('updateReadmeMarkers', () => {
       repoMatch,
       { it: 'Fatto in Italia', en: 'Made in English' }
     );
-    expect(out).toContain('[myrepo](https://github.com/x/myrepo)');
+    expect(out).toContain('check my work in Python: [myrepo](https://github.com/x/myrepo)');
     // NESSUN contatore / "Last win" / funfact devono comparire
     expect(out).not.toContain('Total community spins');
     expect(out).not.toContain('Wins:');
     expect(out).not.toContain('Last win:');
     expect(out).not.toContain('Made in English');
     expect(out).not.toContain('Fatto in Italia');
+  });
+
+  it('senza vincita (lang null) il blocco resta vuoto anche con repoMatch', () => {
+    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo' };
+    const out = updateReadmeMarkers(
+      baseReadme,
+      { totalSpins: 9, totalWins: 0 },
+      null,
+      repoMatch,
+      { en: 'safe by default' }
+    );
+    expect(out).not.toContain('check my work in');
+    expect(out).not.toContain('[myrepo]');
+    expect(out).toContain(`${START}\n${END}`);
   });
 
   it('senza repoMatch il blocco resta vuoto (nessun link, nessun testo)', () => {
@@ -87,7 +101,7 @@ describe('updateReadmeMarkers', () => {
       null,
       { en: 'safe by default' }
     );
-    expect(out).not.toContain('→ [');
+    expect(out).not.toContain('check my work in');
     expect(out).not.toContain('[Rust]');
     expect(out).not.toContain('Total community spins');
     expect(out).not.toContain('Last win:');
@@ -95,7 +109,7 @@ describe('updateReadmeMarkers', () => {
     expect(out).toContain(`${START}\n${END}`);
   });
 
-  it('ignora state.lastWin (scrive solo link da repoMatch)', () => {
+  it('ignora state.lastWin (scrive solo link da lang+repoMatch)', () => {
     const state = {
       totalSpins: 100,
       totalWins: 10,
@@ -108,6 +122,7 @@ describe('updateReadmeMarkers', () => {
     };
     const out = updateReadmeMarkers(baseReadme, state, null, null, null);
     expect(out).not.toContain('**Last win:**');
+    expect(out).not.toContain('check my work in');
     expect(out).not.toContain('[goproj]');
   });
 
@@ -123,6 +138,7 @@ describe('updateReadmeMarkers', () => {
     const idxE = out.indexOf(END);
     expect(idxS).toBeGreaterThan(-1);
     expect(idxE).toBeGreaterThan(idxS);
+    expect(out).toContain('check my work in C: [crepo](https://github.com/x/crepo)');
     expect(out).toContain('## Altre sezioni');
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
   });

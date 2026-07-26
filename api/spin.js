@@ -315,15 +315,17 @@ export default async function handler(req, res) {
     }
 
     // ── TEST MODE (SLOT_TEST_RANDOM_REPO=1) ──────────────────────────────────
-    // MODALITÀ DI TEST: forza un link a un progetto casuale dell'owner nel
-    // README in OGNI caso — anche senza vincita, o quando la vincita non ha
-    // match nel linguaggio, o quando la % del linguaggio è <30%. Serve a
-    // verificare che la catena spin→repo→link cliccabile nel README funzioni
-    // in qualsiasi scenario. Il redirect resta sul profilo owner (non cambia).
-    // Disattivabile lasciando vuoto/0 l'env. Da NON usare in produzione.
+    // MODALITÀ DI TEST: quando c'è UNA VINCITA ma il repo reale non è stato
+    // trovato (cache fredda, linguaggio <30%, o nessun repo valido), forza un
+    // link a un progetto casuale dell'owner così la catena
+    // spin→repo→link nel README resta verificabile. SU SPIN PERDENTI (nessun
+    // winningLang) NON scrive nulla — il link compare SOLO su vincita, come in
+    // produzione. Il redirect resta sul profilo owner. Disattivabile con
+    // env vuoto/0. Da NON usare in produzione.
     if (
       process.env.SLOT_TEST_RANDOM_REPO === '1' &&
-      (!repoMatch || !winningLang)
+      winningLang &&
+      !repoMatch
     ) {
       try {
         const randomRepo = await getRandomRepo(token, OWNER);
