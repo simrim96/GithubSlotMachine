@@ -35,6 +35,7 @@ import { kvGet, kvSet, kvEnabled } from './_lib/kv.js';
 import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
+import { DUR } from './_lib/svg/constants.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { getRandomRepo } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
@@ -380,9 +381,11 @@ export default async function handler(req, res) {
     //   - slot.svg (KV): ~10-20ms
     //   - state (KV):    ~10-20ms
     //   - README GET+PUT GitHub: ~270ms (vedi /api/health github_readme_get_ms)
-    // Quindi lo spin aggiunge ~270-350ms, NON i "secondi" della regressione
-    // causata dalla coda serializzante di RateLimitQueue (rimossa).
-    const README_TIMEOUT_MS = 3500;
+    // Timeout di sicurezza per il path README: deve coprire il delay di
+    // sincronizzazione con la rotazione dei rulli (DUR[COLS-1] = 6.2s) più
+    // il tempo di GET/PUT GitHub (~1.5s). 8s dà margine senza mai bloccare
+    // il redirect più di tanto.
+    const README_TIMEOUT_MS = 8000;
 
     // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
     // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
@@ -404,6 +407,20 @@ export default async function handler(req, res) {
     const README_CACHE_TTL_SEC = 60;
 
     const readmePromise = (async () => {
+      // RITARDO SINCRONIZZATO CON LA ROTAZIONE DEI RULLI (ISSUE utente):
+      // il link nel README del profilo NON deve comparire prima che i rulli
+      // abbiano finito di girare. L'ultima colonna si ferma a DUR[COLS-1]
+      // secondi (vedi api/_lib/svg/reels.js → DUR = [3.0,3.8,4.6,5.4,6.2]).
+      // Aspettiamo esattamente quel tempo PRIMA di leggere/scrivere il README,
+      // così la PUT parte solo quando l'animazione è conclusa. Il redirect
+      // verso github.com resta immediato (lo slot.svg + redirect non aspettano),
+      // quindi chi atterra vede i rulli girare e il link apparire alla fine.
+      const REEL_SETTLE_MS = Math.round((DUR[COLS - 1] || 6.2) * 1000);
+      logger.info('[readme-update] delay before write to match reel stop', {
+        ms: REEL_SETTLE_MS,
+      });
+      await new Promise((res) => setTimeout(res, REEL_SETTLE_MS));
+
       logger.info('[readme-update] START', { spin: spinStart });
       const MAX_RETRIES = 2;
       const RETRY_DELAY_MS = 500;
