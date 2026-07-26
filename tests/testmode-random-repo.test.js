@@ -22,11 +22,12 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       stars: 0,
       pct: 0,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo);
+    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
     expect(out).toContain(
-      'check my work in C++: https://github.com/simrim96/BetterSpin'
+      'check out this repo I wrote in C++'
     );
-    expect(out).not.toContain('[BetterSpin]');
+    expect(out).toContain('<a href="https://github.com/simrim96/BetterSpin">');
+    expect(out).not.toContain('check my work in');
   });
 
   it('il link compare in formato corretto anche con repoMatch a <30% (bypass filtro test)', () => {
@@ -36,11 +37,12 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       url: 'https://github.com/simrim96/Foo',
       pct: 0.05,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, lowPctRepo);
+    const out = updateReadmeMarkers(baseReadme, {}, lang, lowPctRepo, 1700000000000);
     expect(out).toContain(
-      'check my work in Qt: https://github.com/simrim96/Foo'
+      'check out this repo I wrote in Qt'
     );
-    expect(out).not.toContain('[Foo]');
+    expect(out).toContain('<a href="https://github.com/simrim96/Foo">');
+    expect(out).not.toContain('check my work in');
   });
 
   it('SU SPIN PERDENTE (lang null) il blocco resta vuoto anche con repoMatch', () => {
@@ -48,15 +50,16 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       baseReadme,
       {},
       null,
-      { name: 'Foo', url: 'https://github.com/simrim96/Foo' }
+      { name: 'Foo', url: 'https://github.com/simrim96/Foo' },
+      1700000000000
     );
-    expect(out).not.toContain('check my work in');
+    expect(out).not.toContain('check out this repo');
     expect(out).not.toContain('](');
     expect(out).toContain(`${START}\n${END}`);
   });
 
   it('nessun doppio marker / nessun link quando repoMatch è null', () => {
-    const out = updateReadmeMarkers(baseReadme, {}, { name: 'Rust' }, null);
+    const out = updateReadmeMarkers(baseReadme, {}, { name: 'Rust' }, null, 1700000000000);
     expect(out).toContain(`${START}\n${END}`);
     expect(out).not.toContain('](');
   });

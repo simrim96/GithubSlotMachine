@@ -60,7 +60,7 @@ describe('updateReadmeMarkers', () => {
     expect(out.split(END).length - 1).toBe(1);
   });
 
-  it('scrive SOLO il link alla repo vincente, nel formato "check my work in <lang>: [repo](url)"', () => {
+  it('scrive SOLO il badge cliccabile (img wrapper in <a>) verso la repo vincente', () => {
     const lang = { name: 'Python', githubLang: 'python' };
     const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo' };
     const out = updateReadmeMarkers(
@@ -68,10 +68,16 @@ describe('updateReadmeMarkers', () => {
       { totalSpins: 50, totalWins: 3 },
       lang,
       repoMatch,
-      { it: 'Fatto in Italia', en: 'Made in English' }
+      1700000000000
     );
-    expect(out).toContain('check my work in Python: https://github.com/x/myrepo');
-    expect(out).not.toContain('[myrepo]');
+    // Testo del badge + link cliccabile verso la repo (nessun markdown)
+    expect(out).toContain('check out this repo I wrote in Python');
+    expect(out).toContain('<a href="https://github.com/x/myrepo">');
+    expect(out).toContain('<img');
+    expect(out).toContain('/api/badge?');
+    // NESSUN vecchio markdown "check my work in" né link [repo](url)
+    expect(out).not.toContain('check my work in');
+    expect(out).not.toContain('](');
     // NESSUN contatore / "Last win" / funfact devono comparire
     expect(out).not.toContain('Total community spins');
     expect(out).not.toContain('Wins:');
@@ -140,7 +146,8 @@ describe('updateReadmeMarkers', () => {
     const idxE = out.indexOf(END);
     expect(idxS).toBeGreaterThan(-1);
     expect(idxE).toBeGreaterThan(idxS);
-    expect(out).toContain('check my work in C: https://github.com/x/crepo');
+    expect(out).toContain('check out this repo I wrote in C');
+    expect(out).toContain('<a href="https://github.com/x/crepo">');
     expect(out).toContain('## Altre sezioni');
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
   });
@@ -155,16 +162,17 @@ describe('clearReadmeMarkers', () => {
     expect(clearReadmeMarkers(r)).toBe(r);
   });
 
-  it('svuota il blocco tra i marker (link della vittoria precedente rimosso)', () => {
-    const filled = `${START}\ncheck my work in C: https://github.com/x/crepo\n${END}`;
+  it('svuota il blocco tra i marker (badge della vittoria precedente rimosso)', () => {
+    const filled = `${START}\n<a href="https://github.com/x/crepo"><img src="https://github-slot-machine.vercel.app/api/badge?lang=C" alt="check out this repo I wrote in C"/></a>\n${END}`;
     const out = clearReadmeMarkers(filled);
     expect(out).toBe(`${START}\n${END}`);
     expect(out).not.toContain('check my work in');
+    expect(out).not.toContain('https out this repo');
     expect(out).not.toContain('https://github.com/x/crepo');
   });
 
   it('lascia intatto il resto del README', () => {
-    const body = `## Slot\n${START}\ncheck my work in Rust: https://github.com/x/r\n${END}\n## Altre sezioni`;
+    const body = `## Slot\n${START}\n<a href="https://github.com/x/r"><img src="https://github-slot-machine.vercel.app/api/badge?lang=Rust" alt="check out this repo I wrote in Rust"/></a>\n${END}\n## Altre sezioni`;
     const out = clearReadmeMarkers(body);
     expect(out).toContain('## Slot');
     expect(out).toContain('## Altre sezioni');
