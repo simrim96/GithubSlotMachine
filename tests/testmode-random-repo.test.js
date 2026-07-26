@@ -24,8 +24,9 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
     };
     const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo);
     expect(out).toContain(
-      'check my work in C++: [BetterSpin](https://github.com/simrim96/BetterSpin)'
+      'check my work in C++: https://github.com/simrim96/BetterSpin'
     );
+    expect(out).not.toContain('[BetterSpin]');
   });
 
   it('il link compare in formato corretto anche con repoMatch a <30% (bypass filtro test)', () => {
@@ -37,8 +38,9 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
     };
     const out = updateReadmeMarkers(baseReadme, {}, lang, lowPctRepo);
     expect(out).toContain(
-      'check my work in Qt: [Foo](https://github.com/simrim96/Foo)'
+      'check my work in Qt: https://github.com/simrim96/Foo'
     );
+    expect(out).not.toContain('[Foo]');
   });
 
   it('SU SPIN PERDENTE (lang null) il blocco resta vuoto anche con repoMatch', () => {

@@ -259,7 +259,7 @@ export function updateReadmeMarkers(readme, state, lang, repoMatch) {
   if (lang && repoMatch) {
     const langName =
       lang.name || (lang.id != null ? String(lang.id) : '').trim();
-    block += `check my work in ${langName}: [${repoMatch.name}](${repoMatch.url})\n`;
+    block += `check my work in ${langName}: ${repoMatch.url}\n`;
   }
   block += END;
 

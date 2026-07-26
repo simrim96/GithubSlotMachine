@@ -174,7 +174,6 @@ export function buildSVG({
   state,
   winningLang,
   fact,
-  repoMatch,
   owner = 'simrim96',
 }) {
   // M10: Controllo cache L1
@@ -204,7 +203,6 @@ export function buildSVG({
     result.isWin,
     winningLang,
     fact,
-    repoMatch,
     owner,
     result.ED,
     result

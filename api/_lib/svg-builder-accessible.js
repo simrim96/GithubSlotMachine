@@ -14,10 +14,10 @@ import { buildSVG, errorSVG, errorSVGString, getCachedSvg, setCachedSvg, LANGUAG
 import { logger } from './logger.js';
 
 // Cache helper per buildAccessibleSVG (usa le funzioni di cache globali)
-function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, uid) {
+function getAccessibleCachedSvg(state, grid, winningLang, fact, owner, uid) {
   // Recupera i languages dal file languages.js
   const languages = LANGUAGES || [];
-  const cached = getCachedSvg(state, languages, grid, uid, winningLang, fact, repoMatch, owner);
+  const cached = getCachedSvg(state, languages, grid, uid);
   if (cached) {
     return cached;
   }
@@ -27,10 +27,10 @@ function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner
 // Funzione wrapper accessibile che usa buildSVG originale e aggiunge ARIA
 export function buildAccessibleSVG(params) {
   // Estrai i dati necessari per la cache
-  const { state, grid, uid, winningLang, fact, repoMatch, owner = 'simrim96', isWin } = params;
+  const { state, grid, uid, winningLang, fact, owner = 'simrim96', isWin } = params;
   
   // M10: Controllo cache prima di costruire
-  const cached = getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, uid);
+  const cached = getAccessibleCachedSvg(state, grid, winningLang, fact, owner, uid);
   if (cached) {
     // Se c'è cache, aggiungi comunque l'accessibilità ARIA
     const ariaLabel = buildAriaLabel(state, winningLang, isWin);
