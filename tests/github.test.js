@@ -60,9 +60,9 @@ describe('updateReadmeMarkers', () => {
     expect(out.split(END).length - 1).toBe(1);
   });
 
-  it('scrive SOLO il badge cliccabile (img wrapper in <a>) verso la repo vincente', () => {
+  it('scrive SOLO il badge cliccabile (img wrapper in <a>) verso la repo vincente, con le stelle', () => {
     const lang = { name: 'Python', githubLang: 'python' };
-    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo' };
+    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo', stars: 42 };
     const out = updateReadmeMarkers(
       baseReadme,
       { totalSpins: 50, totalWins: 3 },
@@ -72,6 +72,7 @@ describe('updateReadmeMarkers', () => {
     );
     // Testo del badge + link cliccabile verso la repo (nessun markdown)
     expect(out).toContain('check out this repo I wrote in Python');
+    expect(out).toContain('&amp;stars=42');
     expect(out).toContain('<a href="https://github.com/x/myrepo">');
     expect(out).toContain('<img');
     expect(out).toContain('/api/badge?');
@@ -84,6 +85,35 @@ describe('updateReadmeMarkers', () => {
     expect(out).not.toContain('Last win:');
     expect(out).not.toContain('Made in English');
     expect(out).not.toContain('Fatto in Italia');
+  });
+
+  it('senza stelle (repoMatch.stars assente) il badge NON mostra il contatore', () => {
+    const lang = { name: 'Python', githubLang: 'python' };
+    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo' };
+    const out = updateReadmeMarkers(
+      baseReadme,
+      { totalSpins: 50, totalWins: 3 },
+      lang,
+      repoMatch,
+      1700000000000
+    );
+    expect(out).not.toContain('&stars=');
+    expect(out).not.toContain('★');
+    expect(out).toContain('check out this repo I wrote in Python');
+  });
+
+  it('stelle non numeriche vengono ignorate (badge senza contatore)', () => {
+    const lang = { name: 'Python', githubLang: 'python' };
+    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo', stars: 'abc' };
+    const out = updateReadmeMarkers(
+      baseReadme,
+      { totalSpins: 50, totalWins: 3 },
+      lang,
+      repoMatch,
+      1700000000000
+    );
+    expect(out).not.toContain('&stars=');
+    expect(out).not.toContain('★');
   });
 
   it('senza vincita (lang null) il blocco resta vuoto anche con repoMatch', () => {
@@ -139,7 +169,7 @@ describe('updateReadmeMarkers', () => {
       baseReadme,
       { totalSpins: 5, totalWins: 2 },
       { name: 'C' },
-      { name: 'crepo', url: 'https://github.com/x/crepo' },
+      { name: 'crepo', url: 'https://github.com/x/crepo', stars: 7 },
       { en: 'portable' }
     );
     const idxS = out.indexOf(START);
@@ -147,6 +177,7 @@ describe('updateReadmeMarkers', () => {
     expect(idxS).toBeGreaterThan(-1);
     expect(idxE).toBeGreaterThan(idxS);
     expect(out).toContain('check out this repo I wrote in C');
+    expect(out).toContain('&amp;stars=7');
     expect(out).toContain('<a href="https://github.com/x/crepo">');
     expect(out).toContain('## Altre sezioni');
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
