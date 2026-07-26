@@ -39,7 +39,6 @@ const MODULES = [
   '../api/_lib/svg/reels.js',
   '../api/_lib/svg/effects.js',
   '../api/_lib/svg/defs.js',
-  '../api/_lib/svg/jackpot.js',
   '../api/_lib/svg/marquee.js',
   '../api/_lib/svg/utils.js',
   '../api/_lib/svg/header.js',

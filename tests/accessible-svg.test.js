@@ -2,13 +2,12 @@
 // buildAccessibleSVG e lo scrive su KV / README / /api/image) DEVE produrre
 // un SVG con accessibilità dinamica: aria-label che riflette l'esito dello
 // spin, e riferimenti aria-labelledby/aria-describedby verso <title>/<desc>.
-// Questo test blinda che l'SVG "servito" non sia un dead-end (come era prima
+// test blinda che l'SVG "servito" non sia un dead-end (come era prima
 // di ISSUE-21) e che gli screen reader ricevano davvero il risultato.
 import { describe, it, expect } from 'vitest';
 import { buildAccessibleSVG } from '../api/_lib/svg-builder-accessible.js';
 import {
   checkWins,
-  detectNearMiss,
   winningLangId,
   COLS,
   ROWS,
@@ -35,30 +34,12 @@ function winGrid(langId) {
   g[4][pl[4]] = other;
   return g;
 }
-function jackpotGrid(langId) {
-  const g = emptyGrid();
-  const pl = [1, 1, 1, 1, 1];
-  for (let c = 0; c < COLS; c++) g[c][pl[c]] = langId;
-  return g;
-}
-function nearMissGrid(langId) {
-  const g = emptyGrid();
-  const pl = [1, 1, 1, 1, 1];
-  g[0][pl[0]] = langId;
-  g[1][pl[1]] = langId;
-  const other = SYMBOL_IDS.find((i) => i !== langId) || langId;
-  g[2][pl[2]] = other;
-  g[2][pl[2] > 0 ? pl[2] - 1 : pl[2] + 1] = langId;
-  return g;
-}
 
 function analyze(grid) {
   const wins = checkWins(grid);
   const isWin = wins.length > 0;
-  const isJackpot = wins.some((w) => w.count === 5);
-  const nearMissCol = detectNearMiss(grid, wins);
   const winningLang = isWin ? LANGUAGE_BY_ID[winningLangId(wins)] : null;
-  return { wins, isWin, isJackpot, nearMissCol, winningLang };
+  return { wins, isWin, winningLang };
 }
 
 function build(grid, a, uid = 1) {
@@ -71,8 +52,6 @@ function build(grid, a, uid = 1) {
     repoMatch: null,
     owner: 'simrim96',
     isWin: a.isWin,
-    isJackpot: a.isJackpot,
-    nearMissCol: a.nearMissCol,
   });
 }
 
@@ -99,25 +78,11 @@ describe('buildAccessibleSVG — percorso reale accessibile (ISSUE-21)', () => {
     expect(svg).toContain('Vincita');
   });
 
-  it('jackpot → aria-label "Jackpot!"', () => {
-    const grid = jackpotGrid(SYMBOL_IDS[0]);
-    const svg = build(grid, analyze(grid));
-    const ariaLabel = svg.match(/aria-label="([^"]*)"/)?.[1] || '';
-    expect(/Jackpot!/.test(ariaLabel)).toBe(true);
-  });
-
   it('perdita → aria-label "Nessun vincitore questa volta."', () => {
     const grid = emptyGrid();
     const svg = build(grid, analyze(grid));
     const ariaLabel = svg.match(/aria-label="([^"]*)"/)?.[1] || '';
     expect(/Nessun vincitore questa volta\./.test(ariaLabel)).toBe(true);
-  });
-
-  it('near-miss → aria-label "Quasi una vincita!"', () => {
-    const grid = nearMissGrid(SYMBOL_IDS[0]);
-    const svg = build(grid, analyze(grid));
-    const ariaLabel = svg.match(/aria-label="([^"]*)"/)?.[1] || '';
-    expect(/Quasi una vincita!/.test(ariaLabel)).toBe(true);
   });
 
   it("l'aria-label riporta i totali girate/vincite", () => {

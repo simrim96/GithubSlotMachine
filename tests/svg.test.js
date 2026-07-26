@@ -1,18 +1,19 @@
 // Test sulla generazione SVG (buildSVG) — verifica FORMA e struttura, non i
 // valori casuali dei filler/coins. Usa griglie costruite a mano per coprire
-// i casi win / near-miss / jackpot / no-win.
+// i casi win / no-win.
+// NOTA: jackpot e near-miss sono stati RIMOSSI (su richiesta). Ogni
+// vincita è "normale", il rullo gira normalmente.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { buildSVG, clearCache } from '../api/_lib/svg-builder.js';
 import {
   checkWins,
-  detectNearMiss,
   COLS,
   ROWS,
   SYMBOL_IDS,
   SCATTER_ID,
 } from '../api/_lib/game.js';
 
-// Griglia vuota (tutti scatter) — nessuna win, nessun near-miss.
+// Griglia vuota (tutti scatter) — nessuna win.
 function emptyGrid() {
   const g = [];
   for (let c = 0; c < COLS; c++) {
@@ -31,26 +32,6 @@ function winGrid(langId) {
   const other = SYMBOL_IDS.find((i) => i !== langId) || langId;
   g[3][pl[3]] = other;
   g[4][pl[4]] = other;
-  return g;
-}
-
-// 5-in-a-row sulla payline centrale → jackpot.
-function jackpotGrid(langId) {
-  const g = emptyGrid();
-  const pl = [1, 1, 1, 1, 1];
-  for (let c = 0; c < COLS; c++) g[c][pl[c]] = langId;
-  return g;
-}
-
-// 2 anchor + break con anchor adiacente → near-miss.
-function nearMissGrid(langId) {
-  const g = emptyGrid();
-  const pl = [1, 1, 1, 1, 1];
-  g[0][pl[0]] = langId;
-  g[1][pl[1]] = langId;
-  const other = SYMBOL_IDS.find((i) => i !== langId) || langId;
-  g[2][pl[2]] = other; // break col
-  g[2][pl[2] > 0 ? pl[2] - 1 : pl[2] + 1] = langId; // anchor adiacente
   return g;
 }
 
@@ -84,7 +65,7 @@ describe('buildSVG — forma', () => {
       repoMatch: null,
     });
     // L'SVG ha un preamble XML prima del tag <svg>
-    expect(svg.match(/<\?xml[^\?]*\?>/)).toBeTruthy();
+    expect(svg.match(/<\?xml[^?]*\?>/)).toBeTruthy();
     expect(svg).toContain('<svg');
     expect(svg.trim().endsWith('</svg>')).toBe(true);
   });
@@ -138,34 +119,11 @@ describe('buildSVG — casi di gioco', () => {
     const svg = buildSVG({ grid, uid: 2, state, winningLang, fact, repoMatch });
     expect(svg).toContain('Python WIN!');
     expect(svg).toContain('Python'); // paytable language name
+    // NESSUN overlay jackpot
+    expect(svg).not.toContain('JACKPOT');
   });
 
-  it('jackpot: overlay JACKPOT presente', () => {
-    const grid = jackpotGrid(SYMBOL_IDS[0]);
-    const wins = checkWins(grid);
-    expect(wins.some((w) => w.count === 5)).toBe(true);
-    const svg = buildSVG({ grid, uid: 3, state, winningLang, fact, repoMatch });
-    expect(svg).toContain('JACKPOT');
-  });
-
-  it('near-miss: evidenzia il rullo di rottura (nm shine)', () => {
-    const grid = nearMissGrid(SYMBOL_IDS[0]);
-    const wins = checkWins(grid);
-    const nm = detectNearMiss(grid, wins);
-    expect(nm).toBeGreaterThanOrEqual(0);
-    const svg = buildSVG({
-      grid,
-      uid: 4,
-      state,
-      winningLang: null,
-      fact,
-      repoMatch: null,
-    });
-    expect(svg).toContain('So close'); // messaggio near-miss invece di Try again
-    expect(svg).toContain('nm4'); // animazione near-miss
-  });
-
-  it('no-win / no-near-miss: messaggio generico', () => {
+  it('no-win: messaggio generico (nessun near-miss)', () => {
     const grid = emptyGrid();
     const svg = buildSVG({
       grid,
@@ -176,7 +134,11 @@ describe('buildSVG — casi di gioco', () => {
       repoMatch: null,
     });
     expect(svg).toContain('Try again, better luck next time!');
+    // NESSUN messaggio near-miss
+    expect(svg).not.toContain('So close');
     expect(svg).not.toContain('JACKPOT');
+    // NESSUNA animazione near-miss (nm shine)
+    expect(svg).not.toContain('nm5');
   });
 
   it('owner parametrico finisce nel CTA del repo match', () => {

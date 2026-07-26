@@ -25,14 +25,10 @@ export function generateResultPanel(
     const factIt = (fact && fact.it) || '';
     const linesEn = wrap(factEn, 86).slice(0, 2);
     const linesIt = wrap(factIt, 86).slice(0, 2);
-    const headLine = result.isJackpot
-      ? `🏆 JACKPOT — ${winningLang.name}!`
-      : result.isBigWin
+    const headLine = result.isBigWin
         ? `💰 BIG WIN — ${winningLang.name}!`
         : `🎉 ${winningLang.name} WIN!`;
-    const headColor = result.isJackpot
-      ? '#ffd700'
-      : result.isBigWin
+    const headColor = result.isBigWin
         ? '#ffb84d'
         : '#4ade80';
 
@@ -57,23 +53,13 @@ export function generateResultPanel(
     }
 
     if (repoMatch) {
-      const ctaEn = result.isJackpot
-        ? `🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos`
-        : `→ github.com/${escapeXml(owner)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}`;
+      const ctaEn = `→ github.com/${escapeXml(owner)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}`;
       panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">${ctaEn}</text>`;
-    } else if (result.isJackpot) {
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">🎯 JACKPOT → explore ALL my ${escapeXml(winningLang.name)} repos</text>`;
     }
   } else {
-    const msgEn =
-      result.nearMissCol >= 0
-        ? '😱 So close — try again!'
-        : 'Try again, better luck next time!';
-    const msgIt =
-      result.nearMissCol >= 0
-        ? 'Così vicino, ritenta!'
-        : 'Ritenta, sarai più fortunato!';
-    const col = result.nearMissCol >= 0 ? '#f59e0b' : '#e94560';
+    const msgEn = 'Try again, better luck next time!';
+    const msgIt = 'Ritenta, sarai più fortunato!';
+    const col = '#e94560';
     panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${col}" stroke-width="1" opacity="0.9"/>`;
     panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 - 4}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="15" font-weight="700" fill="${col}" style="animation:fi${uid} .4s ${ED}s forwards;opacity:0">${escapeXml(msgEn)}</text>`;
     panelSvg += `<text x="${SVG_W / 2}" y="${PY + PH / 2 + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-style="italic" fill="#8b8baf" style="animation:fi${uid} .4s ${ED + 0.1}s forwards;opacity:0">${escapeXml(msgIt)}</text>`;

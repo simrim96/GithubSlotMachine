@@ -322,7 +322,7 @@ describe('spin.js integration - edge cases', () => {
       .map(() => Array(ROWS).fill('python'));
     const wins = checkWins(grid);
 
-    // Should detect jackpot
+    // Should detect a 5-in-a-row (normal win, no special jackpot anymore)
     expect(wins.some((w) => w.count === 5)).toBe(true);
   });
 

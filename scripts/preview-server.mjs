@@ -30,7 +30,7 @@ const ROOT = join(__dirname, '..');
 const PORT = Number(process.argv[2] || process.env.PORT || 3000);
 
 // Pick a real language for the "win" rendering path so buildSVG gets a full
-// winningLang object (name + accent are required by the panel/jackpot modules).
+// winningLang object (name + accent are required by the panel module).
 const sampleLang = LANGUAGE_BY_ID[SYMBOL_IDS.find((id) => LANGUAGE_BY_ID[id])];
 const winningLang = sampleLang
   ? { ...sampleLang }
