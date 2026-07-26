@@ -59,6 +59,11 @@ export default async function handler(req, res) {
   // Larghezza snug in base al testo (font-size 17, ~9px/char + padding).
   const W = Math.max(320, Math.round(message.length * 9 + 84));
   const H = 84;
+  // Margine orizzontale (px) lasciato LIBERO ai lati della pill: l'animazione
+  // fa un piccolo overshoot (scale) e, senza questo margine, il contenuto
+  // superava i bordi del viewBox e l'SVG (renderizzato come <img>) veniva
+  // tagliato lateralmente. 10px bastano per l'overshoot ridotto a 1.02.
+  const M = 10;
 
   const css = `
     <style>
@@ -70,7 +75,7 @@ export default async function handler(req, res) {
       }
       @keyframes badgeIn {
         0%   { opacity: 0; transform: translateY(16px) scale(0.9); }
-        65%  { opacity: 1; transform: translateY(-3px) scale(1.04); }
+        65%  { opacity: 1; transform: translateY(-3px) scale(1.02); }
         100% { opacity: 1; transform: translateY(0)    scale(1); }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -93,10 +98,10 @@ export default async function handler(req, res) {
         <stop offset="100%" stop-color="#ffb454"/>
       </linearGradient>
     </defs>
-    <!-- Pill di sfondo -->
-    <rect x="2" y="6" width="${W - 4}" height="${H - 12}" rx="18" fill="url(#badgeBg)" stroke="url(#badgeEdge)" stroke-width="2"/>
-    <!-- Stella d'accento a sinistra del testo -->
-    <path d="M${30} ${H / 2 - 9} l2.6 5.3 5.9 0.9 -4.3 4.1 1 5.8 -5.2 -2.7 -5.2 2.7 1 -5.8 -4.3 -4.1 5.9 -0.9 z" fill="#ffd166" stroke="#ffe9a8" stroke-width="0.8"/>
+    <!-- Pill di sfondo (lascia M px liberi ai lati per l'overshoot dell'animazione) -->
+    <rect x="${M}" y="6" width="${W - 2 * M}" height="${H - 12}" rx="18" fill="url(#badgeBg)" stroke="url(#badgeEdge)" stroke-width="2"/>
+    <!-- Stella d'accento a sinistra del testo (dentro il margine M) -->
+    <path d="M${M + 22} ${H / 2 - 9} l2.6 5.3 5.9 0.9 -4.3 4.1 1 5.8 -5.2 -2.7 -5.2 2.7 1 -5.8 -4.3 -4.1 5.9 -0.9 z" fill="#ffd166" stroke="#ffe9a8" stroke-width="0.8"/>
     <!-- Testo del badge, centrato nel resto della pill -->
     <text x="${(W / 2) + 14}" y="${H / 2 + 6}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="#f3f1ff">${escapeXml(message)}</text>
   </g>
