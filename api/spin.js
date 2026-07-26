@@ -36,6 +36,7 @@ import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
+import { getRandomRepo } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { isValidUser } from './_lib/ratelimit.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
@@ -177,6 +178,7 @@ export {
   resolveRedirectUrl,
   WILD_ID,
   SCATTER_ID,
+  getRandomRepo,
 };
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
@@ -310,6 +312,30 @@ export default async function handler(req, res) {
         repoDesc: repoMatch?.description || null,
         ts: spinStart,
       };
+    }
+
+    // ── TEST MODE (SLOT_TEST_RANDOM_REPO=1) ──────────────────────────────────
+    // MODALITÀ DI TEST: forza un link a un progetto casuale dell'owner nel
+    // README in OGNI caso — anche senza vincita, o quando la vincita non ha
+    // match nel linguaggio, o quando la % del linguaggio è <30%. Serve a
+    // verificare che la catena spin→repo→link cliccabile nel README funzioni
+    // in qualsiasi scenario. Il redirect resta sul profilo owner (non cambia).
+    // Disattivabile lasciando vuoto/0 l'env. Da NON usare in produzione.
+    if (
+      process.env.SLOT_TEST_RANDOM_REPO === '1' &&
+      (!repoMatch || !winningLang)
+    ) {
+      try {
+        const randomRepo = await getRandomRepo(token, OWNER);
+        if (randomRepo) {
+          repoMatch = randomRepo;
+          logger.info('[test-mode] link forzato a repo casuale', {
+            name: repoMatch.name,
+          });
+        }
+      } catch (e) {
+        logger.warn('[test-mode] getRandomRepo failed:', { error: e.message });
+      }
     }
 
     // M3: Build SVG con timeout di sicurezza (3s default)

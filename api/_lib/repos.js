@@ -223,6 +223,47 @@ async function refreshCache(token, owner, languages, slotRepo) {
   saveToKv();
 }
 
+// ─── Test-only: repo casuale tra i progetti dell'owner ──────────────────────
+// Usato SOLO quando SLOT_TEST_RANDOM_REPO=1 (modalità test): garantisce che
+// ogni spin generi un link a un progetto reale dell'owner nel README, anche
+// senza vincita o senza repo ≥30%. Esclude il repo profilo e quello della slot
+// (vedi isRepoExcluded), così il link punta sempre a un progetto "vero".
+// NOTA: è una funzione di TEST — non altera il redirect (che resta sul
+// profilo owner), ma forza la generazione del link nel marker del README così
+// si può verificare che la catena spin→repo→link funzioni in ogni caso.
+export async function getRandomRepo(
+  token,
+  owner,
+  slotRepo = process.env.SLOT_REPO || 'GithubSlotMachine'
+) {
+  const headers = token ? ghHeaders(token) : { Accept: 'application/vnd.github+json' };
+  try {
+    const r = await ghFetchWithTimeout(
+      `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
+      headers
+    );
+    if (!r.ok) return null;
+    const repos = (await r.json()).filter(
+      (rep) =>
+        !rep.fork &&
+        !rep.archived &&
+        !isRepoExcluded(rep.name, owner, slotRepo)
+    );
+    if (repos.length === 0) return null;
+    const rep = repos[Math.floor(Math.random() * repos.length)];
+    return {
+      url: rep.html_url,
+      name: rep.name,
+      description: rep.description || '',
+      stars: rep.stargazers_count || 0,
+      pct: 0,
+    };
+  } catch (e) {
+    logger.warn('getRandomRepo failed', { error: e?.message });
+    return null;
+  }
+}
+
 export async function getRepoForLanguage(token, owner, lang, languages) {
   await loadFromKv();
   const hasData = Object.keys(cache.byLangId).length > 0;

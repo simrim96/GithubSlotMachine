@@ -251,7 +251,11 @@ export function updateReadmeMarkers(readme, state, lang, repoMatch) {
   if (!readme.includes(START) || !readme.includes(END)) return readme;
 
   let block = `${START}\n`;
-  if (lang && repoMatch) {
+  // Scrive il link al repo ogni volta che esiste un repoMatch (vincente reale
+  // O, in modalità test SLOT_TEST_RANDOM_REPO, un repo casuale forzato anche
+  // senza vincita). La presenza di `lang` non è più richiesta: il link è
+  // guidato da repoMatch, non dalla vincita.
+  if (repoMatch) {
     block += `[${repoMatch.name}](${repoMatch.url})\n`;
   }
   block += END;
