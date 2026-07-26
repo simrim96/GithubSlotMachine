@@ -11,7 +11,6 @@ export function generateResultPanel(
   isWin,
   winningLang,
   fact,
-  repoMatch,
   owner,
   ED,
   result
@@ -52,10 +51,8 @@ export function generateResultPanel(
       }
     }
 
-    if (repoMatch) {
-      const ctaEn = `→ github.com/${escapeXml(owner)}/${escapeXml(repoMatch.name)} · ${Math.round(repoMatch.pct * 100)}% ${escapeXml(winningLang.name)}`;
-      panelSvg += `<text x="${SVG_W / 2}" y="${yy + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="12" fill="${winningLang.accent}" font-weight="600" style="animation:fi${uid} .5s ${ED + 0.4}s forwards;opacity:0">${ctaEn}</text>`;
-    }
+    // NESSUN link alla repo nell'SVG: l'SVG non è cliccabile e il link
+    // vive esclusivamente nel README del profilo (gestito da github.js).
   } else {
     const msgEn = 'Try again, better luck next time!';
     const msgIt = 'Ritenta, sarai più fortunato!';

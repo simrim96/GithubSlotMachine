@@ -69,7 +69,8 @@ describe('updateReadmeMarkers', () => {
       repoMatch,
       { it: 'Fatto in Italia', en: 'Made in English' }
     );
-    expect(out).toContain('check my work in Python: [myrepo](https://github.com/x/myrepo)');
+    expect(out).toContain('check my work in Python: https://github.com/x/myrepo');
+    expect(out).not.toContain('[myrepo]');
     // NESSUN contatore / "Last win" / funfact devono comparire
     expect(out).not.toContain('Total community spins');
     expect(out).not.toContain('Wins:');
@@ -138,7 +139,7 @@ describe('updateReadmeMarkers', () => {
     const idxE = out.indexOf(END);
     expect(idxS).toBeGreaterThan(-1);
     expect(idxE).toBeGreaterThan(idxS);
-    expect(out).toContain('check my work in C: [crepo](https://github.com/x/crepo)');
+    expect(out).toContain('check my work in C: https://github.com/x/crepo');
     expect(out).toContain('## Altre sezioni');
     expect(out.indexOf('## Altre sezioni')).toBeGreaterThan(idxE);
   });

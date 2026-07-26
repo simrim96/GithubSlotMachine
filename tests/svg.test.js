@@ -43,6 +43,8 @@ const winningLang = {
   githubLang: 'Python',
 };
 const fact = { en: 'Fact about Python', it: 'Fatto su Python' };
+// repoMatch NON viene più passato alla buildSVG: il link alla repo vive
+// esclusivamente nel README del profilo (github.js), non nell'SVG.
 const repoMatch = {
   name: 'myproj',
   url: 'https://github.com/simrim96/myproj',
@@ -62,7 +64,6 @@ describe('buildSVG — forma', () => {
       state,
       winningLang: null,
       fact,
-      repoMatch: null,
     });
     // L'SVG ha un preamble XML prima del tag <svg>
     expect(svg.match(/<\?xml[^?]*\?>/)).toBeTruthy();
@@ -77,7 +78,6 @@ describe('buildSVG — forma', () => {
       state,
       winningLang: null,
       fact,
-      repoMatch: null,
     });
     expect(svg).toContain('width="600"');
     expect(svg).toContain('height="624"');
@@ -90,7 +90,6 @@ describe('buildSVG — forma', () => {
       state,
       winningLang: null,
       fact,
-      repoMatch: null,
     });
     for (let c = 0; c < COLS; c++) expect(svg).toContain(`cp1c${c}`);
   });
@@ -102,7 +101,6 @@ describe('buildSVG — forma', () => {
       state,
       winningLang: null,
       fact,
-      repoMatch: null,
     });
     expect(svg).not.toContain('undefined');
   });
@@ -116,7 +114,7 @@ describe('buildSVG — casi di gioco', () => {
   it('win: mostra la payline vincente e il pannello linguaggio', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     expect(checkWins(grid).length).toBeGreaterThan(0);
-    const svg = buildSVG({ grid, uid: 2, state, winningLang, fact, repoMatch });
+    const svg = buildSVG({ grid, uid: 2, state, winningLang, fact });
     expect(svg).toContain('Python WIN!');
     expect(svg).toContain('Python'); // paytable language name
     // NESSUN overlay jackpot
@@ -131,7 +129,6 @@ describe('buildSVG — casi di gioco', () => {
       state,
       winningLang: null,
       fact,
-      repoMatch: null,
     });
     expect(svg).toContain('Try again, better luck next time!');
     // NESSUN messaggio near-miss
@@ -141,7 +138,7 @@ describe('buildSVG — casi di gioco', () => {
     expect(svg).not.toContain('nm5');
   });
 
-  it('owner parametrico finisce nel CTA del repo match', () => {
+  it('NON contiene alcun link/testo repo nell\'SVG (il link vive nel README)', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     const svg = buildSVG({
       grid,
@@ -149,10 +146,12 @@ describe('buildSVG — casi di gioco', () => {
       state,
       winningLang,
       fact,
-      repoMatch,
       owner: 'octocat',
     });
-    expect(svg).toContain('github.com/octocat/myproj');
+    // Il link alla repo NON deve comparire mai nell'SVG (non è cliccabile).
+    expect(svg).not.toContain('github.com/octocat/myproj');
+    expect(svg).not.toContain('myproj');
+    expect(svg).not.toContain('check my work in');
   });
 });
 

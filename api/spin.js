@@ -348,7 +348,6 @@ export default async function handler(req, res) {
       state,
       winningLang,
       fact,
-      repoMatch,
       owner: OWNER,
       isWin,
     });
