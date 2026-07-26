@@ -46,6 +46,14 @@ const ghGetJson = vi.fn();
 const ghPut = vi.fn();
 vi.mock('../api/_lib/github.js', async () => {
   const actual = await vi.importActual('../api/_lib/github.js');
+  // Fallback esplicito per clearReadmeMarkers: quando il pool di worker
+  // paralleli di Vitest non risolve in tempo `importActual` (caso flaky),
+  // lo spread di `actual` risulta `{}` e le export non elencate qui
+  // spariscono. clearReadmeMarkers è l'unica usata da spin.js non già
+  // esplicita → la fissiamo con un fallback no-op così il mock resta
+  // deterministico indipendentemente dall'ordine di esecuzione.
+  const clearReadmeMarkers =
+    (actual && actual.clearReadmeMarkers) || ((r) => r);
   return {
     ...actual,
     ghGetJson,
@@ -54,6 +62,7 @@ vi.mock('../api/_lib/github.js', async () => {
     loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
     updateReadmeMarkers: vi.fn((r) => r),
     auditToken: vi.fn(),
+    clearReadmeMarkers: vi.fn(clearReadmeMarkers),
   };
 });
 

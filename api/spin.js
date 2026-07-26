@@ -477,7 +477,8 @@ export default async function handler(req, res) {
             newReadme,
             state,
             winningLang,
-            repoMatch
+            repoMatch,
+            spinStart
           );
           if (newReadme !== oldReadme) {
             await ghPut(

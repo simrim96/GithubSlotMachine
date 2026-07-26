@@ -256,25 +256,44 @@ export function clearReadmeMarkers(readme) {
   );
 }
 
-// Aggiorna SOLO il blocco tra i marker con il link cliccabile alla repo
-// vincente. Nessun contatore ("Total community spins"), nessun "Last win:",
-// nessun funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo.
-// REGOLA: il link compare SOLO quando c'è una vincita (lang presente) E un
+// Aggiorna SOLO il blocco tra i marker con il badge della vittoria.
+// Nessun contatore ("Total community spins"), nessun "Last win:", nessun
+// funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo vincente.
+// REGOLA: il badge compare SOLO quando c'è una vincita (lang presente) E un
 // repo vincente (repoMatch). Su spin perdenti il blocco resta vuoto.
-// Formato (valido sia per test che per produzione):
-//   check my work in <linguaggio vincente>: [<repo>](<url>)
-export function updateReadmeMarkers(readme, state, lang, repoMatch) {
+//
+// Formato (valido sia per test che per produzione): un'immagine SVG embeddata
+// wrappata in un link verso la repo vincente, al posto del vecchio testo+link
+// markdown. L'SVG (api/badge.js) contiene il testo
+//   "check out this repo I wrote in <linguaggio>"
+// ed è animato: parte invisibile e diventa visibile solo DOPO la rotazione
+// dei rulli (il badge è un documento SVG <img> separato, quindi usa un delay
+// fisso di 6.5s, poco sopra la durata max dei rulli = 6.2s).
+// `spinStart` (il timestamp dello spin) viene passato per forzare il refetch
+// dell'immagine a ogni spin (?v=...), così l'animazione parte da 0.
+export function updateReadmeMarkers(readme, state, lang, repoMatch, spinStart) {
   const START = '<!-- SLOT_LAST_WIN_START -->';
   const END = '<!-- SLOT_LAST_WIN_END -->';
   if (!readme.includes(START) || !readme.includes(END)) return readme;
 
   let block = `${START}\n`;
-  // Link SOLO su vincita: serve sia `lang` (il linguaggio vinto) che
+  // Badge SOLO su vincita: serve sia `lang` (il linguaggio vinto) che
   // `repoMatch` (il progetto da linkare). Senza vincita → blocco vuoto.
   if (lang && repoMatch) {
     const langName =
       lang.name || (lang.id != null ? String(lang.id) : '').trim();
-    block += `check my work in ${langName}: ${repoMatch.url}\n`;
+    const v = spinStart != null ? `?v=${spinStart}` : '';
+    const badgeUrl = `https://github-slot-machine.vercel.app/api/badge${v}&amp;lang=${encodeURIComponent(
+      langName
+    )}`;
+    // <a> cliccabile verso la repo, <img> puntante al badge SVG animato.
+    // escapeXml su langName è ridondante (già pulito da encodeURIComponent +
+    // l'endpoint badge.js fa safeLang), ma lo teniamo per coerenza col README.
+    block +=
+      `<a href="${repoMatch.url}">` +
+      `<img src="${badgeUrl}" alt="check out this repo I wrote in ${langName}" ` +
+      `width="340" style="border:0;display:inline-block" />` +
+      `</a>\n`;
   }
   block += END;
 
