@@ -22,17 +22,15 @@ counter** is shown on the slot and (optionally) inside your profile README.
   repos and picks the best one that's at least 30% the winning language (per
   the GitHub Languages API). You're then redirected to that repo.
 - 💎 **Polished visuals** — gradient cabinet, neon marquee, glowing bulbs,
-  animated reels, win / jackpot / near-miss overlays. Pure hand-written SVG +
+  animated reels, win overlays. Pure hand-written SVG +
   CSS, **zero runtime dependencies, zero build step**.
-- 📊 **Live community counter** — total spins (and wins) are persisted in
-  `state.json` and displayed on every render.
 
-> ⚠️ **Transparency note — it's a showcase, not a fair casino.** To keep the
-> experience engaging for recruiters, the spin is _rigged_ on purpose:
-> `FORCED_WIN_PROB` (≈ 0.35) guarantees a win when there isn't one, and a
-> `near-miss` teaser is shown ~55% of the time. It's a portfolio piece designed
-> to surface your stack, not a random number generator. Tune or remove those
-> constants in `api/spin.js` if you prefer honest odds.
+  > ⚠️ **Transparency note — it's a showcase, not a fair casino.** To keep the
+  > experience engaging for recruiters, the spin is _rigged_ on purpose:
+  > `FORCED_WIN_PROB` (≈ 0.35) guarantees a win when there isn't one.
+  > It's a portfolio piece designed to surface your stack, not a random number
+  > generator. Tune or remove that constant in `api/spin.js` if you prefer
+  > honest odds.
 
 ---
 
@@ -46,7 +44,7 @@ api/
   health.js               # diagnostics: measures Upstash round-trip + GitHub README GET latencies
   ratelimit-status.js     # JSON snapshot of the GitHub API rate-limit tracker (consumed by the frontend badge)
   _lib/
-    game.js               # PURE game logic: reel, paylines, grid generation, win / near-miss engineering
+    game.js               # PURE game logic: reel, paylines, grid generation, win engineering
     svg-builder.js        # assembles the full slot SVG from the svg/ submodules
     svg-builder-accessible.js  # accessibility variant (aria-live regions) of the slot SVG
     languages.js          # language config + SVG SYMBOL RENDERER (buildSymbolDefs/symbolUse) + external loader
@@ -60,7 +58,7 @@ api/
     spin-cooldown.js      # per-IP time-based spin cooldown (mirrored client-side)
     config-loader.js      # loads languages-external.json (extra languages)
     response-bridge.js    # unified Response primitive (buildResponse / sendResponse) used by every handler
-    svg/                  # SVG section modules: defs, reels, panel, effects, marquee, cabinet, screen, paytable, header, jackpot, css, constants, coordinates, utils, analysis
+    svg/                  # SVG section modules: defs, reels, panel, effects, marquee, cabinet, screen, paytable, header, css, constants, coordinates, utils, analysis
 state.json          # auto-generated/updated by the API
 slot.svg            # auto-generated/updated by the API (live on every spin)
 public/
@@ -150,7 +148,7 @@ slot_ below).
 
 | Param | Type | Validation | Effect |
 | --- | --- | --- | --- |
-| `user` | `string` | must match `^[A-Za-z0-9-]{1,39}$` (`isValidUser`). Invalid → falls back to `SLOT_OWNER`. | Overrides the owner used in the **jackpot** redirect (`?tab=repositories&language=…`). Handy for demos. |
+| `user` | `string` | must match `^[A-Za-z0-9-]{1,39}$` (`isValidUser`). Invalid → falls back to `SLOT_OWNER`. | Overrides the owner used in the win repo match CTA (`?tab=repositories&language=…`). Handy for demos. |
 | `redirect` | `string` (URL) | must pass `isValidRedirectUrl` (https-only, host on `SLOT_ALLOWED_HOSTS`). Invalid → ignored, falls back to computed destination. | Custom post-spin landing URL (open-redirect protected, S1). |
 
 **Response.** Always a `302` with an empty body and a `Location` header. The
@@ -288,8 +286,8 @@ only needs `GITHUB_PAT` to actually run).
 > exclusively via the `SENTRY_*` vars above.
 
 > **Tuning the odds:** the win-engineering probability (`FORCED_WIN_PROB = 0.35`)
-> and the near-miss probability (`0.55`) are **code constants** in
-> `api/_lib/game.js`, not env vars — edit that file (and redeploy) to change them.
+> is a **code constant** in
+> `api/_lib/game.js`, not an env var — edit that file (and redeploy) to change it.
 
 ### ⚡ Upstash Redis (optional but recommended)
 

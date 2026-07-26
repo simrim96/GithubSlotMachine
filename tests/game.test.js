@@ -1,8 +1,12 @@
 // Test suite for the GithubSlotMachine game logic.
 //
 // These tests import the PURE functions exported from api/spin.js
-// (checkWins, generateGrid, engineerWin, engineerNearMiss, detectNearMiss,
-// countScatters, winningLangId, wrap) plus the grid config constants.
+// (checkWins, generateGrid, engineerWin, countScatters, winningLangId, wrap)
+// plus the grid config constants.
+//
+// NOTA: engineerNearMiss e detectNearMiss sono stati RIMOSSI (near-miss
+// disattivato). engineerWin ora NON produce MAI un 5-in-a-row (jackpot
+// rimosso) — le vincite forzate sono sempre 3 o 4.
 //
 // They do NOT touch the network, GitHub, Upstash or any env var — the game
 // logic is fully deterministic given a grid, so we can unit-test it in
@@ -16,10 +20,8 @@ import { describe, it, expect } from 'vitest';
 import {
   checkWins,
   countScatters,
-  detectNearMiss,
   generateGrid,
   engineerWin,
-  engineerNearMiss,
   winningLangId,
   wrap,
   COLS,
@@ -30,7 +32,7 @@ import {
   SCATTER_ID,
 } from '../api/spin.js';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────
 // Deterministic PRNG so the tests don't flap between runs.
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -93,9 +95,11 @@ describe('checkWins', () => {
     expect(wins.some((w) => w.count >= 3)).toBe(true);
   });
 
-  it('detects a jackpot (5 identical across a payline)', () => {
+  it('detects a 5-in-a-row as a normal win (NOT a special jackpot)', () => {
     const g = filledGrid('cpp'); // all cells cpp → every payline is a 5x win
     const wins = checkWins(g);
+    // È comunque una vincita valida (count===5), ma non c'è più alcun
+    // concetto di "jackpot" a livello di game logic.
     expect(wins.some((w) => w.count === 5)).toBe(true);
   });
 
@@ -134,7 +138,6 @@ describe('checkWins', () => {
   it('detects wins on every payline geometry (top/bottom/V/Λ/center)', () => {
     // center
     let g = filledGrid('c');
-    for (let c = 0; c < COLS; c++) g[c][1] = 'js' === 'js' ? 'javascript' : 'c';
     for (let c = 0; c < COLS; c++) g[c][1] = 'javascript';
     expect(checkWins(g).some((w) => w.payline === 0 && w.count >= 3)).toBe(
       true
@@ -149,8 +152,6 @@ describe('checkWins', () => {
 
     // bottom
     g = filledGrid('c');
-    for (let c = 0; c < COLS; c++)
-      g[c][2] = 'rust' === 'rust' ? 'typescript' : 'c';
     for (let c = 0; c < COLS; c++) g[c][2] = 'typescript';
     expect(checkWins(g).some((w) => w.payline === 2 && w.count >= 3)).toBe(
       true
@@ -206,74 +207,9 @@ describe('engineerWin', () => {
       const best = wins.reduce((a, b) => (b.count > a.count ? b : a));
       expect(best.count).toBeGreaterThanOrEqual(3);
       expect(best.count).toBeLessThanOrEqual(4);
-      // a 5-in-a-row would be a jackpot, which engineerWin must avoid
+      // Il jackpot (5-in-a-row) è stato rimosso: engineerWin NON deve
+      // mai produrre una vincita di 5.
       expect(wins.every((w) => w.count < 5)).toBe(true);
-    }
-  });
-});
-
-// ─── engineerNearMiss + detectNearMiss coupling ─────────────────────────────
-// This is the fragile piece flagged in the review: engineerNearMiss builds the
-// geometry, and detectNearMiss (recomputed later inside buildSVG) must recognise
-// it. If the two drift, near-misses get generated but never highlighted.
-describe('engineerNearMiss / detectNearMiss', () => {
-  it('engineerNearMiss never leaves a dead board (win OR detectable near-miss)', () => {
-    let recognised = 0;
-    let dead = 0;
-    for (let i = 0; i < 400; i++) {
-      const g = randomNoWinGrid(mulberry32(i + 1000));
-      engineerNearMiss(g);
-      const w = checkWins(g);
-      if (w.length > 0) {
-        continue;
-      }
-      const col = detectNearMiss(g, w);
-      if (col >= 0) recognised++;
-      else dead++;
-    }
-    // It does produce near-misses most of the time...
-    expect(recognised).toBeGreaterThan(0);
-    // ...and it NEVER produces a board that is neither a win nor a near-miss.
-    // (This is the real regression guard for the two-function coupling.)
-    expect(dead).toBe(0);
-  });
-
-  it('detectNearMiss returns -1 when there is a win', () => {
-    const g = filledGrid('cpp');
-    expect(detectNearMiss(g, checkWins(g))).toBe(-1);
-  });
-
-  it('invariant: a detected near-miss column matches the near-miss geometry', () => {
-    for (let i = 0; i < 400; i++) {
-      const g = generateGrid();
-      const wins = checkWins(g);
-      const col = detectNearMiss(g, wins);
-      if (col < 0) continue;
-      // Replicate the scan across ALL paylines and confirm that `col`
-      // corresponds to a real run of consecutive anchors.
-      let ok = false;
-      for (const pl of PAYLINES) {
-        let anchor = null;
-        for (let c = 0; c < COLS; c++) {
-          const s = g[c][pl[c]];
-          if (s !== WILD_ID && s !== SCATTER_ID) {
-            anchor = s;
-            break;
-          }
-        }
-        if (anchor === null) continue;
-        let count = 0;
-        for (let c = 0; c < COLS; c++) {
-          const s = g[c][pl[c]];
-          if (s === anchor || s === WILD_ID) count++;
-          else break;
-        }
-        if (count === col && count >= 2 && count < COLS) {
-          ok = true;
-          break;
-        }
-      }
-      expect(ok).toBe(true);
     }
   });
 });

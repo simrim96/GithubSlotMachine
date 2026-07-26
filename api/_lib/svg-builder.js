@@ -159,7 +159,6 @@ import { generateMarqueeBulbs } from './svg/marquee.js';
 import { generateReels } from './svg/reels.js';
 import { generateWinEffects } from './svg/effects.js';
 import { generateResultPanel } from './svg/panel.js';
-import { generateJackpotOverlay } from './svg/jackpot.js';
 import { generateHeader } from './svg/header.js';
 import { generateCabinet } from './svg/cabinet.js';
 import { generateScreenFrame } from './svg/screen.js';
@@ -193,18 +192,12 @@ export function buildSVG({
   const css = generateCSS(uid, result);
   const defs = generateDefs(uid);
   const marqueeBulbs = generateMarqueeBulbs(uid, result.isWin, result.ED);
-  const { colBGs, reelsSvg, colBordersSvg, nmShineSvg } = generateReels(
-    uid,
-    grid,
-    result.nearMissCol
-  );
-  const { winGlowSvg, nearMissSvg, coinsSvg } = generateWinEffects(
+  const { colBGs, reelsSvg, colBordersSvg } = generateReels(uid, grid);
+  const { winGlowSvg, coinsSvg } = generateWinEffects(
     uid,
     result.winCells,
-    result.nearMissCol,
     result.ED,
-    result.isBigWin,
-    result.isJackpot
+    result.isBigWin
   );
   const panelSvg = generateResultPanel(
     uid,
@@ -216,9 +209,7 @@ export function buildSVG({
     result.ED,
     result
   );
-  const overlaySvg = result.isJackpot
-    ? generateJackpotOverlay(uid, winningLang, result.ED)
-    : '';
+  const overlaySvg = '';
   const headerSvg = generateHeader(uid, state);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid);
@@ -227,7 +218,7 @@ export function buildSVG({
   ]);
 
   // Assemble SVG
-  const rawSvg = `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530"><defs><style>${css}</style>${defs}</defs>${cabinetSvg}${headerSvg}${screenFrameSvg}<g clip-path="url(#screen)">${marqueeBulbs}${colBGs}${reelsSvg}${colBordersSvg}${nmShineSvg}${winGlowSvg}${nearMissSvg}${coinsSvg}${overlaySvg}</g><g clip-path="url(#paytable)">${paytableSvg}</g>${panelSvg}</svg>`;
+  const rawSvg = `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530"><defs><style>${css}</style>${defs}</defs>${cabinetSvg}${headerSvg}${screenFrameSvg}<g clip-path="url(#screen)">${marqueeBulbs}${colBGs}${reelsSvg}${colBordersSvg}${winGlowSvg}${coinsSvg}${overlaySvg}</g><g clip-path="url(#paytable)">${paytableSvg}</g>${panelSvg}</svg>`;
 
   // Minimizza l'SVG rimuovendo spazi bianchi ridondanti (Bug 3 - Payload optimization)
   const minimizedSvg = rawSvg

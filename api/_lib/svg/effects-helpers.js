@@ -1,5 +1,5 @@
 // ─── Win Effects Helpers ────────────────────────────────────────────────────────
-// Helper functions per effetti visivi (win glow, near miss, coins)
+// Helper functions per effetti visivi (win glow, coins). Near-miss rimosso.
 
 import { COLS, ROWS } from '../game.js';
 import { CW, CH } from './constants.js';
@@ -17,20 +17,12 @@ export function generateWinGlowSVG(uid, winCells, ED) {
   return svg;
 }
 
-export function generateNearMissSVG(uid, nearMissCol, ED) {
-  if (nearMissCol < 0) return '';
-  const x = colL(nearMissCol);
-  const GY = getGY();
-  const GH = ROWS * CH;
-  return `<rect x="${x}" y="${GY}" width="${CW}" height="${GH}" rx="11" fill="#f59e0b" style="animation:nm${uid} 1.2s ${ED}s 2;opacity:0"/>`;
-}
-
-export function generateCoinsSVG(uid, isBigWin, isJackpot, ED) {
-  if (!isBigWin && !isJackpot) return '';
+export function generateCoinsSVG(uid, isBigWin, ED) {
+  if (!isBigWin) return '';
   const GW = COLS * CW + (COLS - 1) * GAP;
   const MX = getMX();
   const GY = getGY();
-  const coinCount = isJackpot ? 16 : 9;
+  const coinCount = 9;
   let svg = '';
   for (let i = 0; i < coinCount; i++) {
     const cx = MX + 24 + Math.floor(Math.random() * (GW - 48));

@@ -410,13 +410,7 @@
         }
 
         // Funzione per annunciare risultati di vincita/perdita
-        function announceResult(isWin, isJackpot, winningLang, totalSpins) {
-          if (isJackpot) {
-            announce(
-              `🎉 JACKPOT! Hai vinto con ${winningLang || 'linguaggio'}!`,
-              'assertive'
-            );
-          } else if (isWin) {
+        function announceResult(isWin, winningLang, totalSpins) {
             announce(
               `🎉 Vinci! Hai abbinato ${winningLang || 'un linguaggio'}.`,
               'polite'
@@ -475,7 +469,6 @@
           return {
             win: params.get('win'),
             lang: params.get('lang'),
-            jackpot: params.get('jackpot'),
             spins: params.get('spins'),
           };
         }
@@ -485,17 +478,10 @@
           const params = parseUrlParams();
 
           if (params.win === 'true') {
-            if (params.jackpot === 'true') {
-              announce(
-                `🎉 JACKPOT! Hai vinto con ${params.lang || 'linguaggio'}!`,
-                'assertive'
-              );
-            } else {
-              announce(
-                `🎉 Vinci! Hai abbinato ${params.lang || 'un linguaggio'}.`,
-                'polite'
-              );
-            }
+            announce(
+              `🎉 Vinci! Hai abbinato ${params.lang || 'un linguaggio'}.`,
+              'polite'
+            );
             if (params.spins) {
               const newTotal = parseInt(params.spins, 10);
               spinCountEl.textContent = newTotal.toLocaleString('en-US');

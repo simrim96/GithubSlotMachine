@@ -14,7 +14,7 @@ import { buildSVG, errorSVG, errorSVGString, getCachedSvg, setCachedSvg, LANGUAG
 import { logger } from './logger.js';
 
 // Cache helper per buildAccessibleSVG (usa le funzioni di cache globali)
-function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, isWin, isJackpot, nearMissCol, uid) {
+function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, uid) {
   // Recupera i languages dal file languages.js
   const languages = LANGUAGES || [];
   const cached = getCachedSvg(state, languages, grid, uid, winningLang, fact, repoMatch, owner);
@@ -27,13 +27,13 @@ function getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner
 // Funzione wrapper accessibile che usa buildSVG originale e aggiunge ARIA
 export function buildAccessibleSVG(params) {
   // Estrai i dati necessari per la cache
-  const { state, grid, uid, winningLang, fact, repoMatch, owner = 'simrim96', isWin, isJackpot, nearMissCol } = params;
+  const { state, grid, uid, winningLang, fact, repoMatch, owner = 'simrim96', isWin } = params;
   
   // M10: Controllo cache prima di costruire
-  const cached = getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, isWin, isJackpot, nearMissCol, uid);
+  const cached = getAccessibleCachedSvg(state, grid, winningLang, fact, repoMatch, owner, uid);
   if (cached) {
     // Se c'è cache, aggiungi comunque l'accessibilità ARIA
-    const ariaLabel = buildAriaLabel(state, winningLang, isWin, isJackpot, nearMissCol);
+    const ariaLabel = buildAriaLabel(state, winningLang, isWin);
     return addAriaToSvg(cached, ariaLabel, uid);
   }
   
@@ -44,7 +44,7 @@ export function buildAccessibleSVG(params) {
   setCachedSvg(state, [], grid, originalSVG);
   
   // Costruisci l'aria-label descrittivo
-  const ariaLabel = buildAriaLabel(state, winningLang, isWin, isJackpot, nearMissCol);
+  const ariaLabel = buildAriaLabel(state, winningLang, isWin);
   
   // Estrai e modifica l'SVG per aggiungere accessibilità
   let accessibleSVG = originalSVG;
@@ -85,16 +85,12 @@ export function buildAccessibleSVG(params) {
 }
 
 // Helper: costruisci aria-label descrittivo
-function buildAriaLabel(state, winningLang, isWin, isJackpot, nearMissCol) {
+// NOTA: near-miss e jackpot rimossi. Ora l'aria-label distingue solo
+// vittoria normale / nessuna vincita.
+function buildAriaLabel(state, winningLang, isWin) {
   let ariaLabel = 'Macchina slot per stack di sviluppo.';
   if (isWin) {
-    if (isJackpot) {
-      ariaLabel += ` Jackpot! Hai vinto con ${winningLang?.name || 'linguaggio'}.`;
-    } else {
-      ariaLabel += ` Vinci con ${winningLang?.name || 'linguaggio'}.`;
-    }
-  } else if (nearMissCol >= 0) {
-    ariaLabel += ' Quasi una vincita!';
+    ariaLabel += ` Vinci con ${winningLang?.name || 'linguaggio'}.`;
   } else {
     ariaLabel += ' Nessun vincitore questa volta.';
   }

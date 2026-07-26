@@ -16,10 +16,8 @@ import {
   PL_COLORS,
   generateGrid,
   engineerWin,
-  engineerNearMiss,
   checkWins,
   countScatters,
-  detectNearMiss,
   winningLangId,
   wrap,
 } from './_lib/game.js';
@@ -167,10 +165,8 @@ export {
   PL_COLORS,
   generateGrid,
   engineerWin,
-  engineerNearMiss,
   checkWins,
   countScatters,
-  detectNearMiss,
   winningLangId,
   wrap,
   buildSVG,
@@ -285,8 +281,6 @@ export default async function handler(req, res) {
 
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
-    const isJackpot = wins.some((w) => w.count === 5);
-    const nearMissCol = detectNearMiss(grid, wins);
     const winningLang = isWin ? LANGUAGE_BY_ID[winningLangId(wins)] : null;
 
     let repoMatch = null;
@@ -329,8 +323,6 @@ export default async function handler(req, res) {
       repoMatch,
       owner: OWNER,
       isWin,
-      isJackpot,
-      nearMissCol,
     });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
@@ -348,14 +340,10 @@ export default async function handler(req, res) {
     const rawUser = req.query?.user ? String(req.query.user).trim() : '';
     const targetOwner = rawUser && isValidUser(rawUser) ? rawUser : OWNER;
     let dest;
-    if (winningLang && isJackpot) {
-      const ghLang = encodeURIComponent(
-        winningLang.githubLang || winningLang.name
-      );
-      dest = `https://github.com/${targetOwner}?tab=repositories&language=${ghLang}`;
-    } else {
-      dest = `https://github.com/${OWNER}`;
-    }
+    // (RIMOSSO) Il redirect "jackpot → tutte le repo del linguaggio" è stato
+    // disattivato: la vincita è ora sempre "normale" e non si distingue per
+    // il target del redirect. Tutto resta sul profilo owner.
+    dest = `https://github.com/${OWNER}`;
 
     // ── Scritture ────────────────────────────────────────────────────────────
     // Eseguite IN PARALLELO nel flusso principale (rete VIVA), PRIMA del

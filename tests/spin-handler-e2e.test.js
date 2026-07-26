@@ -69,12 +69,10 @@ vi.mock('../api/_lib/spin-cooldown.js', () => ({
   checkSpinCooldown: vi.fn().mockResolvedValue({ allowed: true }),
 }));
 
-// ── Game logic: sovrascriviamo solo ciò che serve a forzare win/no-win ────
-// (il resto resta reale così la griglia/SVG restano coerenti).
+// ── Game logic: sovrascriviamo solo ciò che serve a forzare win/no-win ───
 const generateGrid = vi.fn();
 const checkWins = vi.fn();
 const winningLangId = vi.fn();
-const detectNearMiss = vi.fn();
 vi.mock('../api/_lib/game.js', async (importActual) => {
   const actual = await importActual();
   return {
@@ -82,7 +80,6 @@ vi.mock('../api/_lib/game.js', async (importActual) => {
     generateGrid,
     checkWins,
     winningLangId,
-    detectNearMiss,
   };
 });
 
@@ -153,13 +150,12 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     vi.clearAllMocks();
     kvStore.clear();
     process.env.GITHUB_PAT = 'test-token-12345';
-    // Default: nessuna vincita, nessun near-miss.
+    // Default: nessuna vincita.
     generateGrid.mockReturnValue(
       Array.from({ length: 5 }, () => ['python', 'python', 'python'])
     );
     checkWins.mockReturnValue([]);
     winningLangId.mockReturnValue(null);
-    detectNearMiss.mockReturnValue(-1);
     getRepoForLanguage.mockResolvedValue(null);
     ghGetJson.mockResolvedValue({
       content: Buffer.from(README_BODY, 'utf-8').toString('base64'),
