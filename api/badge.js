@@ -45,7 +45,16 @@ export default async function handler(req, res) {
   }
 
   const lang = safeLang(req.query?.lang);
-  const message = `check out this repo I wrote in ${lang}`;
+  // Stelle della repo vincente (passate da updateReadmeMarkers come &stars=).
+  // Sanitizzate a intero ≥0, clamp a 6 cifre (evita width assurde).
+  const starsRaw = parseInt(req.query?.stars, 10);
+  const stars =
+    Number.isFinite(starsRaw) && starsRaw > 0
+      ? Math.min(starsRaw, 999999)
+      : 0;
+  // La stella NON è più solo decorativa: riflette le stelle reali della repo.
+  const prefix = stars > 0 ? `★ ${stars} · ` : '';
+  const message = `${prefix}check out this repo I wrote in ${lang}`;
 
   // Larghezza snug in base al testo (font-size 17, ~9px/char + padding).
   const W = Math.max(320, Math.round(message.length * 9 + 84));
