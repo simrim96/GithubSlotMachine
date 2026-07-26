@@ -168,8 +168,11 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
   it('redirect 302 con Location valido verso il profilo owner (spin senza vincita)', async () => {
     const res = makeRes();
     await handler(req(), res);
-    // La PUT del README è ritardata (~6.2s): aspettiamo prima di asserire
-    // che le scritture di rete siano avvenute.
+    // Il CLEAR dei marker avviene SUBITO (prima del delay 6.2s), così durante
+    // la rotazione il README non mostra il link della vittoria precedente.
+    expect(ghPut).toHaveBeenCalled();
+    // La PUT di FILL (riempimento) è ritardata (~6.2s): aspettiamo prima di
+    // concludere.
     await new Promise((r) => setTimeout(r, 7_000));
 
     expect(res.statusCode).toBe(302);

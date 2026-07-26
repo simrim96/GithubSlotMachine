@@ -241,6 +241,21 @@ export async function loadSlotSvg(token, owner, repo) {
   };
 }
 
+// SVUOTA il blocco tra i marker SENZA condizioni (usato all'inizio dello
+// spin, prima del redirect, così durante la rotazione dei rulli il README
+// non mostra il link della vincita precedente). Il riempimento avviene
+// solo DOPO la rotazione (vedi updateReadmeMarkers, chiamato in fillPromise).
+export function clearReadmeMarkers(readme) {
+  const START = '<!-- SLOT_LAST_WIN_START -->';
+  const END = '<!-- SLOT_LAST_WIN_END -->';
+  if (!readme.includes(START) || !readme.includes(END)) return readme;
+  const cleared = `${START}\n${END}`;
+  return readme.replace(
+    new RegExp(`${escapeRegex(START)}[\\s\\S]*?${escapeRegex(END)}`),
+    cleared
+  );
+}
+
 // Aggiorna SOLO il blocco tra i marker con il link cliccabile alla repo
 // vincente. Nessun contatore ("Total community spins"), nessun "Last win:",
 // nessun funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo.
