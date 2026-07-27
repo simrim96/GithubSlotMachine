@@ -24,7 +24,7 @@
     "security": "npm audit --audit-level=moderate"
   },
   "dependencies": {
-    "@sentry/node": "^10.65.0",
+    "@sentry/node": "^10.68.0",
     "@sentry/vercel-edge": "^10.65.0",
     "@upstash/redis": "^1.38.0",
     "@vercel/functions": "^3.7.5",
