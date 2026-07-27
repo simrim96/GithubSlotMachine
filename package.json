@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@sentry/node": "^10.65.0",
-    "@sentry/vercel-edge": "^10.65.0",
+    "@sentry/vercel-edge": "^10.68.0",
     "@upstash/redis": "^1.38.0",
     "@vercel/functions": "^3.7.5",
     "jsonschema": "^1.4.1"
