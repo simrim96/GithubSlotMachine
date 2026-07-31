@@ -61,8 +61,8 @@ export default async function handler(req, res) {
     if (steps.kv_roundtrip_ms > 60) {
       const slowMsg = `health: cross-region Upstash detected; kv_roundtrip_ms=${steps.kv_roundtrip_ms} > 60ms`;
       logger.warn(slowMsg);
-      logger.warn(slowMsg);
-      throw new Error(slowMsg);
+      steps.kv_severity = 'warning';
+      steps.kv_note = 'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.';
     }
   } else {
     steps.kv_enabled = false;

@@ -1,4 +1,24 @@
 // ─── CORS policy centralizzata (Miglioramento #4, ISSUES.md) ────────────────
+//
+// NOTA SEC-2: perché usiamo Access-Control-Allow-Origin: * su alcuni endpoint.
+//
+// Gli endpoint /api/image e /api/lever servono SVG embeddati direttamente in
+// una README su github.com/simrim96/simrim96. In quel contesto il browser
+// esegue una richiesta cross-origin verso Vercel. L'Origin di quella richiesta
+// è "https://github.com" che non è noto a priori quando il server riceve la
+// richiesta (e non può essere inserito in una allowlist perché l'owner della
+// README può cambiare). Riflettere un origin sconosciuto è inutile e dannoso
+// (il browser scarterebbe la risposta).
+//
+// La soluzione sicura è usare il wildcard '*'. È sicuro perché:
+// 1. /api/image e /api/lever servono solo SVG pubblici — nessun dato sensibile.
+// 2. Nessuna di queste rotte usa cookie o header Authorization.
+// 3. Nessuna rotta espose API che modificano stato (POST/PUT/DELETE).
+// 4. Il browser, con '*' + nessuna credenziale, ignora i body nella risposta
+//    cross-origin (solo immagini/immagini statiche sono accessibili).
+//
+// Vedi: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/Errors/CORSNotSCU
+//
 // La logica CORS era inline in api/spin.js. Ora è un modulo riusabile così
 // tutti gli endpoint API (spin, image, health, lever, ratelimit-status)
 // emettono una policy CORS coerente senza duplicazioni (stesso approccio
