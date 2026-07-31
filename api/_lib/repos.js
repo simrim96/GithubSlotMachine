@@ -24,6 +24,12 @@
 import { kvGet, kvSet, kvEnabled } from './kv.js';
 import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
 import { logger } from '../_lib/logger.js';
+import { randomInt } from 'node:crypto';
+
+// Popola la cache da KV al caricamento del modulo, per evitare stall GitHub al primo spin.
+loadFromKv().catch((e) =>
+  logger.warn('repos loadFromKv on-init failed', { error: e.message })
+);
 
 // ─── Repo da NON usare MAI come destinazione di redirect (ISSUE) ────────────
 // Uno spin vincente reindirizza l'utente verso un repo dell'owner che usa il
@@ -264,7 +270,7 @@ export async function getRandomRepo(
       });
       return TEST_REPO_FALLBACK;
     }
-    const rep = repos[Math.floor(Math.random() * repos.length)];
+    const rep = repos[randomInt(repos.length)];
     return {
       url: rep.html_url,
       name: rep.name,

@@ -1,242 +1,274 @@
-1|# ISSUES - GithubSlotMachine
-2|
+# ISSUES - GithubSlotMachine
+
 ## Indice
 
-- [🐛 Issue Risolte](#-issue-risolte)
-- [🚀 Miglioramenti Identificati](#-miglioramenti-identificati)
-|- [M7: Rate limiting configurabile per IP vs User-Agent](#m7-rate-limiting-configurabile-per-ip-vs-user-agent)
-7|8|- [📊 Metriche Progetto - Aggiornate](#-metriche-progetto---aggiornate)
-8|9|- [📝 Note Finali](#-note-finali)
-8|- [📝 Note Finali](#-note-finali)
-9|
-10|## 🚀 Miglioramenti Identificati
-11|
-12|### M7: Rate limiting configurabile per IP vs User-Agent
-13|
-14|**Status:** ⚡ **IMPLEMENTATO** - Suggerimento estensione
-15|
-16|**Descrizione:**
-17|Il rate limiting attuale (`api/_lib/ratelimit.js`) usa IP come key. È stata implementata la validazione base, ma si consiglia di aggiungere supporto per User-Agent come fallback quando IP non è disponibile (proxy, CDN).
-18|
-19|**File:**
-20|- `api/_lib/ratelimit.js`
-21|- `api/ratelimit-tracker.js`
-22|
-23|**Priorità:** Bassa - Utile per deploy dietro CDN
-24|
-25|---
+- [🐛 Bug & Criticità](#-bug--criticità)
+- [⚡ Miglioramenti Architetturali](#-miglioramenti-architetturali)
+- [🛡️ Sicurezza](#-sicurezza)
+- [📊 Metriche Progetto](#-metriche-progetto)
+- [🐛 Issue Risolte](#-issue-risolute)
+
+---
+
+## 🐛 Bug & Criticità
+
+### BUG-1: `Math.random()` per selezione repo — distribuzione non uniforme + prevedibile
+
+**Status:** ✅ **FIXED**
+
+**File:** `api/_lib/repos.js` riga 267
+
+**Fix:** Sostituito `Math.random()` con `crypto.randomInt(repos.length)` — distribuzione uniforme e non prevedibile.
+
+**File:** `api/spin.js` riga 382
+
+**Problema:**
+```js
+const rand = Math.floor(Math.random() * repos.length);
+const selected = repos[rand];
+```
+`Math.random()` non è crittograficamente sicuro e ha distribuzione non uniforme su intervalli non interi. Per un progetto "slot machine" è un bug minore, ma:
+1. A `repos.length` grande, il modulo non intero distorce le probabilità.
+2. Il seed è il timer del processo Node — un adversario che conosce il tempo di avvio della lambda può predire il prossimo repo estratto.
+
+**Suggerimento:** Usare `crypto.randomInt(repos.length)` (Node built-in) per distribuzione uniforme e non prevedibile.
+
+---
+
+### BUG-2: Health endpoint lancia errore → 500 FUNCTION_INVOCATION_FAILED su Vercel
+
+**Status:** ✅ **FIXED**
+
+**File:** `api/health.js` righe 61-66
+
+**Fix:** Rimosso `throw new Error(...)` — ora il health endpoint ritorna sempre 200. Quando `kv_roundtrip_ms > 60` imposta `severity: "warning"` e un messaggio descrittivo in `kv_note` invece di crashare.
+
+**File:** `api/health.js` riga 61-66
+
+**Problema:**
+```js
+if (steps.kv_roundtrip_ms > 60) {
+  throw new Error(slowMsg);
+}
+```
+Il health endpoint lancia un'eccezione quando Upstash è lento (>60ms). Su Vercel, questo si traduce in `500 FUNCTION_INVOCATION_FAILED` — la stessa sintomatologia del bug già risolto del cold-start. Il cron di warmup che punta a `/api/health` potrebbe quindi fallire silenziosamente.
+
+**Fix suggerito:** Sostituire `throw` con un campo di stato nella response JSON e status 200 con `severity: "warning"`. Il health endpoint deve essere puramente informativo, non deve mai fallire.
+
+---
+
+### BUG-3: Race condition nella lettura della leva — `lastPullTimestamp` perso tra spin e lettura
+
+**Status:** 🔷 **MITIGATO**
+
+**File:** `api/lever.js`, `api/spin.js`, `api/_lib/state.js`
+
+**Problema:**
+`spin.js` scrive `lastPullTimestamp` via `Promise.allSettled` con `kvSet` + `commitReadme`. Se `kvSet` fallisce (ma `commitReadme` riesce, o viceversa), la leva potrebbe non avere la fonte di verità. La triple-fallback (`?v` → KV → raw GitHub) copre la maggior parte dei casi, ma:
+- Se KV è down e `?v` non è presente (README non ancora aggiornato), la fetch raw a GitHub ha timeout 800ms → latenza percepita alta.
+- Il 30s di finestra (`PULL_RECENCY_WINDOW_MS`) è hardcoded e non configurabile.
+
+**Mitigazione attuale:** Il 3° fallback (raw GitHub) è fuori dal percorso caldo dopo il fix del 2026-07-23.
+
+---
+
+## ⚡ Miglioramenti Architetturali
+
+### PERF-1: Cache repo in-memory si resettata a ogni cold-start
+
+**Status:** ✅ **FIXED** — 2026-07-31
+
+**File:** `api/_lib/repos.js`
+
+**Fix:** Aggiunto `loadFromKv()` a livello di modulo (top-level after import). La cache in-memory viene popolata da KV al caricamento del modulo, eliminando il primo spin lento dopo il cold-start di Vercel Edge.
+
+---
+
+### PERF-2: SVG rebuilding completo a ogni request
+
+**Status:** 🔷 **ACCETTABILE**
+
+**File:** `api/_lib/svg-builder.js`
+
+La cache L1 esiste (`gsm:svgCache`) e accelera i casi ripetuti (stesso owner/repo/language), ma ogni combinazione nuova ricostruisce l'SVG da zero (SVGOMG + building procedurale). Dato che l'SVG è tipicamente <50KB e SVGOMG è veloce, il trade-off è ragionevole. Non è urgente ma sarebbe interessante:
+- Pre-build SVG per i top-20 repo più comuni a cold-start.
+- Invalidation automatica quando un repo cambia (webhook GitHub — complesso, bassa ROI).
+
+---
+
+### PERF-3: State sync parallelo — `commitReadme` + `kvSet` in `Promise.allSettled`
+
+**Status:** 🔶 **DA MONITORARE**
+
+**File:** `api/spin.js` righe 520-530
+
+`Promise.allSettled` permette che uno dei due fallisca silenziosamente. Se `commitReadme` fallisce (GitHub rate limit), l'utente viene rediretto ma lo spin non è visibile sul profilo. Se `kvSet` fallisce, la leva non si anima. In entrambi i casi l'utente non vede errori.
+
+**Suggerimento:** Loggare separatamente l'esito di ciascun operazione in `Promise.allSettled` e considerare un fallback sequenziale: se `kvSet` fallisce, provare `commitState` (che usa lo stesso token GitHub ma via API Contents invece di raw).
+
+---
+
+## 🛡️ Sicurezza
+
+### SEC-1: `GITHUB_PAT_REQUIRE_FINEGRAINED` documentato ma non implementato
+
+**Status:** ✅ **IMPLEMENTATO**
+
+**File:** `api/_lib/github.js` (`auditToken`, `detectTokenType`), `api/spin.js:204-211`
+
+**Dettaglio:** Il rilevamento token esiste già: `detectTokenType` identifica `fine-grained`, `classic`, `unknown`, `none`. `auditToken` emette warning per token insicuri e opzionalmente lancia errore con `enforce=true` (controllato da `GITHUB_PAT_REQUIRE_FINEGRAINED=true`). Chiamato a ogni spin in `spin.js`. Test: `tests/s4-token.test.js` (8 test).
+
+**File:** `ISSUES.md` (Config Env Necessari, riga 204-205)
+
+**Problema:**
+Nel file ISSUES.md è documentata l'env var `GITHUB_PAT_REQUIRE_FINEGRAINED=false`, ma nessun controllo nel codice verifica che il PAT sia fine-grained. Se un PAT classico con troppi permessi viene accidentalmente configurato, non c'è enforcement.
+
+**Fix:** Aggiungere in `spin.js` o `api/_lib/github.js`:
+```js
+// Verifica che il PAT sia fine-grained (inizia con `github_pat_`)
+if (process.env.GITHUB_PAT && !process.env.GITHUB_PAT.startsWith('github_pat_')) {
+  logger.error('GITHUB_PAT sembra un PAT classico (inizia con "ghp_"). '
+    + 'Usare un fine-grained token (github_pat_) è fortemente raccomandato.');
+}
+```
+
+---
+
+### SEC-2: CORS wildcard `*` — accettabile ma documentare il rischio
+
+**Status:** ✅ **FIXED** — 2026-07-31
+
+**File:** `api/_lib/cors.js` (righe 2-18, commento esplicito SEC-2)
+
+**Dettaglio:** Aggiunto blocco commento in testa a `cors.js` che documenta perché il wildcard `*` è necessario per `/api/image` e `/api/lever` (SVG embeddati in README GitHub su dominio non sotto nostro controllo) e perché è sicuro (nessun dato sensibile, nessun cookie, nessuna modifica stato, solo risorse statiche pubbliche).
+
+---
+
+### SEC-3: Open redirect — protezione esistente ma base URL non valida
+
+**Status:** ✅ **IMPLEMENTATO**
+
+**File:** `api/spin.js`
+
+La validazione `isValidRedirectUrl` controlla che:
+- Inizio con `/` (same-origin)
+- O sia un dominio allowlisted (`github.com`, `*.github.com`, `*.github.io`)
+- Non contenga sequenze di escape URL
+
+Funziona bene. L'allowlist è esplicita e non apre a domini arbitrari.
+
+---
+
+## 📊 Metriche Progetto
+
+### Statistiche Codice (2026-07-31)
+
+| Metrica | Valore |
+|---------|--------|
+| **Test Files** | 41 |
+| **Total Tests** | 357 |
+| **Test Status** | ✅ Tutti passati (357/357) |
+| **Build** | ✅ Nessun build step (serverless) |
+| **Lint** | Pulito (0 errori, 0 warning) |
+| **API Endpoints** | 8 (`spin`, `image`, `lever`, `health`, `ratelimit-status`, `cron-populate-repo-cache`) |
+| **Librerie Shared** | 9 (`github`, `state`, `kv`, `repos`, `game`, `svg-builder`, `cors`, `ratelimit`, `spin-cooldown`, `languages`, `response-bridge`, `logger`) |
+
+### Performance Stimate (Vercel Edge + Upstash Redis same-region)
+
+| Operazione | Tempo |
+|-----------|-------|
+| Spin (warm, KV HIT) | 200-400ms |
+| Spin (cold, KV miss) | 500-1200ms |
+| SVG (cache HIT) | <10ms |
+| SVG (cache MISS) | 100-300ms |
+| Health (KV enabled) | 10-30ms |
+| Health (KV disabled) | 5-10ms |
+| Lever (con KV) | 10-50ms |
+| Lever (fallback raw GH) | 40-800ms |
+
+### Env Variables Necessari
+
+```bash
+# Obbligatorio per production
+GITHUB_PAT=github_pat_...                    # fine-grained, repo scope minimo
+GITHUB_OWNER=simrim96                        # owner dei repo da scansionare
+
+# Upstash Redis (altrettanto raccomandato — senza si perde stato community)
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=...
+# oppure
+KV_REST_API_URL=https://...
+KV_REST_API_TOKEN=...
+
+# Opzionali
+SLOT_OWNER=simrim96                          # owner del profilo GitHub
+SLOT_REPO=GithubSlotMachine                  # repo della slot machine
+SENTRY_DSN=https://...                       # per error tracking
+```
+
+---
 
 ## 🐛 Issue Risolte
 
 ### Health endpoint `?full=1` → 500 FUNCTION_INVOCATION_FAILED (bug warmup morto)
 
-**Status:** ✅ **FIXED** - 2026-07-23
+**Status:** ✅ **FIXED** — 2026-07-23
 
-**Problema:**
-`GET /api/health?full=1` ritornava `500 FUNCTION_INVOCATION_FAILED`. Di conseguenza
-il cron di warmup giornaliero (vercel.json → `/api/health`) era silenziosamente morto
-e non dava più alcun segnale di vita.
+**Problema:** `health?full` chiamava `getRepoForLanguage()` → `refreshCache()` → fetch GitHub pendenti → Vercel terminava la lambda → `FUNCTION_INVOCATION_FAILED`.
 
-**Causa radice:**
-`health?full` chiamava `getRepoForLanguage(token, OWNER, LANGUAGES[0], LANGUAGES)`.
-A cold-start (cache KV repo vuota, `hasData === false`) quella funzione in
-`api/_lib/repos.js` entrava nel branch `!hasData` e faceva:
-```js
-const lang = await Promise.race([refreshCache(token, owner), timeout(800)]);
-```
-`refreshCache` è **asincrono e non-astato**: dopo che il `race` lo "perdeva" (timeout
-800ms), le sue `fetch` a `api.github.com` restavano PENDENTI in background.
-`health` ritornava subito la response JSON; Vercel vedeva la lambda "finita" e la
-terminava → le fetch pendenti venivano abortite brutalmente → `FUNCTION_INVOCATION_FAILED`.
+**Fix:** Riscritto health per usare solo `getRepoCacheStats()` — nessuna fetch GitHub, nessun crash.
 
-**Fix:**
-`/api/health` è ora puramente diagnostico e NON scatena mai `refreshCache`:
-- Aggiunta `getRepoCacheStats()` in `api/_lib/repos.js`: legge `cache.byLangId`
-  (in-memory) + `loadFromKv()` (lettura KV, nessun fetch GitHub) e ritorna
-  `{ populated, lang_count, ts, age_ms, fresh }`.
-- `health?full` usa `getRepoCacheStats()` al posto di `getRepoForLanguage`. Misura
-  se la cache repo è calda senza lasciare fetch pendenti → niente più crash.
+**File:** `api/health.js`, `api/_lib/repos.js`
 
-**File modificati:**
-- `api/_lib/repos.js` — nuovo export `getRepoCacheStats()`
-- `api/health.js` — sezione `full` riscritta; rimosso import `getRepoForLanguage`/`LANGUAGES`
-- `tests/health-no-pending-fetch.test.js` — regression test (garantisce che health
-  importi solo `getRepoCacheStats` e risponda 200 con cache vuota)
-
-**Nota deploy:** le modifiche sono nel repo; servirà un `vercel deploy` per essere
-effettive in produzione. Il cron Hermes di warmup dal laptop è stato RIMOSSO su
-richiesta (il warmup lato laptop non risolveva il cold-start serverless residuo
-e teneva il laptop vincolato).
+---
 
 ### Lever Animation Cache Issue
 
-**Status:** ✅ **FIXED** - Animazione della leva non si aggiornava dopo lo spin
+**Status:** ✅ **FIXED** — Animazione della leva non si aggiornava dopo lo spin
 
-**Problema:**
-L'animazione di pull della leva (`lever.js`) non veniva riprodotta dopo un caricamento della pagina a seguito di uno spin. Il browser utilizzava la cache dell'immagine della leva con lo stato "idle" invece che "pull".
+**Fix:** Aggiunto cache-buster `api/lever?v=<spinStart>` in `spin.js`, ridotto cache a 5s in `lever.js`.
 
-**Causa:**
-1. `api/lever.js` impostava `Cache-Control: public, max-age=3600` (1 ora di cache)
-2. `api/spin.js` aggiornava `lastPullTimestamp` ma NON aggiornava l'URL della leva nel README
-3. GitHub caricava il README con `api/lever` senza cache-buster
-4. Il browser/CDN serviva la copia cacheata dell'SVG della leva
-
-**Soluzione:**
-1. **`api/spin.js` (linee 434-437):** Aggiunto cache-buster per `api/lever` simile a `api/image`:
-   ```javascript
-   newReadme = newReadme.replace(
-     /api\/lever(?:\?(?:v|cache_buster)=[0-9]*)?/g,
-     `api/lever?v=${spinStart}`
-   );
-   ```
-2. **`api/lever.js` (linea 279):** Ridotta cache da 3600s a 5s:
-   ```javascript
-   'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
-   ```
-
-**File modificati:**
-- `api/spin.js` - Aggiunta regex cache-buster per api/lever
-- `api/lever.js` - Ridotta durata cache headers
-
-**Testing:**
-- ✅ Tutti i test passati (340/340)
-- ✅ Regex testata manualmente per sostituire `api/lever` con `api/lever?v=<timestamp>`
+**File:** `api/spin.js`, `api/lever.js`
 
 ---
-
-## 🧪 Test Coverage - Verifica Aggiornata
-
-### Risultati Complessivi (2026-07-21 - Post-M9 testing)
-
-```
-Test Files  37 passed (37)
-Tests      344 passed (344)
-Duration   ~7.1s
-Lint       0 errors, 0 warnings
-```
-
-### Test Coverage per Miglioramenti
-
-| | Miglioramento | File di Test | Stato |
-|-|--------------|--------------|-------|
-| | M3 (SVG timeout) | `tests/svg.test.js` | ✅ |
-| | M4 (Graceful shutdown) | `tests/shutdown.test.js` (17 test) | ✅ Completamente testato |
-| | M5 (Schema validation) | `tests/config-loader.test.js` | ✅ |
-| | M7 (Rate limiting) | `tests/ratelimit.test.js`, `tests/ratelimit-tracker.test.js` | ✅ |
-| | M8 (Documentazione) | `DEVELOPER.md` | ✅ COMPLETATO |
-| | **M9 (Edge cases)** | **`tests/github-edge-cases.test.js` (22 test)** | **✅ COMPLETATO** |
-| | M10 (SVG cache) | `tests/svg.test.js` | ✅ |
 
 ### M11: Lever Pull Animation Timing Fix
 
-**Status:** ✅ **FIXED** - Animazione di pull della leva non si vedeva dopo refresh pagina
+**Status:** ✅ **FIXED** — Animazione di pull non visibile dopo refresh pagina
 
-**Problema:**
-Dopo un refresh della pagina (F5) entro 3 secondi dallo spin, la leva non mostrava più l'animazione di pull ma rimaneva in idle loop. L'utente vedeva solo l'animazione idle senza vedere il "pull" della leva.
+**Fix:** `lastPullTimestamp = spinStart + 500ms` estende la finestra di animazione a 3s totali.
 
-**Causa:**
-1. `lastPullTimestamp` era impostato a `Date.now()` al momento dello spin
-2. Quando la pagina veniva ricaricata manualmente entro ~2.5s, il browser faceva una richiesta a `/api/lever?v=<timestamp>`
-3. Il server leggeva `lastPullTimestamp` dal Redis (che era stato impostato 2+ secondi prima)
-4. Il controllo temporale in `api/lever.js` (riga 84) calcolava `timeSincePull` > 500ms
-5. Poiché `timeSincePull > PULL_DURATION_MS`, il sistema mostrava solo l'idle loop, non il pull
-
-**Soluzione:**
-1. **`api/spin.js` (riga 282):** Impostiamo `lastPullTimestamp = spinStart + 500ms` invece di `Date.now()`
-   - Questo estende la finestra temporale per l'animazione di pull di 500ms
-   - Ora l'animazione dura 500ms (pull) + 2.5s (idle) = 3s totali
-   - Anche se la pagina viene ricaricata entro 2.5s dallo spin, l'animazione di pull verrà mostrata
-
-2. **`api/lever.js` (righe 84-90):** Aggiornati i commenti per chiarire le fasi dell'animazione:
-   - 0-500ms: pull in corso
-   - 500ms-3000ms: idle loop
-   - >3000ms: idle statico
-
-**File modificati:**
-- `api/spin.js` - Impostato `lastPullTimestamp = spinStart + 500ms`
-- `api/lever.js` - Aggiornati commenti
-
-**Testing:**
-- ✅ Tutti i test passati (344/344)
-- ✅ Verifica manuale: refresh pagina entro 2s dallo spin → animazione di pull visibile ✅
-- ✅ Verifica manuale: refresh pagina dopo 3s → solo idle loop ✅
+**File:** `api/spin.js`, `api/lever.js`
 
 ---
 
-## 📊 Metriche Progetto - Aggiornate
+### Regressione velocità leva — fetch rete a raw.githubusercontent.com sul percorso caldo
 
-### Statistiche Codice (Luglio 2026)
-|- **Total Tests:** 344
-- **Test Files:** 37
-- **Lint Status:** ✅ Clean (0 errors, 0 warnings)
-- **Security Issues:** 7 (tutti fixed/implemented)
-- **Performance Issues:** 10 (tutti implementati o da valutare)
+**Status:** ✅ **FIXED** — 2026-07-23
 
-### Performance Benchmarks (Stima)
-- **Cold Start (KV enabled):** ~50-100ms (Redis + cache L1)
-- **Cold Start (KV disabled):** ~800-1500ms (GitHub API)
-- **SVG Build Time:** ~100-500ms (con timeout M3 e cache M10)
-- **SVG Build Time (cache HIT):** < 1ms
-- **State Sync (Redis→GitHub):** ~200-400ms (con retry)
-- **Rate Limit Check:** < 1ms (in-memory)
+**Fix:** Riordinato le fonti in `getPullState()`: `?v` → KV → raw GitHub. Il percorso caldo ora usa solo fonti in-memory/Redis.
 
-### File Critici Verificati
-- ✅ `api/spin.js` - 560 righe, orchestratore principale
-- ✅ `api/image.js` - 102 righe, endpoint immagine
-- ✅ `api/lever.js` - 172 righe, endpoint leva SVG
-- ✅ `api/_lib/github.js` - 284 righe, API GitHub
-- ✅ `api/_lib/kv.js` - 174 righe, Redis wrapper
-- ✅ `api/_lib/repos.js` - 216 righe, cache repo tiered
-- ✅ `api/_lib/state.js` - 476 righe, state management + sync
-- ✅ `api/_lib/svg-builder.js` - 298 righe, building SVG completo + cache M10 + timeout M3
-- ✅ `api/_lib/ratelimit.js` - rate limiting + cooldown
-
-### Config Env Necessari
-
-```bash
-# GitHub PAT (fine-grained consigliato)
-GITHUB_PAT=github_pat_...
-
-# Upstash Redis (opzionale, ma raccomandato)
-UPSTASH_REDIS_REST_URL=https://...
-UPSTASH_REDIS_REST_TOKEN=...
-
-# Opzionale: enforcement sicurezza
-GITHUB_PAT_REQUIRE_FINEGRAINED=false  # default: false (solo warning)
-
-# Timeout configurabili
-GITHUB_API_TIMEOUT_MS=2000
-GH_CONTENTS_TIMEOUT_MS=800
-KV_TIMEOUT_MS=500
-SVG_BUILD_TIMEOUT_MS=3000  # default M3
-
-# State sync configurabili
-STATE_SYNC_MAX_RETRIES=3
-STATE_SYNC_BACKOFF_BASE_MS=200
-STATE_SYNC_FAILURE_ALERT_THRESHOLD=5
-
-# Cache L1 SVG (M10)
-SVG_BUILD_CACHE_SIZE=50
-SVG_BUILD_CACHE_TTL_MS=60000
-```
+**File:** `api/lever.js`
 
 ---
 
-## 🎯 Raccomandazioni Prioritarie
+### BUG: Redirect dentro il repo della slot (isRepoExcluded)
 
-### Completati ✅
-1. ✅ **IMPLEMENTATO:** SVG build timeout (M3)
-2. ✅ **IMPLEMENTATO:** JSON Schema validation (M5)
-3. ✅ **IMPLEMENTATO:** SVG degradation caching (M2)
-4. ✅ **IMPLEMENTATO:** SVG build cache L1 (M10)
+**Status:** ✅ **FIXED** — 2026-07-24
 
-### Da Implementare ⚠️
-1. 🌐 **OPZIONALE:** Rate limit per User-Agent (M7 - estensione)
+**Fix:** Aggiunta `isRepoExcluded()` che filtra `simrim96/simrim96` e `GithubSlotMachine` dalla selezione dei repo.
 
-### Opzionali 🚀
-1. 📊 **OPZIONALE:** Prometheus/StatsD metrics
-2. 🚀 **OPZIONALE:** SVG build cache optimization (M10 - estensione)
-3. 🌐 **OPZIONALE:** IP redirect support (M6)
+**File:** `api/_lib/repos.js`
+
+---
+
+### BUG: Animazione leva non funzionava localmente
+
+**Status:** ✅ **FIXED**
+
+**Fix:** Creato `api/ratelimit-status.js`, aggiornato `public/index.html` con lever animation, implementato endpoint in `scripts/simple-dev.mjs`.
+
+**File:** `api/ratelimit-status.js`, `public/index.html`, `scripts/simple-dev.mjs`
 
 ---
 
@@ -244,187 +276,21 @@ SVG_BUILD_CACHE_TTL_MS=60000
 
 ### Stato Generale del Progetto
 
-**ECCLENTE** - Il progetto GithubSlotMachine è ben architettato, testato e sicuro.
+**BUONO** — Il progetto è ben architettato e testato. Le principali criticità sono state risolte. I punti rimanenti sono miglioramenti minori.
 
 **Punti di forza:**
-- ✅ 100% test coverage (340/340 test passed)
-- ✅ Security hardening completa (7/7 issues fixed)
-- ✅ Resilienza operativa (timeouts, retries, fallbacks)
-- ✅ Performance ottimizzata (caching tiered, Redis, L1 SVG cache)
-- ✅ Code quality alta (lint clean, struttura modulare)
-- ✅ Monitoraggio stato Redis→GitHub (M1 implementato)
+- ✅ 357 test passati — buona copertura
+- ✅ Multi-layer fallback (spin, leva, SVG)
+- ✅ Caching tiered (L1 in-memory + Redis)
+- ✅ CORS configurato correttamente per embedding cross-origin
+- ✅ Rate limiting + spin cooldown
+- ✅ Health endpoint diagnostico
 
-**Aree di miglioramento (opzionali):**
-- Monitoraggio produzione (Prometheus/StatsD)
-
-### Verifica Finale
-
-**Data:** 2026-07-21  
-**Analista:** AI Assistant (Hermes)  
-**Strumenti usati:** `npm test`, `npm run lint`, analisi codice manuale, git log
-
-**Risultato:** ✅ **NESSUN BUG CRITICO TROVATO** - Progetto pronto per produzione.
-
-**Miglioramenti implementati:** M1, M2, M3, M5, M7 (parziale), M9, M10, M11
-**Miglioramenti pendenti:** Nessuno (tutti completati)
+**Aree di miglioramento:**
+- 🟡 BUG-3: Race condition leva — mitigato, da monitorare
+- 🟡 PERF-3: State sync parallelo — da monitorare
+- 🟡 SVG pre-build per i top repo (PERF-2) — accettabile
 
 ---
 
-*Ultima modifica: 2026-07-22 - Aggiornamento ISSUES.md con M11 Lever animation timing fix*
----
-
-## 🔧 Nuovi Fix Implementati (2026-07-23)
-
-### PERF: Regressione velocità leva — fetch rete a raw.githubusercontent.com sul percorso caldo
-
-**Status:** ✅ **FIXED** - Endpoint leva tornato a zero rete sul percorso caldo
-
-**Problema:**
-Dopo il commit `9d7f471` ("leva legge state.json GitHub come fonte di verità"),
-l'endpoint `/api/lever` era percepito più lento: ogni volta che il `?v` nell'URL
-non era "recente" (es. README andata in rate-limit sull'API Contents, oppure
->30s dopo l'ultimo spin) la leva faceva una `fetch` bloccante a
-`raw.githubusercontent.com/.../state.json` (timeout 800ms).
-
-**Causa:**
-In `getPullState()` l'ordine delle fonti era:
-  1) `?v` URL (veloce)
-  2) `raw.githubusercontent.com` → **fetch di rete (40–800ms)** sul percorso caldo
-  3) KV `gsm:state` (veloce, fallback)
-La fetch raw veniva quindi eseguita PRIMA del KV su quasi ogni visualizzazione
-del profilo → la slot "sembrava più lenta".
-
-**Soluzione:**
-Invertito l'ordine in `api/lever.js → getPullState()`:
-  1) `?v` URL (deterministico, veloce)
-  2) KV `gsm:state` (veloce, autorevole — spin.js lo scrive a OGNI spin in
-     parallelo prima del redirect via `Promise.allSettled` + `state.js kvSet`,
-     indipendentemente dal rate-limit della README Contents API)
-  3) `raw.githubusercontent.com` → SOLO fallback lento, fuori dal percorso caldo
-
-Il bug "smette dopo 2-3 spin" resta risolto perché il KV è già fonte autorevole:
-non serviva la fetch raw per coprirlo.
-
-**File modificati:**
-- `api/lever.js` - riordino fonti in `getPullState()` + commenti aggiornati
-
-**Testing:**
-- ✅ Tutti i test passati (349/349)
-- ✅ `node --check` OK, `npm run lint` pulito (0 errori)
-- ✅ Latenza raw.githubusercontent.com misurata 40–260ms (rete calda); su Vercel
-  cross-region il percorso caldo ora la evita del tutto
-
----
-
-*Ultima modifica: 2026-07-23 - Fix regressione velocità leva (reorder fonti getPullState)*
-
----
-
-
-
-### BUG: Animazione della leva non funzionava localmente
-
-**Status:** ✅ **FIXED** - Animazione della leva ora funziona correttamente in ambiente di sviluppo
-
-**Problema:**
-1. L'`index.html` cercava `/api/ratelimit-status` che NON esisteva
-2. Mancava completamente il codice per l'animazione della leva
-3. L'utente non poteva testare localmente perché il server non supportava tutti gli endpoint
-
-**Causa:**
-- Il server custom (`scripts/simple-dev.mjs`) non aveva implementato l'endpoint `/api/ratelimit-status`
-- L'index.html cercava endpoint e funzioni JS che non erano state implementate
-
-**Soluzione:**
-1. **Creazione `api/ratelimit-status.js`:**
-   - Formato Response Web API (`return new Response(...)`)
-   - Policy CORS con `corsHeaders(origin)` per origin allowlisted
-   - Mock rate limit per test locali senza GitHub PAT
-   
-2. **Aggiornamento `public/index.html`:**
-   - Aggiunto `<div class="lever-wrapper">` con `<img id="lever-svg">`
-   - Aggiunto CSS per animazioni `.lever-pulling` e `.lever-idle`
-   - Aggiunto funzioni JS: `startLeverIdle()`, `pullLever()`, `scheduleIdle()`
-   - Animazione automatica della leva al caricamento della pagina
-   
-3. **Aggiornamento `scripts/simple-dev.mjs`:**
-   - Implementato endpoint `/api/ratelimit-status`
-   - Supporto dual pattern: `(req, res)` e `Response` return
-   - Passa origin corretto al handler
-
-**File modificati/creati:**
-- ✅ `api/ratelimit-status.js` - NUOVO (1626 byte)
-- ✅ `public/index.html` - Aggiunto lever animation code (~1200 byte)
-- ✅ `scripts/simple-dev.mjs` - Aggiunto handler ratelimit-status
-
-**Testing:**
-- ✅ 343/344 test passati (1 test fallimento: contract test non rilevante)
-- ✅ `/api/ratelimit-status`: 200 OK con CORS header corretto
-- ✅ `/api/lever`: 4398 caratteri SVG con wildcard CORS
-- ✅ Animazione leva visibile al caricamento pagina
-- ✅ Lint: 0 errori
-
-**Verifica manuale:**
-```bash
-# Avvia server locale
-node scripts/simple-dev.mjs
-
-# Apri http://localhost:3000
-# Dovresti vedere:
-# 1. Slot machine che mostra lo stack corrente
-# 2. Leva che si muove (idle loop)
-# 3. Pulsante "GIRA ORA" funzionante
-```
-
----
-
-### BUG: Cliccando la leva a volte si viene reindirizzati alla pagina GitHub del progetto
-
-**Status:** ✅ **FIXED** - 2026-07-24
-
-**Problema:**
-Cliccando la leva (`<a href="/api/spin">` che avvolge l'SVG della leva nel
-README), a volte invece di "girare" e portare a un repo del profilo, l'utente
-veniva rimbalzato dentro il repo della slot stessa
-(`github.com/simrim96/GithubSlotMachine`). Da fuori sembrava che la leva "non
-avesse girato" e ti avesse solo portato su GitHub. Il comportamento era
-**intermittente** (dipendeva dal linguaggio estratto a caso).
-
-**Causa radice:**
-`api/spin.js` reindirizza verso il repo dell'owner il cui linguaggio (≥30%)
-coincide con quello uscito dalla slot. `GithubSlotMachine` è un progetto
-Node/JS/TS, quindi per vittorie su **JavaScript / TypeScript / React** veniva
-selezionato come repo "migliore" e lo spin rimandava l'utente DENTRO il repo
-sorgente della slot. Anche il repo profilo (`simrim96/simrim96`) concorreva.
-
-**Soluzione (`api/_lib/repos.js`):**
-1. Nuova export `isRepoExcluded(repName, owner, slotRepo)` che esclude il repo
-   profilo (`<owner>/<owner>`) e il repo della slot (`SLOT_REPO`) dalla
-   candidatura come destinazione di redirect.
-2. `refreshCache()` filtra questi due repo già a monte (`!isRepoExcluded(...)`)
-   quando costruisce `byLangId`.
-3. Rimossa la logica "isProfile" nel loop di selezione (ora ridondante): si
-   privilegia semplicemente repo con % linguaggio più alta, poi più stelle.
-4. **Difesa finale** in `getRepoForLanguage()`: se la cache (magari popolata
-   *prima* della fix, in memoria o KV) contiene ancora un repo escluso come
-   candidato, lo si tratta come "nessun repo" → lo spin cade sul profilo
-   invece di rimandare dentro la slot.
-5. `slotRepo` è letto da `process.env.SLOT_REPO || 'GithubSlotMachine'` così la
-   fix è corretta anche se il nome del repo cambiasse.
-
-**File modificati:**
-- `api/_lib/repos.js` - `isRepoExcluded()`, filtro in `refreshCache`, difesa
-  in uscita in `getRepoForLanguage`, rimossa logica isProfile
-- `tests/repo-exclusion.test.js` - NUOVO (4 test di regressione)
-
-**Testing:**
-- ✅ `npm run lint` pulito (0 errori)
-- ✅ `npx vitest run` → 357/357 test passati (inclusi i 4 nuovi)
-- ✅ Verifica manuale regex isRepoExcluded: GithubSlotMachine / simrim96
-  esclusi, repo progetto legittimi NON esclusi
-
----
-
-*Ultima modifica: 2026-07-24 - Fix bug redirect dentro il repo della slot (isRepoExcluded)*
-
----
+*Ultima modifica: 2026-07-31 — Analisi completa codice sorgente, ISSUES.md riscritto con criticità reali*

@@ -295,4 +295,154 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       }
     });
   });
+
+  describe('SEC-2: test mancanti per kvMset e kvMget', () => {
+    beforeEach(() => {
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      delete process.env.KV_REST_API_URL;
+      delete process.env.KV_REST_API_TOKEN;
+      delete process.env.KV_REST_API_READ_ONLY_TOKEN;
+    });
+
+    it('kvMget ritorna array di null quando Redis non è abilitato', async () => {
+      vi.resetModules();
+      const { kvMget } = await import('../api/_lib/kv.js');
+
+      const result = await kvMget('key1', 'key2', 'key3');
+      expect(result).toEqual([null, null, null]);
+    });
+
+    it('kvMget restituisce risultati correttamente quando Redis è abilitato', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: ['val1', null, 'val3'] }),
+      });
+
+      const { kvMget } = await import('../api/_lib/kv.js');
+
+      const result = await kvMget('key1', 'key2', 'key3');
+      expect(result).toEqual(['val1', null, 'val3']);
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://kv.upstash.io/mget',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer ***',
+          }),
+          body: JSON.stringify({ keys: ['key1', 'key2', 'key3'] }),
+        })
+      );
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+
+    it('kvMget ritorna array di null su errore HTTP', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      const { kvMget } = await import('../api/_lib/kv.js');
+
+      const result = await kvMget('key1', 'key2');
+      expect(result).toEqual([null, null]);
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+
+    it('kvMset ritorna false quando Redis non è abilitato', async () => {
+      vi.resetModules();
+      const { kvMset } = await import('../api/_lib/kv.js');
+
+      const result = await kvMset({ key1: 'val1', key2: 'val2' });
+      expect(result).toBe(false);
+    });
+
+    it('kvMset ritorna false e logga warning senza token di scrittura', async () => {
+      process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
+      process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      vi.resetModules();
+      const { kvMset } = await import('../api/_lib/kv.js');
+
+      const result = await kvMset({ key1: 'val1', key2: 'val2' });
+      expect(result).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[kvMset] nessun token di SCRITTURA configurato:',
+        expect.objectContaining({
+          keys: 'key1, key2',
+        })
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('kvMset salva correttamente le coppie su Upstash (simulato)', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const { kvMset } = await import('../api/_lib/kv.js');
+
+      const result = await kvMset({ a: '1', b: '2' });
+      expect(result).toBe(true);
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://kv.upstash.io/mset',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer ***',
+          }),
+          body: JSON.stringify({
+            pairs: [{ key: 'a', value: '1' }, { key: 'b', value: '2' }],
+          }),
+        })
+      );
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+
+    it('kvMset gestisce correttamente il timeout', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation(() =>
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('fetch timeout')), 1000)
+        )
+      );
+
+      const { kvMset } = await import('../api/_lib/kv.js');
+
+      const result = await kvMset({ key: 'value' });
+      // kvMset non logga su errore, ritorna solo false
+      expect(result).toBe(false);
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+  });
 });
