@@ -4,7 +4,9 @@
 // /api/lever servono con CORS wildcard `*` in contesti cross-origin.
 
 import { describe, it, expect } from 'vitest';
-import { sanitizeSvg } from '../api/_lib/svg-builder.js';
+import { sanitizeSvg, buildSVG, errorSVGString } from '../api/_lib/svg-builder.js';
+import { SCATTER_ID } from '../api/_lib/languages.js';
+import { COLS, ROWS } from '../api/_lib/game.js';
 
 describe('sanitizeSvg — hardening ISSUE-25 / S3', () => {
   it('rimuove tag <script>', () => {
@@ -48,8 +50,6 @@ describe('sanitizeSvg — hardening ISSUE-25 / S3', () => {
   });
 
   it('non altera buildSVG/errorSVGString di produzione', () => {
-    const { buildSVG, errorSVGString } = require('../api/_lib/svg-builder.js');
-    const { SCATTER_ID, COLS, ROWS } = require('../api/_lib/game.js');
     // griglia vuota (tutti scatter) come nei test di forma
     const grid = [];
     for (let c = 0; c < COLS; c++) {
