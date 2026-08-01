@@ -9,6 +9,11 @@ import { logger } from '../_lib/logger.js';
 export const GITHUB_API_TIMEOUT_MS =
   parseInt(process.env.GITHUB_API_TIMEOUT_MS) || 2000;
 
+// Retry: max tentativi su HTTP 429 (rate limit)
+const MAX_RATELIMIT_RETRIES = 3;
+// Backoff base per 429 (ms): 1s, 2s, 4s
+const RATELIMIT_BACKOFF_BASE_MS = 1000;
+
 // Timeout STRETTO per le letture di *contenuto* nel percorso critico dello
 // spin (state.json quando KV è disabilitato, config della slot, ecc.).
 // 800ms coerente con il cold-start wait di repos.js (COLD_START_WAIT_MS) così
@@ -98,38 +103,65 @@ export function escapeMarkdown(s) {
 // critico dello spin usa ghGetContentsJson() che passa il timeout stretto di 800ms.
 // Ritorna l'oggetto JSON della Contents API (con campo `content` in base64) o null.
 export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
-  try {
-      // Applica timeout alla chiamata
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        timeoutMs
-      );
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RATELIMIT_RETRIES; attempt++) {
+    try {
+        // Applica timeout alla chiamata
+        const controller = new AbortController();
+        const timeoutId = setTimeout(
+          () => controller.abort(),
+          timeoutMs
+        );
 
-      const response = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-        {
-          headers: {
-            ...ghHeaders(token),
-          },
-          signal: controller.signal,
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+          {
+            headers: {
+              ...ghHeaders(token),
+            },
+            signal: controller.signal,
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        // Traccia i rate limit headers (solo logging warning, non blocca)
+        logRateLimit(response);
+
+        // 429 rate limit: retry con backoff
+        if (response.status === 429) {
+          const resetHeader = response.headers.get('X-RateLimit-Reset');
+          const resetSec = resetHeader ? parseInt(resetHeader, 10) : null;
+          let waitMs;
+          if (resetSec && resetSec > Date.now() / 1000) {
+            waitMs = Math.round((resetSec - Date.now() / 1000) * 1000);
+          } else {
+            // Fallback: backoff esponenziale
+            waitMs = RATELIMIT_BACKOFF_BASE_MS * 2 ** attempt;
+          }
+          // Non aspettare più di 30s (limite di sicurezza per Edge)
+          waitMs = Math.min(waitMs, 30000);
+          logger.warn('GitHub rate limit hit (429), retrying', { attempt: attempt + 1, max_retries: MAX_RATELIMIT_RETRIES, wait_ms: waitMs });
+          if (attempt < MAX_RATELIMIT_RETRIES) {
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          // Ultimo tentativo: comunque restituiamo la risposta 429
         }
-      );
 
-      clearTimeout(timeoutId);
-
-      // Traccia i rate limit headers (solo logging warning, non blocca)
-      logRateLimit(response);
-
-      return response.ok ? await response.json() : null;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        logger.warn('GitHub API timeout', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
-      } else {
-        logger.error('ghGetJson ERROR', { owner, repo, path, name: error?.name, message: error?.message, stack: error?.stack?.split('\n').slice(0, 3).join(' | ') });
+        return response.ok ? await response.json() : null;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          logger.warn('GitHub API timeout', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
+        } else {
+          logger.error('ghGetJson ERROR', { owner, repo, path, name: error?.name, message: error?.message, stack: error?.stack?.split('\n').slice(0, 3).join(' | ') });
+        }
+        lastErr = error;
+        throw error; // Sentry handled by logger
       }
-      throw error; // Sentry handled by logger
-    }
+  }
+  // Raggiunti i retry: rilanciamo l'ultimo errore
+  throw lastErr;
 }
 
 // ghGetContentsJson: lettura di un file da GitHub Contents API con timeout STRETTO
@@ -154,7 +186,9 @@ export async function ghPut(
   _retry = false,
   timeoutMs = GITHUB_API_TIMEOUT_MS
 ) {
-  try {
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RATELIMIT_RETRIES; attempt++) {
+    try {
         const encoded = Buffer.from(content).toString('base64');
         const body = { message, content: encoded };
         if (sha) body.sha = sha;
@@ -184,6 +218,24 @@ export async function ghPut(
         // Traccia i rate limit headers
         logRateLimit(response);
 
+        // 429 rate limit: retry con backoff
+        if (response.status === 429) {
+          const resetHeader = response.headers.get('X-RateLimit-Reset');
+          const resetSec = resetHeader ? parseInt(resetHeader, 10) : null;
+          let waitMs;
+          if (resetSec && resetSec > Date.now() / 1000) {
+            waitMs = Math.round((resetSec - Date.now() / 1000) * 1000);
+          } else {
+            waitMs = RATELIMIT_BACKOFF_BASE_MS * 2 ** attempt;
+          }
+          waitMs = Math.min(waitMs, 30000);
+          logger.warn('GitHub rate limit hit on PUT (429), retrying', { attempt: attempt + 1, max_retries: MAX_RATELIMIT_RETRIES, wait_ms: waitMs });
+          if (attempt < MAX_RATELIMIT_RETRIES) {
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+        }
+
         if (response.status === 409 && !_retry) {
           // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
           const fresh = await ghGetJson(token, owner, repo, path);
@@ -200,13 +252,15 @@ export async function ghPut(
         }
         if (!response.ok)
           throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          logger.warn('GitHub API timeout PUT', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
-        }
-        // Sentry handled by logger
-        throw error;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        logger.warn('GitHub API timeout PUT', { owner, repo, path, timeout: GITHUB_API_TIMEOUT_MS });
       }
+      lastErr = error;
+      throw error;
+    }
+  }
+  throw lastErr;
 }
 
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
