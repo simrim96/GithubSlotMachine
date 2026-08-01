@@ -32,6 +32,10 @@ vi.mock('../api/_lib/kv.js', () => ({
   kvWritable: false,
 }));
 
+vi.mock('../api/_lib/spin-cooldown.js', () => ({
+  checkSpinCooldown: async () => ({ allowed: true }),
+}));
+
 const spinHandler = (await import('../api/spin.js')).default;
 const healthHandler = (await import('../api/health.js')).default;
 const ratelimitHandler = (await import('../api/ratelimit-status.js')).default;

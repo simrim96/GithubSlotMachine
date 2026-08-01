@@ -27,6 +27,10 @@ vi.mock('../api/_lib/kv.js', () => ({
   kvEnabled: false,
 }));
 
+vi.mock('../api/_lib/spin-cooldown.js', () => ({
+  checkSpinCooldown: async () => ({ allowed: true }),
+}));
+
 function makeResponse(ok, status, body) {
   return {
     ok,
