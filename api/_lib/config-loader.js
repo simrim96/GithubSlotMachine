@@ -7,6 +7,9 @@
 //    1. Root del progetto
 //    2. Directory config/
 //  Se nessun file esterno è trovato, ritorna oggetto vuoto.
+//
+//  VALIDAZIONE ENV (ISSUE-M4): validateEnv() controlla all'avvio che le
+//  variabili d'ambiente critiche siano configurate e le segnala in warning.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -17,6 +20,50 @@ import { validate } from 'jsonschema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..', '..');
+
+// ── VALIDAZIONE ENV CRITICI (ISSUE-M4) ──────────────────────────────────────
+// Campi obbligatori: il loro valore vuoto significa che la funzione fallirà
+// comunque (API 401, Redis disconnesso), ma almeno non passa silenziosamente.
+const REQUIRED_VARS = [
+  { key: 'GITHUB_PAT', warnMsg: 'GITHUB_PAT non impostato: le chiamate GitHub falliranno (401/404)' },
+  { key: 'SLOT_OWNER', warnMsg: 'SLOT_OWNER non impostato: valore default "simrim96" usato' },
+  { key: 'SLOT_REPO', warnMsg: 'SLOT_REPO non impostato: valore default "GithubSlotMachine" usato' },
+  // PROFILE_REPO ha default = SLOT_OWNER, quindi non è strettamente richiesto.
+  // KV_REST_API_URL + KV_REST_API_TOKEN sono opzionali (fallback su GitHub API).
+];
+
+/**
+ * Validazione all'avvio delle variabili d'ambiente critiche.
+ * Emette logger.warn per ogni campo obbligatorio mancante.
+ * Ritorna { valid: boolean, warnings: string[] }.
+ */
+export function validateEnv() {
+  const warnings = [];
+
+  for (const { key, warnMsg } of REQUIRED_VARS) {
+    const val = process.env[key];
+    if (!val || val.trim() === '') {
+      logger.warn('ConfigLoader missing required env var', { key, fallback: warnMsg });
+      warnings.push(`${key}= (not set) — ${warnMsg}`);
+    }
+  }
+
+  // Avvisa se sia GITHUB_PAT_REQUIRE_FINEGRAINED=true ma il PAT non è fine-grained
+  const pat = process.env.GITHUB_PAT ?? '';
+  const enforceFine = process.env.GITHUB_PAT_REQUIRE_FINEGRAINED ?? '';
+  if (enforceFine === 'true' && (pat.startsWith('ghp_') || pat.startsWith('gho_'))) {
+    logger.warn('ConfigLoader GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT è classic', {
+      key: 'GITHUB_PAT',
+      prefix: pat.slice(0, 5) + '...',
+    });
+    warnings.push('GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT rilevato come classic (ghp_/gho_)');
+  }
+
+  return { valid: warnings.length === 0, warnings };
+}
+
+// Esegui validazione all'import (side-effect sicuro, solo logging).
+validateEnv();
 
 /**
  * JSON Schema per la validazione della configurazione languages.

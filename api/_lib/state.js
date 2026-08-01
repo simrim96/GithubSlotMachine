@@ -163,6 +163,11 @@ function recordStateSyncSuccess() {
   }
 }
 
+// Chiave per il flag dirty: quando il sync asincrono fallisce, lo impostiamo
+// qui. Il prossimo spin lo controllerà e, se dirty, tenterà il sync in
+// modalità blocking (sync) invece che fire-and-forget.
+const STATE_DIRTY_KV_KEY = 'gsm:stateDirty';
+
 // R2: sync con retry + backoff esponenziale verso GitHub (state.json).
 // Ritorna true se ALMENO uno dei tentativi è andato a buon fine, false se
 // tutti i STATE_SYNC_MAX_RETRIES tentativi sono falliti (in tal caso il
@@ -440,14 +445,26 @@ export async function writeState(token, owner, repo, state, _sha) {
     // i tentativi falliscono, lo stato viene marcato "stale" (persistito) e
     // il prossimo sync riuscito scriverà "stale": true nel body. Il monitor
     // M4 continua a contare i fallimenti consecutivi + alert Sentry/log.
-    syncStateToGitHub(token, owner, repo, stateToSave, _sha)
+    //
+    // FIX ISSUE-M5: quando il sync fallisce, impostiamo il flag dirty in KV
+    // così il prossimo spin controllerà se fare un retry blocking.
+    const _fireAndForgetSync = syncStateToGitHub(token, owner, repo, stateToSave, _sha)
       .then((ok) => {
-        if (ok) recordStateSyncSuccess();
+        if (ok) {
+          recordStateSyncSuccess();
+          // Sync riuscito: puliamo il flag dirty
+          if (kvEnabled) kvSet(STATE_DIRTY_KV_KEY, '0').catch(() => {});
+        }
       })
       .catch((e) => {
         logger.warn('Redis state sync to GitHub failed', { error: e.message });
         recordStateSyncFailure(e);
+        // FIX ISSUE-M5: imposta flag dirty per retry blocking al prossimo spin
+        kvSet(STATE_DIRTY_KV_KEY, '1').catch(() => {});
       });
+    // Non attendiamo: il fire-and-forget resta non-bloccante per lo spin.
+    // Il .catch sul promise evita l'UnhandledPromiseRejection warning.
+    _fireAndForgetSync.catch(() => {});
     return;
   }
   // Se non c'è token, scrivi su /tmp (locale) invece che nel repo.
