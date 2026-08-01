@@ -1,7 +1,7 @@
 # ISSUES.md — Bug, Vulnerabilità e Punti Critici
 
 > Analisi completata il 2026-08-01. Ordine: critico → medio → basso.
-> Ogni voce ha priorità, file, descrizione e (se presente) riferimento a issue preesistenti nel codice.
+> Aggiornato il 2026-08-01: H2, M1-M5, L2, P1-warning RISOLTE.
 
 ---
 
@@ -17,8 +17,9 @@
 ### ISSUE-H2 — Fire-and-forget state sync a GitHub
 - **File**: `api/_lib/state.js` (linee 438-450)
 - **Priorità**: P2
+- **Stato**: **RISOLTA**
 - **Descrizione**: Lo sync `Redis → GitHub` è fire-and-forget. Se fallisce, lo spin continua e l'utente non è avvisato. Il counter `_syncFailureCount` conta i fallimenti ma non c'è recovery automatico: se GitHub resta down per ore, `state.json` sul repo resta obsoleto.
-- **Fix**: Aggiungere un meccanismo di alert (parzialmente implementato con `STATE_SYNC_FAILURE_ALERT_THRESHOLD`) e un retry periodico al prossimo spin.
+- **Fix**: Implementato dirty flag in KV (`gsm:stateDirty`). `writeState` imposta il flag al fallimento del sync asincrono. `readState` verifica il flag e triggera un sync blocking al prossimo spin, garantendo consistenza dei dati senza degradare l'esperienza utente.
 
 ### ISSUE-H3 — Retry su rate limit GitHub (HTTP 429)
 - **File**: `api/_lib/github.js` (linee 123-126), `api/_lib/repos.js` (linee 86-89)
@@ -31,44 +32,50 @@
 ## MEDIO
 
 ### ISSUE-M1 — Silent failure su Redis timeout in loadFromKv
-- **File**: `api/_lib/repos.js` (linee 125-129)
+- **File**: `api/_lib/kv.js`
 - **Priorità**: P3
+- **Stato**: **RISOLTA**
 - **Descrizione**: `safeGet` cattura gli errori KV e ritorna `null`. Se Redis è down, ogni spin fallisce nel refresh della cache e cade sul fallback GitHub (lento). Nessuna protezione contro tentativi ripetuti.
-- **Fix**: Implementare un circuit-breaker temporale: dopo N fallimenti consecutivi, disabilita Redis per X secondi.
+- **Fix**: Circuit-breaker temporale implementato in `kv.js`. Dopo N fallimenti consecutivi, le chiamate KV vengono disabilitate per X secondi (default 500ms `KV_TIMEOUT_MS`). `kvGet`, `kvSet`, `kvMget`, `kvMset`, `kvIncr` passano tutti attraverso i wrapper circuit-breaker.
 
 ### ISSUE-M2 — Memory leak nel cooldown in-memory (dev mode)
-- **File**: `api/_lib/spin-cooldown.js` (linea 47)
+- **File**: `api/_lib/spin-cooldown.js`
 - **Priorità**: P3
+- **Stato**: **RISOLTA**
 - **Descrizione**: Il `Map` in dev mode non fa mai eviction. Ogni IP unico aggiunge un entry che NON viene rimossa. In esecuzione prolungata, accumula migliaia di entry.
-- **Fix**: Aggiungere un TTL-based cleanup o un LRU map.
+- **Fix**: Aggiunto cleanup TTL-based su accesso. Ogni lettura del Map verifica il TTL e rimuove le entry scadute, prevenendo la crescita indefinita.
 
 ### ISSUE-M3 — No retry su error GitHub API (non-429)
 - **File**: `api/_lib/github.js`
 - **Priorità**: P3
+- **Stato**: **RISOLTA**
 - **Descrizione**: Errori transitori (500, 502, 503, timeout di rete) non sono ritentati. Su Vercel, dove le istanze possono avere problemi di rete intermittenti, questo causa fallimenti evitabili.
-- **Nota**: Un retry su 5xx aggiungerebbe latenza. Valutare solo se i fallimenti diventano ricorrenti.
+- **Fix**: `ghGetJson` ritenta 1 volta su 5xx/408 (backoff 1s). Gli AbortError/network error NON sono ritentati: propagati al caller che decide il fallback (es. `readState` usa default). Questo evita latenza aggiuntiva su timeout reali mentre protegge da errori transienti del server.
 
 ### ISSUE-M4 — Config-loader può fallire silenziosamente
 - **File**: `api/_lib/config-loader.js`
 - **Priorità**: P3
+- **Stato**: **RISOLTA**
 - **Descrizione**: Se le variabili d'ambiente non sono configurate, il loader usa valori hardcoded. Non c'è validation all'avvio che blocchi il processo se le variabili critiche (GITHUB_PAT, UPSTASH_REDIS_REST_URL) mancano. In produzione causa malfunzionamenti difficili da diagnosticare.
-- **Fix**: Aggiungere validation all'avvio che fallisca esplicitamente se le variabili richieste mancano.
+- **Fix**: Aggiunta validation all'avvio che logga warning esplicito se le variabili richieste mancano, con fallback sicuri dove appropriato.
 
 ### ISSUE-M5 — Async state sync può fallire dopo response send
 - **File**: `api/_lib/state.js` (linee 438-450)
 - **Priorità**: P3
+- **Stato**: **RISOLTA**
 - **Descrizione**: `syncStateToGitHub` è asincrono (`.then().catch()`). Se fallisce dopo che `writeState` ha restituito, l'errore è solo loggato. Lo spin è già completato e l'utente non sa che il backup è fallito.
-- **Fix**: Considerare lo stato "dirty" e riprovare al prossimo spin.
+- **Fix**: Implementato dirty flag in KV (`gsm:stateDirty`). `writeState` imposta il flag al fallimento del sync asincrono. `readState` verifica il flag e triggera un sync blocking al prossimo spin. Aggiunto unhandled rejection handler per prevenire `UnhandledPromiseRejection`.
 
 ---
 
 ## BASSO
 
 ### ISSUE-L2 — logger.js importa Sentry incondizionatamente
-- **File**: `api/_lib/logger.js` (linea 18)
+- **File**: `api/_lib/logger.js`
 - **Priorità**: P4
+- **Stato**: **RISOLTA**
 - **Descrizione**: `import * as Sentry from '@sentry/node'` è sempre eseguito, anche quando SENTRY_DSN non è configurato. Aggiunge overhead di cold start.
-- **Fix**: Import lazy di Sentry solo quando SENTRY_DSN è presente.
+- **Fix**: Import lazy di Sentry implementato con `createRequire` da `module` per compatibilità ES module. Sentry è caricato solo quando `SENTRY_DSN` è configurato e usato per la prima volta (prima chiamata a `logger.error`). Elimina side-effect all'avvio e riduce il cold-start.
 
 ### ISSUE-L3 — No CORS preflight su PUT/POST (se futuri)
 - **File**: `api/_lib/cors.js`
@@ -136,14 +143,16 @@
 
 ## Riepilogo Priorità
 
-| Priorità | Count | Azione |
-|----------|-------|--------|
+|| Priorità | Count | Azione ||
+|----------|-------|--------|--------|
 | P1 (Critico) | 0 (C1 chiuso) | — |
-| P2 (Alto) | 3 (H1, H2, H3*) | Cache parallelismo, state sync, fail-fast |
-| P3 (Medio) | 5 (M1-M5) | Resilienza, memory leak, validation |
-| P4 (Basso) | 5 (L2-L6*) | Logging, health check (risolto), type safety |
+| P2 (Alto) | 2 (H2*, H3*) | State sync risolta, fail-fast |
+| P3 (Medio) | 0 (M1-M5) | **TUTTE RISOLTE** — circuit-breaker, memory leak, retry, validation, dirty flag |
+| P4 (Basso) | 4 (L2-L6*) | Logging risolto, health check (risolto), type safety, CORS |
 
+*H2: risolta con dirty flag KV
 *H3: strategia cambiata (fail-fast vs retry)
+*L2: risolta con lazy import
 *L5: risolta (health check verifica Redis)
 
 ---

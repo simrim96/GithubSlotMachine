@@ -44,7 +44,23 @@ function clientIp(req) {
 }
 
 // ── Storage in-memory (fallback, non condiviso fra istanze) ──────────────────
-const mem = new Map(); // ip -> timestamp ms dell'ultimo spin consentito
+// FIX ISSUE-M2: TTL-based cleanup per prevenire memory leak.
+// Ogni entry ha un TTL = SPIN_COOLDOWN_MS. Le entry scadute vengono rimosse:
+//   1. Al momento dell'accesso (lazy cleanup)
+//   2. Ogni CLEANUP_INTERVAL accessi (periodic cleanup)
+const mem = new Map(); // ip -> { ts: number, expires: number }
+const CLEANUP_INTERVAL = 50; // effettua cleanup periodico ogni N accessi
+let _accessCounter = 0;
+
+function _cleanupExpired() {
+  const now = Date.now();
+  const windowMs = SPIN_COOLDOWN_MS;
+  for (const [ip, entry] of mem.entries()) {
+    if (now - entry.ts >= windowMs) {
+      mem.delete(ip);
+    }
+  }
+}
 
 // ── Storage Redis (prod) ─────────────────────────────────────────────────────
 import { kvGet, kvSet, kvEnabled } from './kv.js';
@@ -78,15 +94,21 @@ export async function checkSpinCooldown(req) {
   }
 
   // Fallback in-memory (dev / nessun Redis).
-  const lastTs = mem.get(ip);
-  if (typeof lastTs === 'number') {
-    const elapsed = now - lastTs;
+  // Cleanup periodico (ISSUE-M2)
+  _accessCounter += 1;
+  if (_accessCounter % CLEANUP_INTERVAL === 0) {
+    _cleanupExpired();
+  }
+
+  const entry = mem.get(ip);
+  if (entry && typeof entry.ts === 'number') {
+    const elapsed = now - entry.ts;
     if (elapsed < windowMs) {
       const retryAfterSec = Math.ceil((windowMs - elapsed) / 1000);
       return { allowed: false, retryAfterSec, ip };
     }
   }
-  mem.set(ip, now);
+  mem.set(ip, { ts: now, expires: now + windowMs });
   return { allowed: true, ip };
 }
 

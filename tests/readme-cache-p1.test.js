@@ -48,14 +48,19 @@ const README_BODY = [
   '',
 ].join('\n');
 
-const ghGetJson = vi.fn();
-const ghPut = vi.fn();
+// Vi.hoisted: la stessa istanza di vi.fn() usata nel mock, per permettere
+// ghGetJson.mockImplementation() nel beforeEach di essere efficace.
+const { ghGetJson, ghPut } = vi.hoisted(() => ({
+  ghGetJson: vi.fn(),
+  ghPut: vi.fn(),
+}));
 
 vi.mock('../api/_lib/github.js', () => ({
   ghGetJson: ghGetJson,
   ghPut: ghPut,
   saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
   loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
+  clearReadmeMarkers: vi.fn((r) => r),
   updateReadmeMarkers: vi.fn((r) => r),
   auditToken: vi.fn(),
 }));
