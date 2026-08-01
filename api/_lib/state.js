@@ -62,6 +62,8 @@ let _alertRaised = false;
 // Flag di stale a livello di modulo: true se l'ultimo sync GitHub ha fallito
 // in modo persistente. Viene azzerato al primo sync riuscito.
 let _stateStale = false;
+// Chiave KV per il contatore di fallimenti consecutivi (coerenza cross-istanza).
+const STATE_SYNC_FAIL_KV = 'gsm:stateSyncFailures';
 
 // Carica il flag di stale da KV (preferito) o dal marker /tmp (fallback).
 // Chiamato all'inizio di ogni sync così lo stato sopravvive ai riavvii.
@@ -122,6 +124,12 @@ function reportStateSyncAlert(failures, lastError) {
 
 function recordStateSyncFailure(err) {
   _syncFailureCount += 1;
+  // KV cross-istanza: usa kvIncr per sommare i fail da TUTTE le istanze Vercel,
+  // non solo da questa. Questo evita il problema per cui ogni container vede
+  // solo 1-2 fail e l'M4 alert non si attiva mai.
+  if (kvEnabled) {
+    kvIncr(STATE_SYNC_FAIL_KV).catch(() => {});
+  }
   if (
     !_alertRaised &&
     _syncFailureCount >= STATE_SYNC_FAILURE_ALERT_THRESHOLD
@@ -141,6 +149,10 @@ function recordStateSyncSuccess() {
   }
   _syncFailureCount = 0;
   _alertRaised = false;
+  // Resetta il contatore KV cross-istanza.
+  if (kvEnabled) {
+    kvSet(STATE_SYNC_FAIL_KV, 0).catch(() => {});
+  }
   // R2: se eravamo in stato stale (sync fallito in modo persistente in
   // precedenza), un sync riuscito significa che la divergenza è risolta:
   // abbassiamo il flag così il prossimo writeState NON rimarcherà più
