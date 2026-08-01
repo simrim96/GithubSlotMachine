@@ -75,50 +75,28 @@ let kvLoaded = false;
 
 // Fetch con timeout (AbortController) riusando l'infrastruttura
 // di github.js così lo stall GitHub NON può restare appeso all'infinito.
-// Retry: max tentativi su HTTP 429 (rate limit) — condiviso con github.js
-const MAX_RATELIMIT_RETRIES = 3;
-const RATELIMIT_BACKOFF_BASE_MS = 1000;
-
 async function ghFetchWithTimeout(url, headers) {
-  let lastErr;
-  for (let attempt = 0; attempt <= MAX_RATELIMIT_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
-    try {
-      const r = await fetch(url, { headers, signal: controller.signal });
-      clearTimeout(timeoutId);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(timeoutId);
 
-      // 429 rate limit: retry con backoff
-      if (r.status === 429) {
-        const resetHeader = r.headers.get('X-RateLimit-Reset');
-        const resetSec = resetHeader ? parseInt(resetHeader, 10) : null;
-        let waitMs;
-        if (resetSec && resetSec > Date.now() / 1000) {
-          waitMs = Math.round((resetSec - Date.now() / 1000) * 1000);
-        } else {
-          waitMs = RATELIMIT_BACKOFF_BASE_MS * 2 ** attempt;
-        }
-        waitMs = Math.min(waitMs, 30000);
-        logger.warn('GitHub rate limit hit on repos.js (429), retrying', { attempt: attempt + 1, max_retries: MAX_RATELIMIT_RETRIES, wait_ms: waitMs });
-        if (attempt < MAX_RATELIMIT_RETRIES) {
-          clearTimeout(timeoutId);
-          await new Promise((r) => setTimeout(r, waitMs));
-          continue;
-        }
-      }
-      return r;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        logger.warn('GitHub API timeout', { url, timeout: GITHUB_API_TIMEOUT_MS });
-      } else {
-        logger.error('ghFetchWithTimeout ERROR', { url, name: error?.name, message: error?.message });
-      }
-      lastErr = error;
-      throw error;
+    // 429 rate limit: log e fallisci subito (non blocca l'utente con 1-7s di attesa).
+    if (r.status === 429) {
+      logger.warn('GitHub rate limit hit on repos.js (429), failing fast', { url });
+      return r; // restituisce il 429 così il chiamante vede il codice di stato
     }
+    return r;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      logger.warn('GitHub API timeout', { url, timeout: GITHUB_API_TIMEOUT_MS });
+    } else {
+      logger.error('ghFetchWithTimeout ERROR', { url, name: error?.name, message: error?.message });
+    }
+    throw error;
   }
-  throw lastErr;
 }
 
 // Esegue i task in batch di `size` elementi, così non lanciamo mai più di `size`
