@@ -1,7 +1,7 @@
 # ISSUES.md — Bug, Vulnerabilità e Punti Critici
 
 > Analisi completata il 2026-08-01. Ordine: critico → medio → basso.
-> Aggiornato il 2026-08-01: H2, M1-M5, L2 RISOLTE.
+> Aggiornato il 2026-08-01: H2, M1-M5, L2, P1-warning RISOLTE.
 
 ---
 
