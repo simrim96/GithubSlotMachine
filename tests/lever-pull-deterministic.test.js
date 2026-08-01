@@ -1,17 +1,17 @@
 /**
  * Test per verificare che api/lever.js riproduca l'animazione di pull in modo
- * robusto, con piu' fonti di verita' ordinate, e NON dipenda da un'unica
+ * robusto, con più fonti di verità ordinate, e NON dipenda da un'unica
  * sorgente fragile.
  *
  * Radice del bug "funziona 2-3 volte poi smette": lever.js decideva pulling/
  * idling leggendo SOLO kvGet('gsm:state') (vuoto in prod) o ?v nel README.
- * Il ?v nel README e' aggiornato da spin.js via GitHub Contents API, che va
+ * Il ?v nel README è aggiornato da spin.js via GitHub Contents API, che va
  * in rate-limit: dopo 2-3 spin il ?v si "blocca" e la leva resta idle.
  *
  * Fix: getPullState(req) prova in ordine:
  *   1) ?v=spinStart nell'URL (deterministico, primario)
  *   2) state.json PUBBLICO su GitHub (aggiornato a ogni spin da spin.js -> fonte
- *      di verita' indipendente dal README, copre il rate-limit del README)
+ *      di verità indipendente dal README, copre il rate-limit del README)
  *   3) KV (fallback chiamate dirette / dev locale)
  * Finestra di recency: 30s (copre il ritardo di refetch di GitHub).
  *
@@ -19,12 +19,12 @@
  * senza I/O di rete reale.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const PULL_WINDOW_MS = 30000;
 
 // KV vuoto di default: simula il caso di produzione in cui la fonte attiva
-// NON e' KV.
+// NON è KV.
 const kvGetMock = vi.fn(async () => null);
 const kvSetMock = vi.fn(async () => true);
 
@@ -55,7 +55,7 @@ vi.mock('../api/_lib/logger.js', () => ({
 }));
 
 // fetch mock per la fonte #2 (state.json pubblico su GitHub).
-// githubTs e' configurabile per test: null => fetch fallito/non recente.
+// githubTs è configurabile per test: null => fetch fallito/non recente.
 let githubTs = null;
 const fetchMock = vi.fn(async (url) => {
   if (String(url).includes('raw.githubusercontent.com')) {
@@ -81,9 +81,16 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
   beforeEach(() => {
     captured = null;
     githubTs = null;
-    kvGetMock.mockClear();
-    kvSetMock.mockClear();
     fetchMock.mockClear();
+    // Reset to defaults (idempotent — immune da contaminazione tra test)
+    kvGetMock.mockResolvedValue(null);
+    kvSetMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    // Sempre ripristinare i default dopo ogni test
+    kvGetMock.mockResolvedValue(null);
+    kvSetMock.mockResolvedValue(true);
   });
 
   it('FONTE 1: ?v=spin recente emette pulling ANCHE se KV e GitHub vuoti', async () => {
@@ -110,7 +117,7 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
 
   it('FONTE 3: senza ?v, GitHub non recente ma KV recente -> pulling (fallback)', async () => {
     githubTs = Date.now() - (PULL_WINDOW_MS + 5000); // GitHub vecchio
-    kvGetMock.mockImplementationOnce(async () => ({
+    kvGetMock.mockResolvedValue({
       totalSpins: 1,
       totalWins: 0,
       lastWin: null,
@@ -118,7 +125,7 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
       lastPullTimestamp: Date.now(),
       settings: { theme: 'auto', sound: true },
       stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
-    }));
+    });
     await leverHandler(makeReq(), makeRes());
     expect(captured.body).toContain('class="leverArm pulling"');
   });
@@ -130,7 +137,7 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
 
   it('COLD-START: kvGet va in TIMEOUT/lancia -> non rompe, degrada a idling', async () => {
     // Simula Upstash lento/cross-region a freddo: kvGet impiega >500ms e lancia.
-    kvGetMock.mockImplementationOnce(async () => {
+    kvGetMock.mockImplementation(async () => {
       await new Promise((r) => setTimeout(r, 600));
       throw new Error('kv timeout');
     });
@@ -147,7 +154,7 @@ describe('Lever pull deterministico (fonti ordinate, finestra 30s)', () => {
   it('COLD-START KV lento ma raw GitHub recente -> pulling (fallback funziona)', async () => {
     // KV lento/timeout, ma raw GitHub risponde con timestamp recente:
     // il fallback LENTO deve comunque tirare la leva.
-    kvGetMock.mockImplementationOnce(async () => {
+    kvGetMock.mockImplementation(async () => {
       await new Promise((r) => setTimeout(r, 600));
       throw new Error('kv timeout');
     });

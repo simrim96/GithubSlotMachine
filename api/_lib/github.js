@@ -97,35 +97,59 @@ export function escapeMarkdown(s) {
 // `timeoutMs` è opzionale: default GITHUB_API_TIMEOUT_MS (5s). Nel percorso
 // critico dello spin usa ghGetContentsJson() che passa il timeout stretto di 800ms.
 // Ritorna l'oggetto JSON della Contents API (con campo `content` in base64) o null.
+//
+// FIX ISSUE-M3: retry su errori transienti (5xx, 408, 429).
+// Non retry su 404, 401, 403 (errori permanenti).
+// I timeout di rete/AbortError NON vengono retry: propagati al caller.
 export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
-  // Applica timeout alla chiamata
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const RETRY_MAX = 1;
 
-  const response = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    {
-      headers: {
-        ...ghHeaders(token),
-      },
-      signal: controller.signal,
+  for (let attempt = 0; attempt <= RETRY_MAX; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+        {
+          headers: {
+            ...ghHeaders(token),
+          },
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      // Traccia i rate limit headers (solo logging warning, non blocca)
+      logRateLimit(response);
+
+      // 429 rate limit: log e fallisci subito (no retry).
+      if (response.status === 429) {
+        logger.warn('GitHub rate limit hit (429), failing fast', { owner, repo, path });
+        return null;
+      }
+
+      // 5xx o 408: errori transienti, ritenta (se possibile)
+      if (response.status >= 500 || response.status === 408) {
+        logger.debug('[ghGetJson] retrying on transient error', { attempt, status: response.status, owner, repo, path });
+        if (attempt < RETRY_MAX) {
+          await new Promise(r => setTimeout(r, 1000)); // breve backoff
+          continue;
+        }
+        return null;
+      }
+
+      return response.ok ? await response.json() : null;
+    } catch (err) {
+      // Timeout di rete o AbortError: NON retry — propaghi al caller
+      // che sa decidere il fallback (es. readState usa default).
+      logger.warn('[ghGetJson] network error', { error: err?.message, owner, repo, path });
+      throw err;
     }
-  );
-
-  clearTimeout(timeoutId);
-
-  // Traccia i rate limit headers (solo logging warning, non blocca)
-  logRateLimit(response);
-
-  // 429 rate limit: log e fallisci subito.
-  // Non retryare: in Edge un retry blocca l'utente per 1-7 secondi (1+2+4s).
-  // Se il token è rate-limitato, un nuovo cold-start farà una nuova richiesta.
-  if (response.status === 429) {
-    logger.warn('GitHub rate limit hit (429), failing fast', { owner, repo, path });
-    return null;
   }
 
-  return response.ok ? await response.json() : null;
+  return null;
 }
 
 // ghGetContentsJson: lettura di un file da GitHub Contents API con timeout STRETTO
@@ -150,56 +174,69 @@ export async function ghPut(
   _retry = false,
   timeoutMs = GITHUB_API_TIMEOUT_MS
 ) {
-  const encoded = Buffer.from(content).toString('base64');
-  const body = { message, content: encoded };
-  if (sha) body.sha = sha;
+  const RETRY_MAX = 1;
+  const RETRYABLE_4XX = new Set([408, 429]); // retry su 408/429 (ma non su 409 che è handled diversamente)
 
-  // Applica timeout alla chiamata
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  for (let attempt = 0; attempt <= (_retry ? 0 : RETRY_MAX); attempt++) {
+    const encoded = Buffer.from(content).toString('base64');
+    const body = { message, content: encoded };
+    if (sha) body.sha = sha;
 
-  const response = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    {
-      method: 'PUT',
-      headers: {
-        ...ghHeaders(token),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    }
-  );
+    // Applica timeout alla chiamata
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  clearTimeout(timeoutId);
-
-  // Traccia i rate limit headers
-  logRateLimit(response);
-
-  // 429 rate limit: log e fallisci subito (stessa logica di ghGetJson).
-  if (response.status === 429) {
-    logger.warn('GitHub rate limit hit on PUT (429), failing fast', { owner, repo, path });
-    throw new Error(`PUT ${owner}/${repo}/${path}: 429 rate limited`);
-  }
-
-  if (response.status === 409 && !_retry) {
-    // SHA stale o mancante: rifetch il file per ottenere lo SHA aggiornato e riprova.
-    const fresh = await ghGetJson(token, owner, repo, path);
-    return ghPut(
-      token,
-      owner,
-      repo,
-      path,
-      content,
-      fresh?.sha ?? null,
-      message,
-      true
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {
+        method: 'PUT',
+        headers: {
+          ...ghHeaders(token),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }
     );
-  }
-  if (!response.ok)
-    throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
 
-  return;
+    clearTimeout(timeoutId);
+
+    // Traccia i rate limit headers
+    logRateLimit(response);
+
+    // 429 rate limit: log e fallisci subito (stessa logica di ghGetJson).
+    if (response.status === 429) {
+      logger.warn('GitHub rate limit hit on PUT (429), failing fast', { owner, repo, path });
+      throw new Error(`PUT ${owner}/${repo}/${path}: 429 rate limited`);
+    }
+
+    // 409 SHA mismatch: rifetch e riprova
+    if (response.status === 409 && !_retry) {
+      const fresh = await ghGetJson(token, owner, repo, path);
+      return ghPut(
+        token,
+        owner,
+        repo,
+        path,
+        content,
+        fresh?.sha ?? null,
+        message,
+        true
+      );
+    }
+
+    // 5xx o 408: errori transienti, ritenta (se non siamo già in retry)
+    if (!response.ok && response.status >= 500 && !_retry && attempt < RETRY_MAX) {
+      logger.debug('[ghPut] retrying on transient error', { attempt, status: response.status, owner, repo, path });
+      await new Promise(r => setTimeout(r, 1000));
+      continue;
+    }
+
+    if (!response.ok)
+      throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
+
+    return;
+  }
 }
 
 // ── Persistenza slot.svg ──────────────────────────────────────────────────────
