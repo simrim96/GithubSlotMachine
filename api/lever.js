@@ -21,6 +21,7 @@ import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { kvGet } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
+import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 
 const W = 52;
 const H = 150;
@@ -347,6 +348,19 @@ export default async function handler(req, res) {
   applyCorsWildcard(req, res);
   if (req.method === 'OPTIONS') {
     sendResponse(res, { status: 204 });
+    return;
+  }
+
+  // Rate-limit per-IP (ISSUE-C3): same cooldown as spin to prevent abuse.
+  const cooldown = await checkSpinCooldown(req);
+  if (!cooldown.allowed) {
+    sendResponse(res, {
+      status: 302,
+      headers: {
+        'Retry-After': String(cooldown.retryAfterSec),
+      },
+      redirect: `https://github.com/${OWNER}`,
+    });
     return;
   }
 

@@ -38,6 +38,11 @@ vi.mock('../api/_lib/cors.js', () => ({
   applyCorsWildcard: () => {},
 }));
 
+vi.mock('../api/_lib/spin-cooldown.js', () => ({
+  checkSpinCooldown: async () => ({ allowed: true }),
+  clientIp: (req) => req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || '127.0.0.1',
+}));
+
 let captured = null;
 vi.mock('../api/_lib/response-bridge.js', () => ({
   sendResponse: (_res, payload) => {
