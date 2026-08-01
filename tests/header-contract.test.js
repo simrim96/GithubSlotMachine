@@ -18,6 +18,10 @@ vi.mock('../api/_lib/kv.js', () => ({
   kvEnabled: false,
 }));
 
+vi.mock('../api/_lib/spin-cooldown.js', () => ({
+  checkSpinCooldown: async () => ({ allowed: true }),
+}));
+
 // Mock di github.js: timeout corto (non toccato da questo test, ma coerente
 // con gli altri test del repo).
 vi.mock('../api/_lib/github.js', async (importOriginal) => {
