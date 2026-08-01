@@ -525,15 +525,21 @@ export default async function handler(req, res) {
     // slot.svg + state + README girano in parallelo. Se la README supera il
     // timeout di sicurezza, non blocchiamo il redirect: lo slot funziona lo
     // stesso (solo la combinazione nel profilo si aggiorna al giro dopo).
+    // Il timer viene cancellato quando readmePromise termina (via .finally)
+    // per evitare warning fantasma quando il test termina prima che i timer
+    // di 4s scattino.
+    let readmeTimeoutId = null;
     const readmeWithTimeout = Promise.race([
       readmePromise,
-      new Promise((res) =>
-        setTimeout(() => {
+      new Promise((res) => {
+        readmeTimeoutId = setTimeout(() => {
           logger.warn('[readme] timeout di sicurezza, skip per non bloccare redirect');
           res();
-        }, README_TIMEOUT_MS)
-      ),
-    ]);
+        }, README_TIMEOUT_MS);
+      }),
+    ]).finally(() => {
+      if (readmeTimeoutId) clearTimeout(readmeTimeoutId);
+    });
 
     const [slotResult] = await Promise.allSettled([
       saveSlotSvg(token, OWNER, SLOT_REPO, svg, slotFile?.sha),
