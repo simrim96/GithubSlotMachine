@@ -99,19 +99,25 @@ async function ghFetchWithTimeout(url, headers) {
   }
 }
 
-// Esegue i task in batch di `size` elementi, così non lanciamo mai più di `size`
-// fetch in parallelo (limita il picco di carico e il consumo dei rate-limit).
+// Esegue i task mantenendo sempre al massimo `size` worker attivi in parallelo.
+// Un pool concorrente fa sì che non appena un worker finisce il suo task, ne
+// prenda uno nuovo — così il throughput è sempre al massimo e non ci sono
+// "golfi" tra un batch e l'altro. Limita il picco di carico e il consumo dei
+// rate-limit.
 async function mapBatch(items, size, worker) {
   const results = new Array(items.length);
-  for (let i = 0; i < items.length; i += size) {
-    const slice = items.slice(i, i + size);
-    const settled = await Promise.all(
-      slice.map((item, j) => worker(item, i + j))
-    );
-    settled.forEach((val, j) => {
-      results[i + j] = val;
-    });
+  let nextIndex = 0;
+
+  async function workerLoop() {
+    while (nextIndex < items.length) {
+      const idx = nextIndex++; // atomico in JS single-threaded
+      const result = await worker(items[idx], idx);
+      results[idx] = result;
+    }
   }
+
+  const workers = Math.min(size, items.length);
+  await Promise.all(Array.from({ length: workers }, () => workerLoop()));
   return results;
 }
 
