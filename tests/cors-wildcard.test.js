@@ -7,6 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+vi.mock('../api/_lib/spin-cooldown.js', () => ({
+  checkSpinCooldown: async () => ({ allowed: true }),
+}));
+
 const imageHandler = (await import('../api/image.js')).default;
 const leverHandler = (await import('../api/lever.js')).default;
 

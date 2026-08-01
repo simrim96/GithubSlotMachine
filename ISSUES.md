@@ -16,17 +16,8 @@
   3. `stateToSave.totalSpins = newTotalSpins` (valore da INCR) sovrascrive
 
   In teoria INCR è atomico, ma `writeState` riceve `stateToSave` che è un oggetto mutato in-place da `gameResult`. Due richieste concurrenti passano lo stesso `state` a `buildGameResult`, che crea `gameResult = { ...state, ... }` (shallow copy). `writeState` muterebbe lo stesso oggetto, ma il vero problema è: `state` letta da `kvGet` è un oggetto parse, e se due istanze Vercel lo leggono contestualmente, `buildGameResult` calcola `newTotalSpins = state.totalSpins + 1` entrambe. Poi `kvIncr` fa INCR due volte (corretto), ma `stateToSave.totalSpins = newTotalSpins` usa il valore RESTITUITO da INCR (corretto). Quindi in realtà **non c'è data loss** grazie all'uso di INCR.
-  
-  **Verdetto**: Il codice è corretto grazie ai contatori atomici INCR. **Chiudere come non-issue**.
 
-### ISSUE-C2 — SVG Injection tramite nome repo non sanitizzato
-- **File**: `api/_lib/svg/header.js` (linea 7-18), `api/_lib/svg/cabinet.js`, `api/lever.js`
-- **Priorità**: P1
-- **Descrizione**: Il nome del repo viene inserito direttamente nel testo SVG senza escaping. Se un repo contiene caratteri come `<`, `>`, `&`, il testo SVG risulta corrotto. Inoltre, il `repoName` nel `gameResult` passa attraverso il path:
-  `spin.js → buildGameResult → gameResult.repoName → SVG build → state → writeState`
-  
-  Il nome del repo viene usato nel paytable (`svg/paytable.js`) e nell'header, ma **non viene fatto escaping** dei caratteri XML/HTML. Un repo con nome `foo&bar` genererebbe SVG malformato.
-- **Fix**: Aggiungere una funzione di escaping XML prima dell'inserimento nel template SVG.
+  **Verdetto**: Il codice è corretto grazie ai contatori atomici INCR. **Chiudere come non-issue**.
 
 ### ISSUE-C3 — No rate limiting su `/api/lever` e `/api/image`
 - **File**: `api/lever.js`, `api/image.js`
@@ -34,7 +25,7 @@
 - **Descrizione**: Il rate limiting per-IP (spin-cooldown.js) è applicato SOLO su `/api/spin`. Gli endpoint `/api/lever` e `/api/image` non hanno alcuna protezione. Un attaccante può:
   1. Chiamare `/api/lever` ripetutamente per ottenere repo diversi
   2. Chiamare `/api/image` per generare SVG diversi
-  
+
   Anche se questi endpoint sono in lettura, un abuso massivo consuma CPU per il rendering SVG e banda per la risposta.
 - **Fix**: Applicare lo stesso cooldown di spin-cooldown.js anche a lever e image.
 
@@ -61,7 +52,7 @@ async function mapBatch(items, size, worker) {
     const settled = await Promise.all(
       slice.map((item, j) => worker(item, i + j))
     );  // ← aspetta TUTTO il batch
-    settled.forEach((val, j) => {
+    settled.forEach((val, j) {
       results[i + j] = val;
     });
   }
@@ -83,11 +74,6 @@ async function mapBatch(items, size, worker) {
 - **Descrizione**: Quando GitHub risponde con HTTP 429, il codice non implementa retry con backoff (solo su 409). Con 5000 req/h di budget, in caso di burst di spin il budget si esaurisce e tutte le chiamate subsequenti falliscono finché il reset timer non scade (può essere fino a un'ora).
 - **Fix**: Aggiungere retry con exponential backoff sugli 429, leggendo il `X-RateLimit-Reset` header.
 
-### ISSUE-H4 — No input validation su `/api/image` filename
-- **File**: `api/image.js`
-- **Priorità**: P2
-- **Descrizione**: Se `/api/image` accetta parametri di input (es. `?name=` o simili), non ci sono controlli su path traversal (`../`). Verificare se il parametro `name` (slot.svg) è sanitizzato.
-- **Fix**: Validare che il filename non contenga `..`, `/`, o altri caratteri pericolosi.
 
 ---
 
@@ -126,11 +112,6 @@ async function mapBatch(items, size, worker) {
 ---
 
 ## BASSO
-
-### ISSUE-L1 — SVG injection tramite nome repo (già in C2, ma basso impatto)
-- **File**: `api/_lib/svg/header.js`, `api/_lib/svg/cabinet.js`
-- **Priorità**: P3
-- **Descrizione**: Il nome del repo viene usato direttamente come testo SVG senza escaping. GitHub repo names sono generalmente sani (alphanumerici + `-`), quindi il rischio è basso nella pratica.
 
 ### ISSUE-L2 — logger.js importa Sentry incondizionatamente
 - **File**: `api/_lib/logger.js` (linea 18)
@@ -186,7 +167,20 @@ async function mapBatch(items, size, worker) {
 
 | Priorità | Count | Azione |
 |----------|-------|--------|
-| P1 (Critico) | 1 (C1 chiuso, C2 aperto) | SVG injection: fix urgente |
-| P2 (Alto) | 4 (C3, C4, H1, H2, H3) | Rate limiting, cold start, retry |
+| P1 (Critico) | 0 (C1 chiuso) | — |
+| P2 (Alto) | 5 (C3, C4, H1, H2, H3) | Rate limiting, cold start, retry |
 | P3 (Medio) | 5 (M1-M5) | Resilienza, memory leak, validation |
-| P4 (Basso) | 4 (L1-L6) | Logging, health check, type safety |
+| P4 (Basso) | 5 (L2-L6) | Logging, health check, type safety |
+
+---
+
+## CHIUDE (risolte)
+
+### ISSUE-C2 — SVG Injection tramite nome repo
+**Stato: RISOLTA** — `escapeXml` in `utils.js` usato in `panel.js` (5 occ.), `analysis.js` (1 occ.), `paytable.js`; `safeLang` in `badge.js` fa stripping `<>&"'`; repo name non appare mai direttamente negli SVG. Rimossa dal conteggio attivo.
+
+### ISSUE-H4 — No input validation su `/api/image`
+**Stato: RISOLTA** — `/api/image.js` usa filename hardcoded `'slot.svg'`, nessun parametro utente accettato, nessun path traversal possibile. Rimossa dal conteggio attivo.
+
+### ISSUE-L1 — SVG injection (basso impatto)
+**Stato: RISOLTA** — Duplicato di C2, già coperto. Rimossa dal conteggio attivo.
