@@ -7,6 +7,8 @@
 import { checkWins, COLS } from '../game.js';
 import { DUR } from './constants.js';
 
+import { escapeXml } from './utils.js';
+
 export function analyzeResult(grid, state, winningLang) {
   const wins = checkWins(grid);
   // (RIMOSSO) near-miss disattivato: il rullo gira normalmente.
@@ -31,10 +33,11 @@ export function analyzeResult(grid, state, winningLang) {
   const totalSpins = (state?.totalSpins || 0).toLocaleString('en-US');
   const totalWins = (state?.totalWins || 0).toLocaleString('en-US');
   const resultStatus = isWin ? 'win' : 'no-win';
+  const langName = escapeXml(winningLang?.name || '');
   const resultMessage = isBigWin
-    ? `💰 BIG WIN — ${winningLang?.name || ''}!`
+    ? `💰 BIG WIN — ${langName}!`
     : isWin
-      ? `🎉 ${winningLang?.name || ''} WIN!`
+      ? `🎉 ${langName} WIN!`
       : 'Try again, better luck next time!';
   const ariaLabel = `Dev Stack Slot Machine. ${resultMessage} Total spins: ${totalSpins}, total wins: ${totalWins}.`;
 
