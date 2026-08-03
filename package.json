@@ -31,7 +31,7 @@
     "jsonschema": "^1.4.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.1",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.32.0",
     "prettier": "3.9.5",
