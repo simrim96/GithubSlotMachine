@@ -405,41 +405,26 @@ export async function writeState(token, owner, repo, state, _sha) {
     if (stateToSave.version === undefined) {
       stateToSave.version = 1;
     }
-    
-    // ISSUE-4 fix: usa operazioni ATOMICHE INCR per evitare race condition
-    // Quando due spin arrivano contemporaneamente, se usassimo "leggi->
-    // incrementa->scrivi", entrambi leggerebbero lo stesso valore,
-    // incrementerebbero, e il secondo sovrascriverebbe il primo.
-    // Usando INCR di Redis (atomica), ogni incremento è indipendente.
+
+    // FIX contatori community (2026-08-08): i contatori totalSpins/totalWins
+    // vengono incrementati dal CHIAMANTE (spin.js: totalSpins +1 a ogni spin,
+    // totalWins +1 SOLO su vincita) e qui persistiti con un singolo kvSet.
     //
-    // Approccio:
-    // 1. Incrementa atomicamente i contatori con INCR (ritorna il NUOVO valore)
-    // 2. Usa i valori restituiti da INCR direttamente, senza leggere-
-    //    modificare-scrivere separato
-    // 3. NON fare kvSet separato: l'INCR è già la scrittura atomica
-    try {
-      // INCR è ATOMICO: nessun'altra richiesta può modificare il contatore
-      // mentre questo incremento è in corso
-      const newTotalSpins = await kvIncr('gsm:counter:spins');
-      const newTotalWins = await kvIncr('gsm:counter:wins');
-      
-      // Aggiorna lo stato con i valori RESTITUITI da INCR
-      // (NON usare lo stato precedente come base)
-      stateToSave.totalSpins = newTotalSpins ?? 0;
-      stateToSave.totalWins = newTotalWins ?? 0;
-      
-      // Scrivi lo stato completo (usa mset per atomicità su più chiavi)
-      // Se mset non è disponibile, INCR su contatori separati + mset su stato
-      // è sufficiente per evitare race condition
-      await kvSet(STATE_KEY, stateToSave);
-    } catch (err) {
-      // Fallback: se INCR fallisce, usa il vecchio comportamento
-      logger.warn('atomic counter increment failed, fallback to normal write', {
-        error: err?.message || err,
-      });
-      await kvSet(STATE_KEY, stateToSave);
-    }
-    
+    // PRIMA (ISSUE-4): due kvIncr su chiavi contatore separate
+    // (gsm:counter:spins / gsm:counter:wins) i cui valori sovrascrivevano lo
+    // stato. Bug introdotti:
+    //   - gsm:counter:wins veniva incrementato a OGNI spin → totalWins ==
+    //     totalSpins (state.json reale: 193/193 invece di 573/351);
+    //   - le chiavi contatore non venivano MAI seed-ate dallo storico del
+    //     blob → a Redis fresco (o chiavi perse) i contatori ripartivano da 1
+    //     azzerando lo storico (573 → 1);
+    //   - `?? 0` azzerava i contatori a ogni fallimento transitorio di kvIncr.
+    //
+    // ORA: singolo kvSet dello stato già incrementato dal chiamante. La race
+    // condition residua (±1 su spin concorrenti) è accettata per contatori
+    // statistici (ISSUES.md Bottleneck 3).
+    await kvSet(STATE_KEY, stateToSave);
+
     // Sync asincrono su GitHub per backup (non blocca lo spin).
     // R2: ora con retry + backoff esponenziale (syncStateToGitHub). Se tutti
     // i tentativi falliscono, lo stato viene marcato "stale" (persistito) e
