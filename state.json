@@ -1,20 +1,20 @@
 {
-  "totalSpins": 1,
-  "totalWins": 1,
+  "totalSpins": 2,
+  "totalWins": 2,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio",
-      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
+      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786221535393
+    "ts": 1786221723464
   },
   "version": 2,
-  "lastPullTimestamp": 1786221535393,
+  "lastPullTimestamp": 1786221723464,
   "settings": {
     "theme": "auto",
     "sound": true
