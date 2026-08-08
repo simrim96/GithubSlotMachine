@@ -123,7 +123,14 @@ export default async function handler(req, res) {
         body: JSON.stringify({ pairs: [{ key: 'gsm:__maintenance_probe__', value: 'ok' }] }),
       });
       await tryProbe('POST /incr', `/incr/gsm:__maintenance_probe2__`, { method: 'POST' });
-      await tryProbe('POST /del', '/del', {
+      await tryProbe('GET /get/{key} (correct format)', `/get/gsm:__maintenance_probe2__`, { method: 'GET' });
+      await tryProbe('GET /set/{key}/{val} (correct format)', `/set/gsm:__maintenance_probe3__/hello`, { method: 'GET' });
+      await tryProbe('GET /get/gsm:__maintenance_probe3__', `/get/gsm:__maintenance_probe3__`, { method: 'GET' });
+      await tryProbe('POST /del (correct format)', '/del', {
+        method: 'POST',
+        body: JSON.stringify(['DEL', 'gsm:__maintenance_probe3__']),
+      });
+      await tryProbe('POST /del (keys body)', '/del', {
         method: 'POST',
         body: JSON.stringify({ keys: ['gsm:__maintenance_probe__', 'gsm:__maintenance_probe2__'] }),
       });
