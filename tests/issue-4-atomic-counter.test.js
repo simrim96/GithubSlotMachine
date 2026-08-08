@@ -44,7 +44,7 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     const counters = new Map();
     
     // Mock di fetch per simulare l'endpoint INCR REST
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
       
@@ -97,7 +97,7 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     const redisState = new Map();
 
     // Mock di fetch per simulare tutte le operazioni REST API
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
       const segments = path.split('/').filter(Boolean);
@@ -129,6 +129,42 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
         // non più su /key/{key}.
         const key = decodeURIComponent(segments[1]);
         const value = redisState.get(key) ?? null;
+
+        return {
+          ok: true,
+          json: async () => ({ result: value }),
+        };
+      }
+
+      if (path.startsWith('/incr/')) {
+        // Simuliamo INCR
+        const key = decodeURIComponent(path.split('/').pop());
+        const current = counters.get(key) || 0;
+        const newValue = current + 1;
+        counters.set(key, newValue);
+
+        return {
+          ok: true,
+          json: async () => ({ result: newValue }),
+        };
+      }
+
+      if (path === '/db') {
+        // Simuliamo SET/PUT (formato legacy body)
+        const body = options?.body ? JSON.parse(options.body) : {};
+        const { key, value } = body;
+        redisState.set(key, value);
+
+        return {
+          ok: true,
+          json: async () => ({ result: 'OK' }),
+        };
+      }
+
+      if (path.startsWith('/key/')) {
+        // Simuliamo GET (formato legacy)
+        const key = decodeURIComponent(path.split('/').pop());
+        const value = redisState.get(key);
 
         return {
           ok: true,
@@ -193,7 +229,7 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     const counters = new Map();
     
     // Mock di fetch per INCR
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
       
