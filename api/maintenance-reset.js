@@ -37,6 +37,17 @@ import { ghGetJson, ghPut } from './_lib/github.js';
 const MAINTENANCE_TOKEN = '8AX5rMmyfM3z0UTt1GuCRy_fFovAOQ1d';
 const KEYS_TO_DELETE = ['gsm:state', 'gsm:counter:spins', 'gsm:counter:wins'];
 
+// Baseline pulita: contatori a zero, nessuna vincita, nessun flag stale.
+const CLEAN_STATE = {
+  totalSpins: 0,
+  totalWins: 0,
+  lastWin: null,
+  version: 2,
+  lastPullTimestamp: 0,
+  settings: { theme: 'auto', sound: true },
+  stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
+};
+
 function json(res, status, body) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
@@ -205,6 +216,7 @@ export default async function handler(req, res) {
       });
     }
 
+    // ── Reset completo ────────────────────────────────────────────────────
     // 1. Stato prima (lettura diretta con formato REST corretto /get/{key})
     const before = {};
     for (const key of KEYS_TO_DELETE) {
@@ -215,12 +227,63 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Elimina le chiavi corrotte (DEL con chiavi nel path: /del/{k1}/{k2})
+    // 2. Elimina le chiavi contatore corrotte (DEL con chiavi nel path)
     const delResult = await restDel(url, writeToken, ...KEYS_TO_DELETE);
 
-    // 3. Stato dopo
+    // 3. Scrive la baseline pulita (0/0) direttamente in Redis, così lo
+    //    spin successivo parte da zero SENZA dipendere dal seed da GitHub.
+    //    Formato REST: POST {url}/set/{key}/{value}
+    const setBody = JSON.stringify(CLEAN_STATE);
+    const setResp = await fetch(
+      `${url}/set/gsm:state/${encodeURIComponent(setBody)}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${writeToken}` } }
+    );
+    const setResult = {
+      status: setResp.status,
+      body: (await setResp.text()).slice(0, 120),
+    };
+
+    // 4. Azzera il flag stale (era "1" per i sync falliti pre-fix): senza
+    //    questo, il prossimo sync scriverebbe state.json con "stale": true.
+    const staleResp = await fetch(
+      `${url}/set/gsm:stateStale/0`,
+      { method: 'POST', headers: { Authorization: `Bearer ${writeToken}` } }
+    );
+    const staleResult = {
+      status: staleResp.status,
+      body: (await staleResp.text()).slice(0, 120),
+    };
+
+    // 5. Resetta anche state.json su GitHub (fonte di fallback) alla
+    //    baseline pulita, così GitHub e Redis sono allineati a 0/0.
+    let githubReset = null;
+    try {
+      const owner = process.env.SLOT_OWNER || 'simrim96';
+      const repo = process.env.SLOT_REPO || 'GithubSlotMachine';
+      const ghToken = process.env.GITHUB_PAT || process.env.GITHUB_PAT__ || '';
+      if (ghToken) {
+        const gh = await ghGetJson(ghToken, owner, repo, 'state.json');
+        const sha = gh?.sha || null;
+        await ghPut(
+          ghToken,
+          owner,
+          repo,
+          'state.json',
+          JSON.stringify(CLEAN_STATE, null, 2),
+          sha,
+          'reset: baseline pulita 0/0 dopo fix contatori (ISSUE-4)'
+        );
+        githubReset = `ok (sha ${sha})`;
+      } else {
+        githubReset = 'skip (GITHUB_PAT assente)';
+      }
+    } catch (e) {
+      githubReset = `ERR: ${e.message}`;
+    }
+
+    // 6. Stato dopo
     const after = {};
-    for (const key of KEYS_TO_DELETE) {
+    for (const key of [...KEYS_TO_DELETE, 'gsm:stateStale']) {
       try {
         after[key] = await restGet(url, writeToken, key);
       } catch (e) {
@@ -228,14 +291,17 @@ export default async function handler(req, res) {
       }
     }
 
-    logger.info('[maintenance] keys deleted', { delResult });
+    logger.info('[maintenance] reset completo eseguito', { delResult, setResult, githubReset });
     return json(res, 200, {
       ok: true,
       kvEnabled,
       before,
       deleted: delResult,
+      setBaseline: setResult,
+      staleFlagCleared: staleResult,
+      githubReset,
       after,
-      note: 'Prossima readState() farà seed da GitHub state.json (0/0)',
+      note: 'Contatori azzerati a 0/0 in Redis e GitHub. Prossimo spin riparte da 1/0.',
     });
   } catch (err) {
     logger.error('[maintenance] failed', { error: err?.message || err });
