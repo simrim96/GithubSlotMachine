@@ -100,7 +100,6 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
-<<<<<<< New base: docs(issues): ISSUE-L6 — kv.js usava endpoint REST Upstash inesistenti (Redis ma
       const segments = path.split('/').filter(Boolean);
 
       if (segments[0] === 'set') {
@@ -118,32 +117,6 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
             /* keep raw */
           }
         }
-||||||| Common ancestor
-      
-      if (path.startsWith('/incr/')) {
-        // Simuliamo INCR
-        const key = decodeURIComponent(path.split('/').pop());
-        const current = counters.get(key) || 0;
-        const newValue = current + 1;
-        counters.set(key, newValue);
-        
-        return {
-          ok: true,
-          json: async () => ({ result: newValue }),
-        };
-      }
-      
-      if (path === '/db') {
-        // Simuliamo SET/PUT
-        const body = options?.body ? JSON.parse(options.body) : {};
-        const { key, value } = body;
-=======
-
-      if (path === '/db') {
-        // Simuliamo SET/PUT
-        const body = options?.body ? JSON.parse(options.body) : {};
-        const { key, value } = body;
->>>>>>> Current commit: fixati i counter di spin e win
         redisState.set(key, value);
 
         return {
@@ -151,29 +124,12 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
           json: async () => ({ result: 'OK' }),
         };
       }
-<<<<<<< New base: docs(issues): ISSUE-L6 — kv.js usava endpoint REST Upstash inesistenti (Redis ma
-
       if (segments[0] === 'get') {
         // FIX REST format (2026-08-08): GET va in path (/get/{key}),
         // non più su /key/{key}.
         const key = decodeURIComponent(segments[1]);
         const value = redisState.get(key) ?? null;
 
-||||||| Common ancestor
-      
-      if (path.startsWith('/key/')) {
-        // Simuliamo GET
-        const key = decodeURIComponent(path.split('/').pop());
-        const value = redisState.get(key);
-        
-=======
-
-      if (path.startsWith('/key/')) {
-        // Simuliamo GET
-        const key = decodeURIComponent(path.split('/').pop());
-        const value = redisState.get(key);
-
->>>>>>> Current commit: fixati i counter di spin e win
         return {
           ok: true,
           json: async () => ({ result: value }),
