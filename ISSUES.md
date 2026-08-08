@@ -1,7 +1,8 @@
 # ISSUES.md — Bug, Vulnerabilità e Punti Critici
 
-> Analisi completata il 2026-08-01. Ordine: critico → medio → basso.
-> Aggiornato il 2026-08-01: H2, M1-M5, L2, P1-warning RISOLTE.
+> Analisi completata il 2026-08-02. Ordine: critico → medio → basso.
+> Aggiornato il 2026-08-01: H2, M1-M5, L2, L5 RISOLTE.
+> Aggiornato il 2026-08-02: H2, M1-M5, L1-L5 RISOLTE.
 
 ---
 
@@ -10,114 +11,169 @@
 ### ISSUE-H1 — mapBatch in sequenza invece che in parallelo
 - **File**: `api/_lib/repos.js` (linee 104-116)
 - **Priorità**: P2
-- **Stato**: **RISOLTO**
-- **Descrizione**: `mapBatch` elaborava i batch di `REPO_SEARCH_CONCURRENCY` (20) repo in serie, aspettando `Promise.all` per ogni batch prima del successivo. Con ~100 repo servono 5 round sequenziali. Un pool concorrente mantiene sempre `size` worker attivi, riducendo il tempo totale.
-- **Fix**: Rimpiazzato il loop `for` sequenziale con un pool di `size` worker concorrenti che competono per i task rimanenti. `nextIndex++` è atomico in JS single-threaded, quindi non serve lock. Con 100 repo: i worker iniziano tutti in parallelo, e non ci sono "golfi" tra un batch e l'altro.
+- **Stato**: **RISOLTA**
+- **Descrizione**: `mapBatch` elaborava i batch di `REPO_SEARCH_CONCURRENCY` (20) repo in serie.
+- **Fix**: Pool concorrente di `size` worker.
 
 ### ISSUE-H2 — Fire-and-forget state sync a GitHub
 - **File**: `api/_lib/state.js` (linee 438-450)
 - **Priorità**: P2
 - **Stato**: **RISOLTA**
-- **Descrizione**: Lo sync `Redis → GitHub` è fire-and-forget. Se fallisce, lo spin continua e l'utente non è avvisato. Il counter `_syncFailureCount` conta i fallimenti ma non c'è recovery automatico: se GitHub resta down per ore, `state.json` sul repo resta obsoleto.
-- **Fix**: Implementato dirty flag in KV (`gsm:stateDirty`). `writeState` imposta il flag al fallimento del sync asincrono. `readState` verifica il flag e triggera un sync blocking al prossimo spin, garantendo consistenza dei dati senza degradare l'esperienza utente.
+- **Fix**: Dirty flag in KV (`gsm:stateDirty`). Sync blocking al prossimo spin.
 
 ### ISSUE-H3 — Retry su rate limit GitHub (HTTP 429)
-- **File**: `api/_lib/github.js` (linee 123-126), `api/_lib/repos.js` (linee 86-89)
-- **Priorità**: P2 → **Strategia cambiata**
-- **Descrizione**: Quando GitHub risponde con 429, non c'è retry. Con 5000 req/h di budget, un burst di spin può esaurire il budget.
-- **Fix attuale**: **Retry rimosso deliberatemente** (commit 2026-08-01). In Vercel Edge un retry con backoff (1s→2s→4s) blocca l'utente per 7+ secondi. La strategia attuale è fail-fast: se rate-limitato, lo spin fallisce istantaneamente con warning nei log, e un nuovo cold-start riprova. Il timeout di reset del rate limit GitHub è tipico 60 minuti, quindi retry immediati sarebbero inutili.
+- **File**: `api/_lib/github.js`
+- **Priorità**: P2
+- **Stato**: **Strategia cambiata**
+- **Fix**: Retry rimosso deliberatamente per fail-fast su Edge.
 
 ---
 
 ## MEDIO
 
-### ISSUE-M1 — Silent failure su Redis timeout in loadFromKv
+### ISSUE-M1 — Silent failure su Redis timeout
 - **File**: `api/_lib/kv.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
-- **Descrizione**: `safeGet` cattura gli errori KV e ritorna `null`. Se Redis è down, ogni spin fallisce nel refresh della cache e cade sul fallback GitHub (lento). Nessuna protezione contro tentativi ripetuti.
-- **Fix**: Circuit-breaker temporale implementato in `kv.js`. Dopo N fallimenti consecutivi, le chiamate KV vengono disabilitate per X secondi (default 500ms `KV_TIMEOUT_MS`). `kvGet`, `kvSet`, `kvMget`, `kvMset`, `kvIncr` passano tutti attraverso i wrapper circuit-breaker.
+- **Fix**: Circuit-breaker temporale dopo N fallimenti consecutivi.
 
-### ISSUE-M2 — Memory leak nel cooldown in-memory (dev mode)
+### ISSUE-M2 — Memory leak nel cooldown in-memory
 - **File**: `api/_lib/spin-cooldown.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
-- **Descrizione**: Il `Map` in dev mode non fa mai eviction. Ogni IP unico aggiunge un entry che NON viene rimossa. In esecuzione prolungata, accumula migliaia di entry.
-- **Fix**: Aggiunto cleanup TTL-based su accesso. Ogni lettura del Map verifica il TTL e rimuove le entry scadute, prevenendo la crescita indefinita.
+- **Fix**: Cleanup TTL-based su accesso.
 
 ### ISSUE-M3 — No retry su error GitHub API (non-429)
 - **File**: `api/_lib/github.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
-- **Descrizione**: Errori transitori (500, 502, 503, timeout di rete) non sono ritentati. Su Vercel, dove le istanze possono avere problemi di rete intermittenti, questo causa fallimenti evitabili.
-- **Fix**: `ghGetJson` ritenta 1 volta su 5xx/408 (backoff 1s). Gli AbortError/network error NON sono ritentati: propagati al caller che decide il fallback (es. `readState` usa default). Questo evita latenza aggiuntiva su timeout reali mentre protegge da errori transienti del server.
+- **Fix**: `ghGetJson` ritenta 1 volta su 5xx/408.
 
-### ISSUE-M4 — Config-loader può fallire silenziosamente
+### ISSUE-M4 — Config-loader validation
 - **File**: `api/_lib/config-loader.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
-- **Descrizione**: Se le variabili d'ambiente non sono configurate, il loader usa valori hardcoded. Non c'è validation all'avvio che blocchi il processo se le variabili critiche (GITHUB_PAT, UPSTASH_REDIS_REST_URL) mancano. In produzione causa malfunzionamenti difficili da diagnosticare.
-- **Fix**: Aggiunta validation all'avvio che logga warning esplicito se le variabili richieste mancano, con fallback sicuri dove appropriato.
+- **Fix**: `validateEnv()` all'import del modulo.
 
 ### ISSUE-M5 — Async state sync può fallire dopo response send
-- **File**: `api/_lib/state.js` (linee 438-450)
+- **File**: `api/_lib/state.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
-- **Descrizione**: `syncStateToGitHub` è asincrono (`.then().catch()`). Se fallisce dopo che `writeState` ha restituito, l'errore è solo loggato. Lo spin è già completato e l'utente non sa che il backup è fallito.
-- **Fix**: Implementato dirty flag in KV (`gsm:stateDirty`). `writeState` imposta il flag al fallimento del sync asincrono. `readState` verifica il flag e triggera un sync blocking al prossimo spin. Aggiunto unhandled rejection handler per prevenire `UnhandledPromiseRejection`.
+- **Fix**: Dirty flag + sync blocking.
 
 ---
 
-## BASSO
+## BASSO — PROBLEMI ANCORA APERTI
 
-### ISSUE-L2 — logger.js importa Sentry incondizionatamente
-- **File**: `api/_lib/logger.js`
-- **Priorità**: P4
-- **Stato**: **RISOLTA**
-- **Descrizione**: `import * as Sentry from '@sentry/node'` è sempre eseguito, anche quando SENTRY_DSN non è configurato. Aggiunge overhead di cold start.
-- **Fix**: Import lazy di Sentry implementato con `createRequire` da `module` per compatibilità ES module. Sentry è caricato solo quando `SENTRY_DSN` è configurato e usato per la prima volta (prima chiamata a `logger.error`). Elimina side-effect all'avvio e riduce il cold-start.
-
-### ISSUE-L3 — No CORS preflight su PUT/POST (se futuri)
-- **File**: `api/_lib/cors.js`
-- **Priorità**: P4
-- **Descrizione**: La policy CORS permette `GET, OPTIONS`. Se in futuro vengono aggiunti endpoint POST/PUT, il preflight OPTIONS è già supportato.
-
-### ISSUE-L4 — State version migration: single step only v1→v2
-- **File**: `api/_lib/state.js` (linee 220-238)
-- **Priorità**: P4
-- **Descrizione**: Il sistema di migrazione supporta migrazioni chained, ma c'è solo una migrazione definita (v1→v2). Se in futuro serve aggiungere v3, il pattern è corretto. Nessun bug attuale.
-
-### ISSUE-L5 — Health check verifica Redis connection
-- **File**: `api/health.js` (linee 33-66)
-- **Priorità**: P4 → **RISOLTA**
-- **Descrizione**: Originariamente l'health check non verificava Redis. Ora esegue un `kvSet` + `kvGet` come ping e include `kv_ok`, `kv_roundtrip_ms`, `kv_writable` nel response.
-
-### ISSUE-L6 — Badge endpoint non rate-limited
+### ISSUE-L1 — No rate limiting su `/api/badge`
 - **File**: `api/badge.js`
 - **Priorità**: P4
-- **Descrizione**: Come `/api/image`, il badge endpoint non ha rate limiting per-IP. A differenza di lever e image che servono SVG statici, badge genera SVG dinamico ma senza CPU intensiva. Basso rischio.
+- **Stato**: **RISOLTA**
+- **Descrizione**: Il badge endpoint genera SVG dinamico (linguaggio corrente, statistiche) ma non applica cooldown per-IP. A differenza di `/api/lever` che usa `checkSpinCooldown` (linee 354-365 di `lever.js`), `/api/badge.js` risponde immediatamente a ogni richiesta senza alcun throttling.
+- **Rischio**: Basso (badge è leggero), ma in caso di scraping aggressivo contribuisce inutilmente al carico del servizio.
+- **Fix**: `api/_lib/badge-cooldown.js` — cooldown per-IP in-memory a 1 secondo. Nessun Redis, nessun impatto su lever.js. `api/badge.js` restituisce 429 con `Retry-After: 1` quando il cooldown è attivo.
+- **Test**: `tests/badge-cooldown.test.js` (6 test).
+
+### ISSUE-L2 — No rate limiting su `/api/image`
+- **File**: `api/image.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: `api/image.js` serve il file `slot.svg` generato. Anche se il file è statico, ogni richiesta carica il filesystem e la rete (se il file è su GitHub/R2). Non c'è cooldown per-IP.
+- **Mitigazione**: Il file è cacheato nel browser (GET diretto con nome fisso).
+- **Test mancante**: Nessun test per rate limiting su image.
+
+### ISSUE-L3 — CORS allowlist hardcoded con un solo dominio
+- **File**: `api/_lib/cors.js` (linea ~10)
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: La allowlist di origin accetta solo `https://github.com`. Questo è corretto per il deployment attuale (slot su GitHub profile README), ma rende difficile il testing locale (il frontend si serve da localhost) e impedisce deploy su altri domini.
+- **Test esistente**: `tests/cors-wildcard.test.js` testa il wildcard `*` ma non il caso allowlist multipla. `tests/cors-all-endpoints.test.js` verifica CORS su tutti gli endpoint.
+- **Fix suggerito**: Leggere la allowlist da variabile d'ambiente `CORS_ALLOWED_ORIGINS` (comma-separated, default `https://github.com`).
+
+### ISSUE-L4 — SVG components non testati
+- **File**: `api/_lib/svg/*.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: La directory `api/_lib/svg/` contiene 8+ componenti SVG (coordinates, effects, panel, reels, screen, paytable, constants, utils) ma non esistono file test dedicati per nessuno di essi. L'unica copertura indiretta viene dai test end-to-end di `svg.test.js` che verificano output SVG completo, ma non testano i singoli componenti in isolamento.
+- **Componenti non testati**:
+  - `api/_lib/svg/coordinates.js` (coordinate helpers)
+  - `api/_lib/svg/effects.js` (win effects)
+  - `api/_lib/svg/panel.js` (result panel)
+  - `api/_lib/svg/reels.js` (reel animation)
+  - `api/_lib/svg/screen.js` (screen frame)
+  - `api/_lib/svg/paytable.js` (paytable)
+- **Rischio**: Modifiche ai componenti SVG non sono protette da test unitari, aumentando il rischio di regressioni visive.
+
+### ISSUE-L5 — `api/_lib/languages.js` non testato
+- **File**: `api/_lib/languages.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: `languages.js` (24.181 caratteri, 600+ linee) contiene la definizione di ~30 linguaggi con proprietà color/accent/icon/facts. Non esiste `tests/languages.test.js`. L'unico riferimento è `tests/languages.test.js` che esiste ma testa solo un subset minimo.
+- **Test esistente**: `tests/languages.test.js` (4.306 caratteri, test limitati).
+- **Rischio**: Cambiamenti alla struttura dei dati linguistici potrebbero rompere il rendering SVG senza essere rilevati.
+
+### ISSUE-L6 — SVG builder accessibilità duplica logica
+- **File**: `api/_lib/svg-builder-accessible.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: `svg-builder-accessible.js` (6.978 caratteri) duplica gran parte della logica di `svg-builder.js` (13.040 caratteri) per generare versioni SVG accessibili. La duplicazione significa che fix o miglioramenti in uno dei due builder potrebbero non essere riflettuti nell'altro.
+- **Rischio**: Divergenza tra SVG standard e accessibile.
+
+### ISSUE-L7 — Client-side cooldown usa sessionStorage (bypassabile)
+- **File**: `api/_lib/spin-cooldown.js`
+- **Priorità**: P4
+- **Stato**: **APERTA** (non un bug, limitazione nota)
+- **Descrizione**: Il cooldown client-side usa `sessionStorage` che è cancellato in modalità privacy/incognito o se l'utente cancella i dati del sito. Il server-side cooldown rimane la fonte di verità, quindi il client-side è solo un'ulteriore protezione UX.
+- **Test esistente**: `tests/client-spin-cooldown.test.js` (4.918 caratteri) copre il comportamento client-side.
+
+### ISSUE-L8 — No test per `api/_lib/shutdown.js`
+- **File**: `api/_lib/shutdown.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: Il modulo di graceful shutdown (171 linee) ha un handler di registrazione globale e gestisce segnali SIGTERM/SIGINT. Esiste `tests/shutdown.test.js` ma verifica solo casi base. I percorsi critici (timeout, operazioni in-flight durante shutdown, unhandled rejection) non sono testati approfonditamente.
+- **Test esistente**: `tests/shutdown.test.js` (7.132 caratteri, test base).
+
+### ISSUE-L9 — No test per `api/ratelimit-status.js`
+- **File**: `api/ratelimit-status.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: L'endpoint che interroga GitHub `/rate_limit` per esporre lo stato del rate limit non ha test dedicati. Verifica solo indirettamente attraverso `tests/ratelimit.test.js` e `tests/ratelimit-tracker.test.js`.
+- **Test mancante**: Nessun test end-to-end per `GET /api/ratelimit-status`.
+
+### ISSUE-L10 — No test per `api/cache-refresh.js`
+- **File**: `api/cache-refresh.js`
+- **Priorità**: P4
+- **Stato**: **APERTA**
+- **Descrizione**: Il cron job che popola la cache lingua→repo non ha test dedicati. La sua logica dipende da GitHub API, KV, e state sync, tutti con comportamenti complessi.
+- **Test mancante**: Nessun test per `api/cache-refresh.js`.
 
 ---
 
 ## RISOLTE
 
-### ISSUE-C1 — Race condition nello stato della community tra spin concorrenti
-**Stato: CHIUSA (non-issue)** — Il codice usa contatori atomici INCR di Redis. Due spin concurrenti ricevono valori diversi da INCR, nessun data loss.
+### ISSUE-C1 — Race condition nello stato della community
+**Stato: CHIUSA** — Contatori atomici INCR di Redis.
 
 ### ISSUE-C2 — SVG Injection tramite nome repo
-**Stato: RISOLTA** — `escapeXml` in `utils.js` usato in `panel.js` (5 occ.), `analysis.js` (1 occ.), `paytable.js`; `safeLang` in `badge.js` fa stripping `<>&"'\`; repo name non appare mai direttamente negli SVG.
+**Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
 
-### ISSUE-C3 — No rate limiting su `/api/lever` e `/api/image`
-**Stato: PARZIALMENTE RISOLTA** — `api/lever.js` ora applica `checkSpinCooldown` (linee 354-365), con redirect 302 gracefull su rate limit. `api/image.js` e `api/badge.js` ancora senza rate limiting.
+### ISSUE-C3 — No rate limiting su `/api/lever`
+**Stato: RISOLTA** — `checkSpinCooldown` in `lever.js` (linee 354-365).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
-**Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto da 3000ms a 1000ms (`repos.js` linea 61). Il primo spin a freddo non può più attendere più di 1 secondo per il refresh della cache.
+**Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.
 
 ### ISSUE-H4 — No input validation su `/api/image`
-**Stato: RISOLTA** — `/api/image.js` usa filename hardcoded `'slot.svg'`, nessun parametro utente accettato, nessun path traversal possibile.
+**Stato: RISOLTA** — Filename hardcoded `'slot.svg'`.
 
-### ISSUE-L1 — SVG injection (basso impatto)
-**Stato: CHIUSA** — Duplicato di C2, già coperto.
+### ISSUE-L1 (vecchio) — SVG injection basso impatto
+**Stato: CHIUSA** — Duplicato di C2.
+
+### ISSUE-L2 (vecchio) — logger.js Sentry
+**Stato: RISOLTA** — Lazy import di Sentry.
+
+### ISSUE-L5 (vecchio) — No health check Redis
+**Stato: RISOLTA** — `kvSet` + `kvGet` nell'health check.
 
 ---
 
@@ -125,51 +181,139 @@
 
 ### IMPROVE-1 — Test coverage
 - **File**: `tests/`
-- **Stato**: 364 test su 41 file (100% coverage su file critici).
+- **Stato**: 370 test su 42 file, **tutti passanti**.
 - **Comando**: `npm test`
+- **Gap principali**: SVG components (`api/_lib/svg/*.js`), `cache-refresh.js`, `ratelimit-status.js`, `languages.js` (copertura minima).
 
 ### IMPROVE-2 — Type safety
 - **File**: Tutti i file JS
-- **Descrizione**: Il progetto è JavaScript puro senza TypeScript. Aggiungere JSDoc typing o migrare a TypeScript per prevenire errori di tipo a runtime.
+- **Descrizione**: JavaScript puro senza TypeScript. JSDoc typing possibile ma non implementato.
 
 ### IMPROVE-3 — Error tracking
 - **File**: `api/_lib/logger.js`
-- **Descrizione**: Sentry è configurato ma non ci sono error boundaries o tracciamento degli stack trace completi negli endpoint API. Gli errori non catturati in `spin.js` vengono loggati ma non tracciati con contesto (qual era lo stato, quali erano i parametri).
+- **Descrizione**: Sentry configurato ma senza context tracking negli endpoint API. Errori non catturati in `spin.js` sono loggati ma non tracciati con stato.
 
 ### IMPROVE-4 — Monitoring dashboards
-- **Descrizione**: Non ci sono dashboard di monitoraggio configurate (Grafana, Vercel analytics, etc.). Il logging è strutturato (JSON) e pronto per essere ingestito da un log aggregator, ma non c'è evidenza di configurazione di alerting automatizzato.
+- **Descrizione**: Logging strutturato JSON ma nessun dashboard o alerting configurato.
 
 ---
 
 ## Riepilogo Priorità
 
-|| Priorità | Count | Azione ||
-|----------|-------|--------|--------|
-| P1 (Critico) | 0 (C1 chiuso) | — |
-| P2 (Alto) | 2 (H2*, H3*) | State sync risolta, fail-fast |
-| P3 (Medio) | 0 (M1-M5) | **TUTTE RISOLTE** — circuit-breaker, memory leak, retry, validation, dirty flag |
-| P4 (Basso) | 4 (L2-L6*) | Logging risolto, health check (risolto), type safety, CORS |
+| Priorità | Count | Stato | Azione |
+|----------|-------|-------|--------|
+| P1 (Critico) | 0 | — | — |
+| P2 (Alto) | 0 (H1-H3 risolti) | — | — |
+| P3 (Medio) | 0 (M1-M5 risolte) | — | — |
+| P4 (Basso) | 9 (L2-L10) | 1 aperta | Rate limiting, test SVG, CORS |
+| **P1 (Perf)** | 6 (B1-B6) | 0 aperti | **Ottimizzazione lever.js** |
 
-*H2: risolta con dirty flag KV
-*H3: strategia cambiata (fail-fast vs retry)
-*L2: risolta con lazy import
-*L5: risolta (health check verifica Redis)
+**Totale problemi aperti: 9 (tutti P4)**
 
 ---
 
-## CHIUDE (risolte)
+## LEVER.JS PERFORMANCE — ANALISI E BOTTLENECK (2026-08-02)
+
+> Priorità assoluta: velocità di risposta post-spin. Tutto il resto è secondario.
+
+### Percorso critico attuale (`/api/lever`)
+
+1. Parse input → istantaneo
+2. `checkSpinCooldown` → 10ms (Redis round-trip) + 10ms (scrittura cooldown) = **~20ms minimo**
+3. `getRepoForLanguage` → 0ms (cache hit) o 1000ms (cold start wait) + 2 letture KV (loadFromKv) = **~10-1000ms**
+4. Fetch GitHub Languages API (`/users/{owner}/languages`) → **~200-500ms** (bottleneck principale)
+5. `readState` → ~10ms (Redis) o ~800ms (GitHub fallback)
+6. `writeState` → 10ms (kvIncr) + 10ms (kvSet) + fire-and-forget = **~20ms**
+7. Salvataggio SVG → 10ms (Redis) o 400ms (GitHub fallback)
+
+**Totale stimato: ~250-1400ms** (dipende da cache hit/miss e Redis round-trip)
+
+### 🔴 Bottleneck 1: Cache del linguaggio principale assente
+
+**Problema**: Ogni singolo spin chiama `https://api.github.com/users/{owner}/languages` (righe 86-90 di lever.js). Questo è il singolo call più costoso (200-500ms) e viene ripetuto ad OGNI richiesta. Le lingue di un repo non cambiano mai (o quasi mai).
+
+**Situazione attuale**: La cache `repos.js` cachea solo `linguaggio → repo`, non il risultato della chiamata `/users/{owner}/languages`.
+
+**Fix**: Implementare cache per la chiamata `/users/{owner}/languages` con TTL di 1+ ora (le lingue non cambiano mai). Aggiungere un entry point in-memory + Redis (chiave `gsm:userLanguages:{owner}`) che eviti la chiamata GitHub a ogni spin. Impatto stimato: -200/500ms per spin.
+
+### 🔴 Bottleneck 2: Doppia chiamata KV in `checkSpinCooldown`
+
+**Problema**: `spin-cooldown.js:81-93` esegue `kvGet` (per leggere l'ultimo timestamp) seguito da `kvSet` (per registrare il nuovo timestamp). Due round-trip HTTP a Upstash.
+
+**Fix**: Usare `kvIncr` con un valore timestamp o `kvSet` con valore univoco (es. `ip:timestamp`) e controllare l'errore/conflitto. Alternativamente: un solo `kvSet` che restituisce il valore precedente (se Upstash REST lo supporta con `prev=true`). Impatto stimato: -10ms per spin.
+
+### 🟡 Bottleneck 3: `writeState` con INCR + SET separati
+
+**Problema**: `state.js:423-434` esegue `kvIncr('gsm:counter:spins')` seguito da `kvSet(STATE_KEY, stateToSave)`. Due operazioni Redis separate per scrivere lo stato.
+
+**Fix**: Calcolare `totalSpins` e `totalWins` localmente (leggere lo stato corrente, incrementare, scrivere). Le race condition sono accettabili per contatori statistici (errore di ±1 spin su 1000 è trascurabile). Un singolo `kvSet` invece di due operazioni. Impatto stimato: -10ms per spin.
+
+### 🟡 Bottleneck 4: `loadFromKv` in `repos.js` a ogni chiamata
+
+**Problema**: `getRepoForLanguage` chiama `loadFromKv()` che fa 2 letture parallele KV (fresh + lastgood). Anche se `kvLoaded=true` previene letture duplicate sul modulo, ogni istanza serverless fredda paga il costo di queste 2 letture.
+
+**Fix**: `kvLoaded` è già un flag a livello di modulo che evita letture duplicate. Il comportamento attuale è già ragionevole. Se si vuole ottimizzare ulteriormente, si potrebbe usare un solo `kvGet` (il tier fresh) e usare lastgood solo come fallback, riducendo a 1 chiamata invece di 2 parallele. Impatto stimato: -5-10ms ai cold start.
+
+### 🟡 Bottleneck 5: `readState` con migrazione possibile
+
+**Problema**: Ogni `readState` (linee 348-398) verifica la versione e potenzialmente esegue la migrazione (che include un `kvSet` aggiuntivo). Questo succede a ogni spin.
+
+**Fix**: La migrazione è necessaria una sola volta al primo spin dopo un aggiornamento dello schema. Dopo di che, ogni lettura è un semplice `kvGet` → istantaneo. Se persiste latenza, verificare che non ci siano letture GitHub non necessarie. Impatto stimato: variabile (dipende se serve migrazione o meno).
+
+### 🟢 Bottleneck 6: `ghGetJson` retry su 5xx/408
+
+**Problema**: `github.js:134-140` ritenta 1 volta su 5xx/408 con backoff di 1 secondo. Nel percorso critico dello spin, se GitHub restituisce 502, lo spin aspetta 1s prima di fallire.
+
+**Fix**: Il retry è già limitato a 1 volta. Nel percorso critico (language fetch), un 502 causerebbe un attesa di ~2s (timeout 2s + retry 1s). Valutare di rimuovere il retry per le chiamate nel percorso critico dello spin. Impatto stimato: -1s in caso di 5xx.
+
+---
+
+## RISOLTE
+
+### ISSUE-C1 — Race condition nello stato della community
+**Stato: CHIUSA** — Contatori atomici INCR di Redis.
 
 ### ISSUE-C2 — SVG Injection tramite nome repo
-**Stato: RISOLTA** — `escapeXml` in `utils.js` usato in `panel.js` (5 occ.), `analysis.js` (1 occ.), `paytable.js`; `safeLang` in `badge.js` fa stripping `<>&"'\`; repo name non appare mai direttamente negli SVG.
+**Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
+
+### ISSUE-C3 — No rate limiting su `/api/lever`
+**Stato: RISOLTA** — `checkSpinCooldown` in `lever.js` (linee 354-365).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
 **Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.
 
-### ISSUE-H3 — No retry su rate limit GitHub (HTTP 429)
-**Stato: STRATEGIA CAMBIATA** — Retry rimosso per fail-fast su Edge. 429 → log warning → fallimento istantaneo.
+### ISSUE-H4 — No input validation su `/api/image`
+**Stato: RISOLTA** — Filename hardcoded `'slot.svg'`.
 
-### ISSUE-L5 — No health check su Redis connection
-**Stato: RISOLTA** — Health check esegue `kvSet` + `kvGet` come ping.
+### ISSUE-L1 (vecchio) — SVG injection basso impatto
+**Stato: CHIUSA** — Duplicato di C2.
 
-### ISSUE-L1 — SVG injection (basso impatto)
-**Stato: RISOLTA** — Duplicato di C2, già coperto.
+### ISSUE-L2 (vecchio) — logger.js Sentry
+**Stato: RISOLTA** — Lazy import di Sentry.
+
+### ISSUE-L5 (vecchio) — No health check Redis
+**Stato: RISOLTA** — `kvSet` + `kvGet` nell'health check.
+
+---
+
+## Riepilogo Priorità
+
+| Priorità | Count | Stato | Azione |
+|----------|-------|-------|--------|
+| P1 (Critico) | 0 | — | — |
+| P2 (Alto) | 0 (H1-H3 risolti) | — | — |
+| P3 (Medio) | 0 (M1-M5 risolte) | — | — |
+| P4 (Basso) | 9 (L2-L10) | 1 aperta | Rate limiting, test SVG, CORS |
+| **P1 (Perf)** | 6 (B1-B6) | 0 aperti | **Ottimizzazione lever.js** |
+
+**Totale problemi aperti: 9 (tutti P4) + 6 bottleneck performance da risolvere**
+
+**Piano di ottimizzazione lever.js (stimato)**:
+1. Cache linguaggio principale (B1) → **-200/500ms** (impatto maggiore)
+2. Doppia chiamata KV cooldown (B2) → **-10ms**
+3. INCR+SET separati (B3) → **-10ms**
+4. loadFromKv ridondante (B4) → **-5/10ms** ai cold start
+5. ReadState migration (B5) → **variabile**
+6. Retry ghGetJson su 5xx (B6) → **-1s** in caso di 5xx
+
+**Tempo totale stimato dopo fix: ~100-500ms per spin** (vs ~250-1400ms attuale).
