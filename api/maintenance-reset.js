@@ -94,7 +94,19 @@ export default async function handler(req, res) {
           out[key] = `ERR: ${e.message}`;
         }
       }
-      return json(res, 200, { ok: true, mode: 'diag', url, keys: out });
+      // Probe di scrittura: prova a scrivere e rileggere una chiave di test.
+      let writeProbe = null;
+      try {
+        const r = await fetch(`${url}/db`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${writeToken}` },
+          body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
+        });
+        writeProbe = { status: r.status, body: await r.text() };
+      } catch (e) {
+        writeProbe = `ERR: ${e.message}`;
+      }
+      return json(res, 200, { ok: true, mode: 'diag', url, writeProbe, keys: out });
     }
 
     // Modalità rigenerazione SVG: ?mode=svg — costruisce slot.svg con stato
