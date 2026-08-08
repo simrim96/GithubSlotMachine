@@ -1,9 +1,12 @@
 // Test unitari sulla paytable (api/_lib/svg/paytable.js).
-// Verifica che la paytable contenga TUTTE le icone della slot e che ogni
+// Verifica che la paytable contenga solo i linguaggi della slot (niente wild
+// e scatter), che stiano agevolmente nel pannello allargato e che ogni
 // linguaggio mostri un numero di pallini (1-5) pari alla propria competenza.
+// L'anello dorato sul vincitore deve comparire animato SOLO dopo la fine
+// della rotazione (delay = ED).
 import { describe, it, expect } from 'vitest';
 import { generatePaytable } from '../api/_lib/svg/paytable.js';
-import { ALL_SYMBOLS, LANGUAGES } from '../api/_lib/languages.js';
+import { LANGUAGES } from '../api/_lib/languages.js';
 
 // Conta i pallini ACCESI (opacity >= 0.4) nella cella del simbolo dato
 function litDotsInCell(svg, symbolId) {
@@ -23,12 +26,14 @@ function litDotsInCell(svg, symbolId) {
 }
 
 describe('generatePaytable — icone', () => {
-  it('include tutte le icone presenti nella slot (linguaggi + wild + scatter)', () => {
+  it('include solo i linguaggi della slot (niente wild e scatter)', () => {
     const svg = generatePaytable('u', null);
-    expect(ALL_SYMBOLS.length).toBeGreaterThanOrEqual(10);
-    for (const sym of ALL_SYMBOLS) {
-      expect(svg).toContain(`href="#sym_u_${sym.id}"`);
+    for (const lang of LANGUAGES) {
+      expect(svg).toContain(`href="#sym_u_${lang.id}"`);
     }
+    // Wild e scatter rimossi: non compaiono nella paytable
+    expect(svg).not.toContain('href="#sym_u_wild"');
+    expect(svg).not.toContain('href="#sym_u_scatter"');
   });
 
   it('usa le stesse icone dei rulli (stesso <symbol> della slot)', () => {
@@ -38,17 +43,17 @@ describe('generatePaytable — icone', () => {
     expect(svg).not.toContain('grad_u_');
   });
 
-  it('dispone le 10 icone in una fila dentro il pannello (x 120..480)', () => {
+  it('dispone le icone in una fila dentro il pannello allargato (x 80..520)', () => {
     const svg = generatePaytable('u', null);
     const uses = [
       ...svg.matchAll(/<use href="#sym_u_[a-z]+" x="([\d.]+)" y="([\d.]+)"/g),
     ];
-    expect(uses.length).toBe(ALL_SYMBOLS.length);
+    expect(uses.length).toBe(LANGUAGES.length);
     for (const m of uses) {
       const x = parseFloat(m[1]);
       const y = parseFloat(m[2]);
-      expect(x).toBeGreaterThanOrEqual(120);
-      expect(x + 28).toBeLessThanOrEqual(480);
+      expect(x).toBeGreaterThanOrEqual(80);
+      expect(x + 38).toBeLessThanOrEqual(520);
       expect(y).toBe(108); // PT_Y + 38
     }
   });
@@ -57,28 +62,18 @@ describe('generatePaytable — icone', () => {
 describe('generatePaytable — pallini di competenza (1-5)', () => {
   it('mostra per ogni linguaggio un numero di pallini 1-5 pari alla competenza', () => {
     const svg = generatePaytable('u', null);
-    const langs = ALL_SYMBOLS.filter(
-      (s) => s.id !== 'wild' && s.id !== 'scatter'
-    );
-    for (const lang of langs) {
+    for (const lang of LANGUAGES) {
       const dots = litDotsInCell(svg, lang.id);
-      const competence = lang.competence;
-      expect(competence).toBeGreaterThanOrEqual(1);
-      expect(competence).toBeLessThanOrEqual(5);
-      expect(dots).toBe(competence);
+      expect(lang.competence).toBeGreaterThanOrEqual(1);
+      expect(lang.competence).toBeLessThanOrEqual(5);
+      expect(dots).toBe(lang.competence);
     }
-  });
-
-  it('wild e scatter (simboli speciali, non linguaggi) hanno 0 pallini', () => {
-    const svg = generatePaytable('u', null);
-    expect(litDotsInCell(svg, 'wild')).toBe(0);
-    expect(litDotsInCell(svg, 'scatter')).toBe(0);
   });
 
   it('al massimo 5 pallini per simbolo', () => {
     const svg = generatePaytable('u', null);
-    for (const sym of ALL_SYMBOLS) {
-      expect(litDotsInCell(svg, sym.id)).toBeLessThanOrEqual(5);
+    for (const lang of LANGUAGES) {
+      expect(litDotsInCell(svg, lang.id)).toBeLessThanOrEqual(5);
     }
   });
 });
@@ -98,5 +93,16 @@ describe('generatePaytable — simbolo vincente', () => {
   it("nessun anello se non c'è vincita", () => {
     const svg = generatePaytable('u', null);
     expect(svg).not.toContain('#ffd700');
+  });
+
+  it("l'anello è animato e compare solo dopo la rotazione (delay = ED)", () => {
+    const winning = LANGUAGES[0];
+    const svg = generatePaytable('u', winning, 6.6);
+    // Parte invisibile (opacity:0) e animazione con delay pari a ED
+    expect(svg).toContain('animation:wr');
+    expect(svg).toContain('6.6s forwards');
+    expect(svg).toContain('opacity:0');
+    // Senza vincita: nessun anello animato
+    expect(generatePaytable('u', null, 6.6)).not.toContain('animation:wr');
   });
 });
