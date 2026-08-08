@@ -175,6 +175,29 @@
 ### ISSUE-L5 (vecchio) — No health check Redis
 **Stato: RISOLTA** — `kvSet` + `kvGet` nell'health check.
 
+### ISSUE-L6 — kv.js usava endpoint REST Upstash INESISTENTI (Redis mai attivo)
+**Stato: RISOLTA** (2026-08-08, fix contatori community).
+- **Problema**: `kvGet`/`kvSet`/`kvMget`/`kvMset` chiamavano `/key/{key}` e
+  `/db` (con body `{key,value}` / `{keys}` / `{pairs}`). La REST API di
+  Upstash NON ha questi endpoint → rispondeva 400 "Command is not
+  available: 'DB'/'KEY'". `kvGet` tornava `null` e `kvSet` `false`
+  SILENZIOSAMENTE (nessun throw) → **Redis non è mai stato letto né
+  scritto in produzione**: tutto passava dal fallback GitHub. L'health
+  check diceva `kv_ok: true` solo perché non verificava il round-trip.
+- **Fix**: endpoint allineati al formato REST reale (verificato live coi
+  probe del 2026-08-08):
+  - `GET  {url}/get/{key}`
+  - `POST {url}/set/{key}/{value}[/EX/{ttl}]` — valori grandi (slot.svg
+    ~54KB) via `POST /pipeline` con body `[[...]]` (risposta `[{result}]`)
+  - `GET  {url}/mget/{k1}/{k2}` / `POST {url}/mset/{k1}/{v1}/{k2}/{v2}`
+  - `POST {url}/incr/{key}` (già corretto)
+- **Health check**: ora `kv_ok` richiede un round-trip reale
+  (`kvSet` true + `kvGet` rilegge il valore scritto), con `kv_write_ok`
+  esposto e `kv_severity: error` se la scrittura fallisce.
+- **Impatto**: i contatori community ora vivono davvero in Redis; il
+  sync Redis→GitHub di state.json funziona (fix 422 sha mancante nel
+  percorso KV, vedi commit ghPut).
+
 ---
 
 ## MIGLIORAMENTI GENERALI
