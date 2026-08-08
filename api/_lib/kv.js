@@ -231,10 +231,11 @@ export async function kvSet(key, val, ttlSec = 0) {
     }
     _cbSuccess();
     const data = await response.json();
-    // SET via path → { result: 'OK' }; via pipeline → { result: [['OK']] }
-    // (Upstash annida ogni risultato di comando in un array).
-    let result = data.result;
-    if (Array.isArray(result)) result = result[0];
+    // Formati risposta Upstash (verificati live 2026-08-08):
+    //   SET via path     → { result: 'OK' }
+    //   SET via pipeline → [{ result: 'OK' }]   (array di oggetti, uno per
+    //     comando — NON { result: ['OK'] } come documentato male altrove)
+    let result = Array.isArray(data) ? data[0]?.result : data.result;
     if (Array.isArray(result)) result = result[0];
     return result === 'OK';
   } catch (err) {
