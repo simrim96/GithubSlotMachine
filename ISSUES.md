@@ -244,9 +244,11 @@
 
 ### 🟡 Bottleneck 3: `writeState` con INCR + SET separati
 
-**Problema**: `state.js:423-434` esegue `kvIncr('gsm:counter:spins')` seguito da `kvSet(STATE_KEY, stateToSave)`. Due operazioni Redis separate per scrivere lo stato.
+**Problema**: `state.js` eseguiva `kvIncr('gsm:counter:spins')` seguito da `kvSet(STATE_KEY, stateToSave)`. Due operazioni Redis separate per scrivere lo stato.
 
 **Fix**: Calcolare `totalSpins` e `totalWins` localmente (leggere lo stato corrente, incrementare, scrivere). Le race condition sono accettabili per contatori statistici (errore di ±1 spin su 1000 è trascurabile). Un singolo `kvSet` invece di due operazioni. Impatto stimato: -10ms per spin.
+
+**Stato**: **RISOLTA** (2026-08-08, fix contatori community). Il vecchio approccio INCR su chiavi contatore separate (`gsm:counter:spins`/`gsm:counter:wins`) era la causa dei contatori rotti: incrementava `totalWins` a OGNI spin (anche perdenti → `wins == spins`, vedi state.json reale 193/193) e, non avendo seed dallo stato blob, a Redis fresco ripartiva da 1 azzerando lo storico (573 → 1). Ora `writeState` persiste con un singolo `kvSet` lo stato già incrementato dal chiamante (`spin.js`: `totalSpins` +1 sempre, `totalWins` +1 solo su vincita).
 
 ### 🟡 Bottleneck 4: `loadFromKv` in `repos.js` a ogni chiamata
 
