@@ -9,6 +9,12 @@
 // conteneva ancora i valori corrotti e il codice in produzione era ancora
 // quello buggy.
 //
+// NOTA REST format (2026-08-08, verificato live coi probe): la REST API di
+// Upstash mette comando e argomenti nel PATH dell'URL (/get/{key},
+// /set/{key}/{value}, /del/{key1}/{key2}). Gli endpoint /db, /key/, e i body
+// {keys:[...]} NON esistono (400 "Command is not available") — i DEL con body
+// restituivano result:0 (0 chiavi eliminate).
+//
 // Modalità:
 //   ?mode=diag  — legge chiavi note (gsm:state, gsm:slotSvg, ...) senza toccare
 //                 nulla. Verifica che il DB sia davvero pulito.
@@ -22,7 +28,7 @@
 // PROTETTO da token segreto in query (?token=...) per non essere invocabile
 // da terzi. Il token è hardcodato perché l'endpoint è temporaneo e verrà
 // rimosso subito dopo la verifica.
-import { kvGet, kvEnabled } from './_lib/kv.js';
+import { kvEnabled } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
 import { generateGrid } from './_lib/game.js';
 import { buildAccessibleSVGWithTimeout } from './_lib/svg-builder-accessible.js';
@@ -37,18 +43,27 @@ function json(res, status, body) {
   res.end(JSON.stringify(body, null, 2));
 }
 
-async function deleteKeys(url, token) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const response = await fetch(`${url}/del`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ keys: KEYS_TO_DELETE }),
+// GET via path (formato REST reale): GET {url}/get/{key}
+async function restGet(url, token, key) {
+  const r = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (!response.ok) {
-    throw new Error(`Upstash /del failed: ${response.status} ${await response.text()}`);
-  }
-  return response.json();
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return { error: `HTTP ${r.status}: ${JSON.stringify(d).slice(0, 120)}` };
+  return d.result ?? null;
+}
+
+// DEL via path (formato REST reale): POST {url}/del/{key1}/{key2}
+async function restDel(url, token, ...keys) {
+  const r = await fetch(
+    `${url}/del/${keys.map((k) => encodeURIComponent(k)).join('/')}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  const d = await r.json().catch(() => ({}));
+  return { status: r.status, result: d.result, error: d.error || null };
 }
 
 export default async function handler(req, res) {
@@ -81,11 +96,7 @@ export default async function handler(req, res) {
       const out = {};
       for (const key of keys) {
         try {
-          const r = await fetch(`${url}/key/${encodeURIComponent(key)}`, {
-            headers: { Authorization: `Bearer ${writeToken}` },
-          });
-          const d = await r.json();
-          const val = d.result ?? null;
+          const val = await restGet(url, writeToken, key);
           out[key] =
             typeof val === 'string' && val.length > 80
               ? `STRING len=${val.length} head=${val.slice(0, 60)}`
@@ -94,47 +105,7 @@ export default async function handler(req, res) {
           out[key] = `ERR: ${e.message}`;
         }
       }
-      // Probe di scrittura: prova più endpoint REST per capire quali comandi
-      // sono disponibili su questo DB Upstash.
-      const probes = {};
-      const tryProbe = async (label, path, init) => {
-        try {
-          const r = await fetch(`${url}${path}`, {
-            ...init,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${writeToken}` },
-          });
-          const body = await r.text();
-          probes[label] = { status: r.status, body: body.slice(0, 200) };
-        } catch (e) {
-          probes[label] = `ERR: ${e.message}`;
-        }
-      };
-      await tryProbe('POST /db (kvSet path)', '/db', {
-        method: 'POST',
-        body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
-      });
-      await tryProbe('GET /key (read)', `/key/gsm:__maintenance_probe__`, { method: 'GET' });
-      await tryProbe('POST /set', '/set', {
-        method: 'POST',
-        body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
-      });
-      await tryProbe('POST /mset', '/mset', {
-        method: 'POST',
-        body: JSON.stringify({ pairs: [{ key: 'gsm:__maintenance_probe__', value: 'ok' }] }),
-      });
-      await tryProbe('POST /incr', `/incr/gsm:__maintenance_probe2__`, { method: 'POST' });
-      await tryProbe('GET /get/{key} (correct format)', `/get/gsm:__maintenance_probe2__`, { method: 'GET' });
-      await tryProbe('GET /set/{key}/{val} (correct format)', `/set/gsm:__maintenance_probe3__/hello`, { method: 'GET' });
-      await tryProbe('GET /get/gsm:__maintenance_probe3__', `/get/gsm:__maintenance_probe3__`, { method: 'GET' });
-      await tryProbe('POST /del (correct format)', '/del', {
-        method: 'POST',
-        body: JSON.stringify(['DEL', 'gsm:__maintenance_probe3__']),
-      });
-      await tryProbe('POST /del (keys body)', '/del', {
-        method: 'POST',
-        body: JSON.stringify({ keys: ['gsm:__maintenance_probe__', 'gsm:__maintenance_probe2__'] }),
-      });
-      return json(res, 200, { ok: true, mode: 'diag', url, probes, keys: out });
+      return json(res, 200, { ok: true, mode: 'diag', url, keys: out });
     }
 
     // Modalità rigenerazione SVG: ?mode=svg — costruisce slot.svg con stato
@@ -202,32 +173,24 @@ export default async function handler(req, res) {
       });
     }
 
-    // 1. Stato prima (lettura diretta, non attraverso kvGet che ha circuit-breaker)
+    // 1. Stato prima (lettura diretta con formato REST corretto /get/{key})
     const before = {};
     for (const key of KEYS_TO_DELETE) {
       try {
-        const r = await fetch(`${url}/key/${encodeURIComponent(key)}`, {
-          headers: { Authorization: `Bearer ${writeToken}` },
-        });
-        const d = await r.json();
-        before[key] = d.result ?? null;
+        before[key] = await restGet(url, writeToken, key);
       } catch (e) {
         before[key] = `ERR: ${e.message}`;
       }
     }
 
-    // 2. Elimina le chiavi corrotte
-    const delResult = await deleteKeys(url, writeToken);
+    // 2. Elimina le chiavi corrotte (DEL con chiavi nel path: /del/{k1}/{k2})
+    const delResult = await restDel(url, writeToken, ...KEYS_TO_DELETE);
 
     // 3. Stato dopo
     const after = {};
     for (const key of KEYS_TO_DELETE) {
       try {
-        const r = await fetch(`${url}/key/${encodeURIComponent(key)}`, {
-          headers: { Authorization: `Bearer ${writeToken}` },
-        });
-        const d = await r.json();
-        after[key] = d.result ?? null;
+        after[key] = await restGet(url, writeToken, key);
       } catch (e) {
         after[key] = `ERR: ${e.message}`;
       }

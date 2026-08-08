@@ -97,14 +97,26 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     const redisState = new Map();
 
     // Mock di fetch per simulare tutte le operazioni REST API
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
+      const segments = path.split('/').filter(Boolean);
 
-      if (path === '/db') {
-        // Simuliamo SET/PUT
-        const body = options?.body ? JSON.parse(options.body) : {};
-        const { key, value } = body;
+      if (segments[0] === 'set') {
+        // FIX REST format (2026-08-08): SET va in path (/set/{key}/{value}),
+        // non più su /db con body. La key è il segmento 1, il valore il resto.
+        const key = decodeURIComponent(segments[1]);
+        const raw = decodeURIComponent(segments.slice(2).join('/'));
+        // Conserva il valore deserializzato (come faceva il mock /db con body).
+        let value = raw;
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            value = JSON.parse(trimmed);
+          } catch {
+            /* keep raw */
+          }
+        }
         redisState.set(key, value);
 
         return {
@@ -113,10 +125,11 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
         };
       }
 
-      if (path.startsWith('/key/')) {
-        // Simuliamo GET
-        const key = decodeURIComponent(path.split('/').pop());
-        const value = redisState.get(key);
+      if (segments[0] === 'get') {
+        // FIX REST format (2026-08-08): GET va in path (/get/{key}),
+        // non più su /key/{key}.
+        const key = decodeURIComponent(segments[1]);
+        const value = redisState.get(key) ?? null;
 
         return {
           ok: true,

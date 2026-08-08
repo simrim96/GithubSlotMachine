@@ -6,6 +6,25 @@
 // - Le operazioni Redis sono semplici REST API: GET/PUT/DELETE via HTTP
 // - Fetch diretto = zero init, cold start < 10ms
 //
+// FORMATO REST UPSTASH (2026-08-08, verificato live col probe di manutenzione):
+//   La REST API segue la convenzione del protocollo Redis: il comando e i suoi
+//   argomenti vanno nel PATH dell'URL, separati da '/':
+//     GET foo        → GET  {url}/get/foo
+//     SET foo bar    → POST {url}/set/foo/bar            (args nel path)
+//     SET foo bar EX 100 → POST {url}/set/foo/bar/EX/100
+//     INCR foo       → POST {url}/incr/foo
+//     MGET a b       → GET  {url}/mget/a/b
+//     MSET a 1 b 2   → POST {url}/mset/a/1/b/2
+//   Per valori GRANDI (es. slot.svg ~56KB) il path URL è inadatto → si usa
+//   /pipeline con body JSON 2D: [["SET", key, value, "EX", ttl], ...].
+//
+// ⚠️ STORICO BUG (commit 96c1338): gli endpoint usati erano `/db` (SET con body
+// {key,value}) e `/key/{key}` (GET) — INESISTENTI nella REST API Upstash. Il
+// server rispondeva 400 "Command is not available: 'DB'/'KEY'". Conseguenza:
+// kvGet tornava null e kvSet false SILENZIOSAMENTE → Redis non è mai stato né
+// letto né scritto in produzione (tutto passava dal fallback GitHub). Il fix
+// allinea gli endpoint al formato REST reale.
+//
 // SE LE ENV SONO IMPOSTATE:
 //   UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN → scrittura completa
 //   o KV_REST_API_URL + KV_REST_API_TOKEN (+ KV_REST_API_READ_ONLY_TOKEN)
@@ -111,6 +130,34 @@ function getHeaders(token) {
   return headers;
 }
 
+// Soglia oltre la quale usiamo /pipeline invece del path URL per SET
+// (valori grandi come slot.svg ~56KB non stanno in un path URL ragionevole).
+const KV_PIPELINE_THRESHOLD = 2048;
+
+// Serializza un valore per la REST API Upstash (tutto è stringa in Redis):
+// oggetti → JSON, stringhe → raw, numeri/booleani → String().
+function kvSerialize(val) {
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean' || val === null) {
+    return String(val);
+  }
+  return JSON.stringify(val);
+}
+
+// Deserializza il risultato di una GET: JSON se sembra JSON, altrimenti raw.
+function kvDeserialize(result) {
+  if (typeof result !== 'string') return result;
+  const trimmed = result.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return result;
+    }
+  }
+  return result;
+}
+
 export async function kvGet(key) {
   if (!kvEnabled) return null;
   if (evaluateCircuitBreaker() === 'blocked') {
@@ -119,7 +166,7 @@ export async function kvGet(key) {
   }
   try {
     const response = await withTimeout(
-      fetch(`${url}/key/${encodeURIComponent(key)}`, {
+      fetch(`${url}/get/${encodeURIComponent(key)}`, {
         headers: getHeaders(readToken),
       })
     );
@@ -129,7 +176,7 @@ export async function kvGet(key) {
     }
     _cbSuccess();
     const data = await response.json();
-    return data.result || null;
+    return kvDeserialize(data.result);
   } catch (err) {
     _cbFailure();
     logger.debug('[kv] kvGet failed, circuit-breaker updated', { key, error: err?.message });
@@ -150,17 +197,31 @@ export async function kvSet(key, val, ttlSec = 0) {
     logger.debug('[kv] circuit-breaker open, kvSet skipped', { key });
     return false;
   }
+  const serialized = kvSerialize(val);
   try {
-    const body = { key, value: val };
-    if (ttlSec > 0) body.ex = ttlSec;
-
-    const response = await withTimeout(
-      fetch(`${url}/db`, {
-        method: 'POST',
-        headers: getHeaders(writeToken),
-        body: JSON.stringify(body),
-      })
-    );
+    // Valori piccoli: SET nel path (formato REST: /set/{key}/{value}[/EX/{ttl}]).
+    // Valori grandi: /pipeline con body JSON 2D per evitare URL enormi.
+    let response;
+    if (serialized.length <= KV_PIPELINE_THRESHOLD) {
+      let path = `${url}/set/${encodeURIComponent(key)}/${encodeURIComponent(serialized)}`;
+      if (ttlSec > 0) path += `/EX/${Math.floor(ttlSec)}`;
+      response = await withTimeout(
+        fetch(path, {
+          method: 'POST',
+          headers: getHeaders(writeToken),
+        })
+      );
+    } else {
+      const cmd = ['SET', key, serialized];
+      if (ttlSec > 0) cmd.push('EX', String(Math.floor(ttlSec)));
+      response = await withTimeout(
+        fetch(`${url}/pipeline`, {
+          method: 'POST',
+          headers: getHeaders(writeToken),
+          body: JSON.stringify([cmd]),
+        })
+      );
+    }
     if (!response.ok) {
       if (isAuthError({ status: response.status })) {
         console.warn('[kvSet] scrittura negata (401/403):', { key, status: response.status });
@@ -169,7 +230,10 @@ export async function kvSet(key, val, ttlSec = 0) {
       return false;
     }
     _cbSuccess();
-    return response.ok;
+    const data = await response.json();
+    // SET via path → { result: 'OK' }; via pipeline → { result: ['OK'] }
+    const result = Array.isArray(data.result) ? data.result[0] : data.result;
+    return result === 'OK';
   } catch (err) {
     _cbFailure();
     console.warn('[kvSet] failed', { key, error: err?.message || err });
@@ -185,11 +249,10 @@ export async function kvMget(...keys) {
   }
   try {
     const response = await withTimeout(
-      fetch(`${url}/mget`, {
-        method: 'POST',
-        headers: getHeaders(readToken),
-        body: JSON.stringify({ keys }),
-      })
+      fetch(
+        `${url}/mget/${keys.map((k) => encodeURIComponent(k)).join('/')}`,
+        { headers: getHeaders(readToken) }
+      )
     );
     if (!response.ok) {
       _cbFailure();
@@ -197,7 +260,8 @@ export async function kvMget(...keys) {
     }
     _cbSuccess();
     const data = await response.json();
-    return data.result || keys.map(() => null);
+    const result = Array.isArray(data.result) ? data.result : keys.map(() => null);
+    return result.map((v) => kvDeserialize(v));
   } catch {
     _cbFailure();
     return keys.map(() => null);
@@ -218,20 +282,26 @@ export async function kvMset(obj) {
     return false;
   }
   try {
-    const pairs = Object.entries(obj).map(([k, v]) => ({ key: k, value: v }));
+    const args = [];
+    for (const [k, v] of Object.entries(obj)) {
+      args.push(k, kvSerialize(v));
+    }
     const response = await withTimeout(
-      fetch(`${url}/mset`, {
-        method: 'POST',
-        headers: getHeaders(writeToken),
-        body: JSON.stringify({ pairs }),
-      })
+      fetch(
+        `${url}/mset/${args.map((a) => encodeURIComponent(a)).join('/')}`,
+        {
+          method: 'POST',
+          headers: getHeaders(writeToken),
+        }
+      )
     );
     if (!response.ok) {
       _cbFailure();
       return false;
     }
     _cbSuccess();
-    return response.ok;
+    const data = await response.json();
+    return data.result === 'OK';
   } catch {
     _cbFailure();
     return false;

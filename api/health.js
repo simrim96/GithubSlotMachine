@@ -33,11 +33,18 @@ export default async function handler(req, res) {
   if (kvEnabled) {
     const t0 = now();
     let kvOk = false;
+    let kvWriteOk = false;
     try {
       const probe = 'gsm:__health__' + Date.now();
-      await kvSet(probe, '1');
-      await kvGet(probe);
-      kvOk = true;
+      // FIX (2026-08-08): prima kvOk veniva impostato a true anche quando
+      // kvSet ritornava false silenziosamente (kvSet non lancia mai: su
+      // errore ritorna false). Per questo health diceva "kv_writable: true"
+      // mentre in produzione le scritture fallivano (endpoint REST sbagliati
+      // in kv.js: /db e /key/ invece di /set/ e /get/). Ora kvOk richiede
+      // che kvSet ritorni TRUE e che kvGet rilegga il valore scritto.
+      kvWriteOk = await kvSet(probe, '1');
+      const readBack = await kvGet(probe);
+      kvOk = kvWriteOk && readBack === '1';
     } catch (e) {
       /* Sentry already handled by logger */
       steps.kv_error = e.message;
@@ -46,11 +53,18 @@ export default async function handler(req, res) {
     steps.kv_enabled = true;
     steps.kv_writable = kvWritable;
     steps.kv_ok = kvOk;
+    steps.kv_write_ok = kvWriteOk;
     if (!kvWritable) {
       steps.kv_note =
         'READ-ONLY: presente solo KV_REST_API_READ_ONLY_TOKEN. Le scritture ' +
         '(stato community, cache repo) NON vengono persistite (ISSUE-23). ' +
         'Configura UPSTASH_REDIS_REST_TOKEN o KV_REST_API_TOKEN per scrivere.';
+    } else if (!kvOk) {
+      steps.kv_note =
+        'ERRORE SCRITTURA: kvSet/kvGet non completano il round-trip. Controlla ' +
+        'URL/token Upstash e che gli endpoint REST usati da kv.js siano validi ' +
+        '(formato REST: /set/{key}/{value} e /get/{key}, NON /db o /key/).';
+      steps.kv_severity = 'error';
     } else {
       steps.kv_note =
         steps.kv_roundtrip_ms > 60
