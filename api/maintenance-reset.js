@@ -6,19 +6,27 @@
 // Il bug ISSUE-4 (kvIncr su chiavi contatore separate) ha corrotto i contatori
 // community: totalWins == totalSpins (193/193 → 194/194 live). state.json su
 // GitHub è già stato resettato a 0/0 (commit d652f06), ma Redis `gsm:state`
-// contiene ancora i valori corrotti e il codice in produzione è ancora quello
-// buggy.
+// conteneva ancora i valori corrotti e il codice in produzione era ancora
+// quello buggy.
 //
-// Questo endpoint:
-//   1. (con fix deployato) legge lo stato Redis corrente
-//   2. ELIMINA le chiavi corrotte: gsm:state, gsm:counter:spins, gsm:counter:wins
-//   3. Alla prossima readState(), KV vuoto → seed da GitHub state.json (0/0)
+// Modalità:
+//   ?mode=diag  — legge chiavi note (gsm:state, gsm:slotSvg, ...) senza toccare
+//                 nulla. Verifica che il DB sia davvero pulito.
+//   ?mode=reset — ELIMINA le chiavi corrotte: gsm:state, gsm:counter:spins,
+//                 gsm:counter:wins. Alla prossima readState(), KV vuoto → seed
+//                 da GitHub state.json (0/0).
+//   ?mode=svg   — rigenera slot.svg con stato pulito 0/0 (nessuna vincita) e lo
+//                 scrive su GitHub (slot.svg) + Redis (gsm:slotSvg), così
+//                 l'immagine servita non mostra più i contatori corrotti 194/194.
 //
 // PROTETTO da token segreto in query (?token=...) per non essere invocabile
 // da terzi. Il token è hardcodato perché l'endpoint è temporaneo e verrà
 // rimosso subito dopo la verifica.
 import { kvGet, kvEnabled } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
+import { generateGrid } from './_lib/game.js';
+import { buildAccessibleSVGWithTimeout } from './_lib/svg-builder-accessible.js';
+import { ghGetJson, ghPut } from './_lib/github.js';
 
 const MAINTENANCE_TOKEN = '8AX5rMmyfM3z0UTt1GuCRy_fFovAOQ1d';
 const KEYS_TO_DELETE = ['gsm:state', 'gsm:counter:spins', 'gsm:counter:wins'];
@@ -87,6 +95,71 @@ export default async function handler(req, res) {
         }
       }
       return json(res, 200, { ok: true, mode: 'diag', url, keys: out });
+    }
+
+    // Modalità rigenerazione SVG: ?mode=svg — costruisce slot.svg con stato
+    // pulito (0/0) e lo scrive su GitHub + Redis, così l'immagine servita
+    // non mostra più i contatori corrotti.
+    if (mode === 'svg') {
+      const owner = process.env.SLOT_OWNER || 'simrim96';
+      const repo = process.env.SLOT_REPO || 'GithubSlotMachine';
+      const token = process.env.GITHUB_PAT || process.env.GITHUB_PAT__ || '';
+      if (!token) {
+        return json(res, 500, { ok: false, error: 'GITHUB_PAT non configurato' });
+      }
+
+      // Stato pulito: contatori a zero, nessuna vincita.
+      const cleanState = {
+        totalSpins: 0,
+        totalWins: 0,
+        lastWin: null,
+        version: 2,
+        lastPullTimestamp: 0,
+        settings: { theme: 'auto', sound: true },
+        stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
+      };
+
+      const grid = generateGrid();
+      const svg = await buildAccessibleSVGWithTimeout({
+        grid,
+        uid: Date.now(),
+        state: cleanState,
+        winningLang: null,
+        fact: null,
+        owner,
+        isWin: false,
+      });
+
+      // Scrivi su Redis (se possibile) e su GitHub (sempre, così la fonte
+      // remota è allineata e il fallback dell'immagine serve il file pulito).
+      const results = { redis: null, github: null };
+      if (kvEnabled) {
+        try {
+          const { kvSet } = await import('./_lib/kv.js');
+          results.redis = await kvSet('gsm:slotSvg', svg, 60 * 60 * 24 * 7);
+        } catch (e) {
+          results.redis = `ERR: ${e.message}`;
+        }
+      }
+
+      // Leggi lo sha corrente di slot.svg su GitHub per il PUT.
+      const gh = await ghGetJson(token, owner, repo, 'slot.svg');
+      const sha = gh?.sha || null;
+      try {
+        await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
+        results.github = `ok (sha ${sha})`;
+      } catch (e) {
+        results.github = `ERR: ${e.message}`;
+      }
+
+      logger.info('[maintenance] slot.svg regenerated with clean state', { results });
+      return json(res, 200, {
+        ok: true,
+        mode: 'svg',
+        state: cleanState,
+        svgSize: svg.length,
+        results,
+      });
     }
 
     // 1. Stato prima (lettura diretta, non attraverso kvGet che ha circuit-breaker)
