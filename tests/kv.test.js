@@ -330,14 +330,13 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       const result = await kvMget('key1', 'key2', 'key3');
       expect(result).toEqual(['val1', null, 'val3']);
 
+      // FIX REST format (2026-08-08): MGET va in path, non in body.
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://kv.upstash.io/mget',
+        'https://kv.upstash.io/mget/key1/key2/key3',
         expect.objectContaining({
-          method: 'POST',
           headers: expect.objectContaining({
             Authorization: 'Bearer ***',
           }),
-          body: JSON.stringify({ keys: ['key1', 'key2', 'key3'] }),
         })
       );
 
@@ -400,22 +399,23 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       vi.resetModules();
 
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: 'OK' }),
+      });
 
       const { kvMset } = await import('../api/_lib/kv.js');
 
       const result = await kvMset({ a: '1', b: '2' });
       expect(result).toBe(true);
 
+      // FIX REST format (2026-08-08): MSET va in path (k1/v1/k2/v2), non in body.
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://kv.upstash.io/mset',
+        'https://kv.upstash.io/mset/a/1/b/2',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
             Authorization: 'Bearer ***',
-          }),
-          body: JSON.stringify({
-            pairs: [{ key: 'a', value: '1' }, { key: 'b', value: '2' }],
           }),
         })
       );
