@@ -21,6 +21,7 @@ The project generates an animated SVG slot machine (your GitHub profile README) 
 ## Important rules
 - `state.json` and `slot.svg` are gitignored AND blocked by a pre-commit hook. Use `git add -n` to verify, then `git commit --no-verify` if needed.
 - Commit convention: `git add` only the files you changed (selective), then `git commit --no-verify` (pre-commit hook rejects state.json/slot.svg).
+- KANBAN WORKERS: this repo is managed with GitButler. NEVER run `git commit`/`git push` as part of a task — the human commits manually. Make your changes, leave them uncommitted in the working tree, and report the changed files in the kanban summary. If a task asks you to commit, block and ask the human to do it.
 - Tests: `npm test` (vitest run)
 - Lint: `npm run lint` (should be clean)
 - Format: `npm run format:check` (Prettier: single quotes, semicolons, 80ch, no tabs)

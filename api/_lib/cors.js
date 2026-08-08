@@ -47,14 +47,22 @@ function isAllowedOrigin(origin) {
 
 // Applicala a un handler Vercel nel formato Node/Serverless (req, res).
 // Stessa firma di prima: basta chiamare applyCors(req, res) all'inizio
-// dell'handler.
-function applyCors(req, res) {
+// dell'handler. Il terzo argomento opzionale override i metodi ammessi
+// (es. applyCors(req, res, 'POST, OPTIONS') per /api/auth/login). Il quarto
+// argomento opzionale override gli header ammessi (es. 'Content-Type,
+// Authorization' per endpoint autenticati con Bearer).
+function applyCors(
+  req,
+  res,
+  methods = 'GET, OPTIONS',
+  allowedHeaders = 'Content-Type'
+) {
   const origin = req?.headers?.origin;
   if (isAllowedOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', methods);
+  res.setHeader('Access-Control-Allow-Headers', allowedHeaders);
   res.setHeader('Access-Control-Max-Age', '86400');
   // Header di sicurezza generici: riducono la superficie di attacco anche su
   // richieste same-origin (es. click della leva da github.com).

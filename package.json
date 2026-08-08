@@ -28,6 +28,7 @@
     "@sentry/vercel-edge": "^10.65.0",
     "@upstash/redis": "^1.38.0",
     "@vercel/functions": "^3.7.5",
+    "jose": "^6.2.8",
     "jsonschema": "^1.4.1"
   },
   "devDependencies": {
