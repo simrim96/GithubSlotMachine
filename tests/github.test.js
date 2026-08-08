@@ -2,7 +2,7 @@
 //   • escapeRegex / escapeMarkdown (anti-injection nei marker README)
 //   • updateReadmeMarkers (il parsing/riscrittura dei marker nel profilo)
 // ghGetJson/ghPut/saveSlotSvg/loadSlotSvg non sono testati qui (richiedono fetch/GitHub).
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   escapeRegex,
   escapeMarkdown,
@@ -208,6 +208,72 @@ describe('clearReadmeMarkers', () => {
     expect(out).toContain('## Slot');
     expect(out).toContain('## Altre sezioni');
     expect(out).toBe(`## Slot\n${START}\n${END}\n## Altre sezioni`);
+  });
+});
+
+describe('ghPut: recovery 422 sha mancante (percorso KV)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('rifetcha lo sha e ritenta quando PUT fallisce con 422 "sha wasn\'t supplied"', async () => {
+    // Il percorso KV (readState da Redis) non propaga lo sha GitHub → ghPut
+    // parte senza sha → GitHub risponde 422 per un file già esistente.
+    // ghPut deve rifetchare lo sha corrente e ritentare una volta.
+    const fetchMock = vi.fn()
+      // 1ª chiamata: PUT senza sha → 422
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+      })
+      // 2ª chiamata: ghGetJson per recuperare lo sha
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ sha: 'abc123', content: Buffer.from('{}').toString('base64') }),
+      })
+      // 3ª chiamata: PUT con sha → ok
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { ghPut } = await import('../api/_lib/github.js');
+    await ghPut('token', 'owner', 'repo', 'state.json', '{}', null, '🎰 Update slot stats');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // La 3ª chiamata (retry) deve includere lo sha recuperato
+    const retryBody = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(retryBody.sha).toBe('abc123');
+  });
+
+  it('se lo sha non è recuperabile nemmeno col rifetch, lancia', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+      })
+      // ghGetJson fallisce (rete/404) → null
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({ message: 'Not Found' }),
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { ghPut } = await import('../api/_lib/github.js');
+    await expect(
+      ghPut('token', 'owner', 'repo', 'state.json', '{}', null, '🎰 Update slot stats')
+    ).rejects.toThrow(/422/);
   });
 });
 

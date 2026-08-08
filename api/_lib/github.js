@@ -225,6 +225,18 @@ export async function ghPut(
       );
     }
 
+    // 422 "sha wasn't supplied": file già esistente ma sha assente/null.
+    // Succede quando il chiamante arriva dal percorso KV (readState KV non
+    // propaga lo sha GitHub — es. gsm:state letto da Redis). Rifetch lo sha
+    // corrente e riprova una volta, come per il 409.
+    if (response.status === 422 && !_retry) {
+      const fresh = await ghGetJson(token, owner, repo, path);
+      if (fresh?.sha) {
+        return ghPut(token, owner, repo, path, content, fresh.sha, message, true);
+      }
+      throw new Error(`PUT ${owner}/${repo}/${path}: 422 e sha non recuperabile`);
+    }
+
     // 5xx o 408: errori transienti, ritenta (se non siamo già in retry)
     if (!response.ok && response.status >= 500 && !_retry && attempt < RETRY_MAX) {
       logger.debug('[ghPut] retrying on transient error', { attempt, status: response.status, owner, repo, path });
