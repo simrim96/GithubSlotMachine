@@ -1,20 +1,9 @@
 {
-  "totalSpins": 3,
-  "totalWins": 2,
-  "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
-    "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
-    },
-    "repoUrl": null,
-    "repoName": null,
-    "repoDesc": null,
-    "ts": 1786213513472
-  },
+  "totalSpins": 0,
+  "totalWins": 0,
+  "lastWin": null,
   "version": 2,
-  "lastPullTimestamp": 1786213513472,
+  "lastPullTimestamp": 0,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,6 +12,5 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  },
-  "stale": true
+  }
 }
