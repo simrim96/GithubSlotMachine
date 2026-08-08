@@ -1,9 +1,20 @@
 {
-  "totalSpins": 0,
-  "totalWins": 0,
-  "lastWin": null,
+  "totalSpins": 1,
+  "totalWins": 1,
+  "lastWin": {
+    "langId": "python",
+    "langName": "Python",
+    "fact": {
+      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio",
+      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+    },
+    "repoUrl": null,
+    "repoName": null,
+    "repoDesc": null,
+    "ts": 1786221535393
+  },
   "version": 2,
-  "lastPullTimestamp": 0,
+  "lastPullTimestamp": 1786221535393,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -12,5 +23,6 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  }
+  },
+  "stale": true
 }
