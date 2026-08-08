@@ -94,19 +94,40 @@ export default async function handler(req, res) {
           out[key] = `ERR: ${e.message}`;
         }
       }
-      // Probe di scrittura: prova a scrivere e rileggere una chiave di test.
-      let writeProbe = null;
-      try {
-        const r = await fetch(`${url}/db`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${writeToken}` },
-          body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
-        });
-        writeProbe = { status: r.status, body: await r.text() };
-      } catch (e) {
-        writeProbe = `ERR: ${e.message}`;
-      }
-      return json(res, 200, { ok: true, mode: 'diag', url, writeProbe, keys: out });
+      // Probe di scrittura: prova più endpoint REST per capire quali comandi
+      // sono disponibili su questo DB Upstash.
+      const probes = {};
+      const tryProbe = async (label, path, init) => {
+        try {
+          const r = await fetch(`${url}${path}`, {
+            ...init,
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${writeToken}` },
+          });
+          const body = await r.text();
+          probes[label] = { status: r.status, body: body.slice(0, 200) };
+        } catch (e) {
+          probes[label] = `ERR: ${e.message}`;
+        }
+      };
+      await tryProbe('POST /db (kvSet path)', '/db', {
+        method: 'POST',
+        body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
+      });
+      await tryProbe('GET /key (read)', `/key/gsm:__maintenance_probe__`, { method: 'GET' });
+      await tryProbe('POST /set', '/set', {
+        method: 'POST',
+        body: JSON.stringify({ key: 'gsm:__maintenance_probe__', value: 'ok' }),
+      });
+      await tryProbe('POST /mset', '/mset', {
+        method: 'POST',
+        body: JSON.stringify({ pairs: [{ key: 'gsm:__maintenance_probe__', value: 'ok' }] }),
+      });
+      await tryProbe('POST /incr', `/incr/gsm:__maintenance_probe2__`, { method: 'POST' });
+      await tryProbe('POST /del', '/del', {
+        method: 'POST',
+        body: JSON.stringify({ keys: ['gsm:__maintenance_probe__', 'gsm:__maintenance_probe2__'] }),
+      });
+      return json(res, 200, { ok: true, mode: 'diag', url, probes, keys: out });
     }
 
     // Modalità rigenerazione SVG: ?mode=svg — costruisce slot.svg con stato
