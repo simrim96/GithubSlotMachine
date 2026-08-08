@@ -1,5 +1,5 @@
 {
-  "totalSpins": 2,
+  "totalSpins": 3,
   "totalWins": 2,
   "lastWin": {
     "langId": "cpp",
@@ -14,7 +14,7 @@
     "ts": 1786221723464
   },
   "version": 2,
-  "lastPullTimestamp": 1786221723464,
+  "lastPullTimestamp": 1786224767044,
   "settings": {
     "theme": "auto",
     "sound": true
