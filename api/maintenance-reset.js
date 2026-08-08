@@ -105,7 +105,39 @@ export default async function handler(req, res) {
           out[key] = `ERR: ${e.message}`;
         }
       }
-      return json(res, 200, { ok: true, mode: 'diag', url, keys: out });
+
+      // Probe /pipeline (usato per valori grandi come slot.svg ~54KB):
+      // verifica il formato esatto della risposta per il parsing di kvSet.
+      const pipelineProbe = {};
+      try {
+        const r = await fetch(`${url}/pipeline`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${writeToken}` },
+          body: JSON.stringify([['SET', 'gsm:__pipeline_probe__', 'ok']]),
+        });
+        pipelineProbe.status = r.status;
+        pipelineProbe.body = (await r.text()).slice(0, 200);
+      } catch (e) {
+        pipelineProbe.error = e.message;
+      }
+      try {
+        const r2 = await fetch(`${url}/get/gsm:__pipeline_probe__`, {
+          headers: { Authorization: `Bearer ${writeToken}` },
+        });
+        pipelineProbe.readBack = await r2.text();
+      } catch (e) {
+        pipelineProbe.readError = e.message;
+      }
+      try {
+        const r3 = await fetch(`${url}/del/gsm:__pipeline_probe__`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${writeToken}` },
+        });
+        pipelineProbe.del = await r3.text();
+      } catch (e) {
+        pipelineProbe.delError = e.message;
+      }
+      return json(res, 200, { ok: true, mode: 'diag', url, keys: out, pipelineProbe });
     }
 
     // Modalità rigenerazione SVG: ?mode=svg — costruisce slot.svg con stato

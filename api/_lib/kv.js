@@ -231,8 +231,11 @@ export async function kvSet(key, val, ttlSec = 0) {
     }
     _cbSuccess();
     const data = await response.json();
-    // SET via path → { result: 'OK' }; via pipeline → { result: ['OK'] }
-    const result = Array.isArray(data.result) ? data.result[0] : data.result;
+    // SET via path → { result: 'OK' }; via pipeline → { result: [['OK']] }
+    // (Upstash annida ogni risultato di comando in un array).
+    let result = data.result;
+    if (Array.isArray(result)) result = result[0];
+    if (Array.isArray(result)) result = result[0];
     return result === 'OK';
   } catch (err) {
     _cbFailure();
