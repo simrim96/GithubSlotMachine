@@ -1,9 +1,9 @@
 {
-  "totalSpins": 193,
-  "totalWins": 193,
+  "totalSpins": 0,
+  "totalWins": 0,
   "lastWin": null,
   "version": 2,
-  "lastPullTimestamp": 1784789532842,
+  "lastPullTimestamp": 0,
   "settings": {
     "theme": "auto",
     "sound": true
