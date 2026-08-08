@@ -41,6 +41,7 @@ const healthHandler = (await import('../api/health.js')).default;
 const ratelimitHandler = (await import('../api/ratelimit-status.js')).default;
 const imageHandler = (await import('../api/image.js')).default;
 const leverHandler = (await import('../api/lever.js')).default;
+const cacheRefreshHandler = (await import('../api/cache-refresh.js')).default;
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -116,14 +117,20 @@ const DISALLOWED = 'https://evil.example.com';
 describe('Policy CORS esplicita (allowlist) su /api/spin, /api/health, /api/ratelimit-status', () => {
   it('spin: GET con origin consentito riflette ACAO', async () => {
     const res = makeRes();
-    await spinHandler({ method: 'GET', headers: { origin: ALLOWED }, query: {} }, res);
+    await spinHandler(
+      { method: 'GET', headers: { origin: ALLOWED }, query: {} },
+      res
+    );
     expect(res.headers['Access-Control-Allow-Origin']).toBe(ALLOWED);
     expectSharedSecurityHeaders(res.headers);
   });
 
   it('spin: OPTIONS per origin NON consentito NON emette ACAO', async () => {
     const res = makeRes();
-    await spinHandler({ method: 'OPTIONS', headers: { origin: DISALLOWED } }, res);
+    await spinHandler(
+      { method: 'OPTIONS', headers: { origin: DISALLOWED } },
+      res
+    );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
     expectSharedSecurityHeaders(res.headers);
@@ -131,14 +138,20 @@ describe('Policy CORS esplicita (allowlist) su /api/spin, /api/health, /api/rate
 
   it('health: GET con origin consentito riflette ACAO', async () => {
     const res = makeRes();
-    await healthHandler({ method: 'GET', headers: { origin: ALLOWED }, query: {} }, res);
+    await healthHandler(
+      { method: 'GET', headers: { origin: ALLOWED }, query: {} },
+      res
+    );
     expect(res.headers['Access-Control-Allow-Origin']).toBe(ALLOWED);
     expectSharedSecurityHeaders(res.headers);
   });
 
   it('health: OPTIONS per origin NON consentito NON emette ACAO', async () => {
     const res = makeRes();
-    await healthHandler({ method: 'OPTIONS', headers: { origin: DISALLOWED } }, res);
+    await healthHandler(
+      { method: 'OPTIONS', headers: { origin: DISALLOWED } },
+      res
+    );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
     expectSharedSecurityHeaders(res.headers);
@@ -152,7 +165,9 @@ describe('Policy CORS esplicita (allowlist) su /api/spin, /api/health, /api/rate
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe(ALLOWED);
-    expect(res.headers.get('access-control-allow-methods')).toBe('GET, OPTIONS');
+    expect(res.headers.get('access-control-allow-methods')).toBe(
+      'GET, OPTIONS'
+    );
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('referrer-policy')).toBe('no-referrer');
   });
@@ -164,7 +179,9 @@ describe('Policy CORS esplicita (allowlist) su /api/spin, /api/health, /api/rate
       query: {},
     });
     expect(res.headers.get('access-control-allow-origin')).toBeNull();
-    expect(res.headers.get('access-control-allow-methods')).toBe('GET, OPTIONS');
+    expect(res.headers.get('access-control-allow-methods')).toBe(
+      'GET, OPTIONS'
+    );
   });
 });
 
@@ -179,7 +196,10 @@ describe('Policy CORS wildcard (*) su /api/image, /api/lever', () => {
 
   it('image: OPTIONS emette ACAO:* e 204', async () => {
     const res = makeRes();
-    await imageHandler({ method: 'OPTIONS', headers: { origin: ALLOWED } }, res);
+    await imageHandler(
+      { method: 'OPTIONS', headers: { origin: ALLOWED } },
+      res
+    );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
   });
@@ -193,8 +213,57 @@ describe('Policy CORS wildcard (*) su /api/image, /api/lever', () => {
 
   it('lever: OPTIONS emette ACAO:* e 204', async () => {
     const res = makeRes();
-    await leverHandler({ method: 'OPTIONS', headers: { origin: ALLOWED } }, res);
+    await leverHandler(
+      { method: 'OPTIONS', headers: { origin: ALLOWED } },
+      res
+    );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
+  });
+});
+
+// ── Policy esplicita su /api/cache-refresh (endpoint autenticato) ───────────
+// Follow-up t_8e9d78bc: cache-refresh è un POST autenticato (Authorization:
+// Bearer) protetto da require-auth — NON deve usare il wildcard `*` (riservato
+// ai contenuti pubblici embeddati, NOTA SEC-2 in cors.js) ma la policy
+// esplicita con allowlist, con metodi POST,OPTIONS e l'header Authorization
+// dichiarato nel preflight (altrimenti il browser bloccherebbe sia il metodo
+// sia l'header Bearer).
+describe('Policy CORS esplicita su /api/cache-refresh (POST autenticato)', () => {
+  it('OPTIONS con origin consentito: 204, ACAO riflesso, metodi POST,OPTIONS e Authorization ammesso', async () => {
+    const res = makeRes();
+    await cacheRefreshHandler(
+      { method: 'OPTIONS', headers: { origin: ALLOWED } },
+      res
+    );
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(ALLOWED);
+    expect(res.headers['Access-Control-Allow-Methods']).toBe('POST, OPTIONS');
+    expect(res.headers['Access-Control-Allow-Headers']).toBe(
+      'Content-Type, Authorization'
+    );
+    expect(res.headers['Access-Control-Max-Age']).toBe('86400');
+    expect(res.headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(res.headers['Referrer-Policy']).toBe('no-referrer');
+  });
+
+  it('OPTIONS con origin NON consentito: 204 senza ACAO (allowlist)', async () => {
+    const res = makeRes();
+    await cacheRefreshHandler(
+      { method: 'OPTIONS', headers: { origin: DISALLOWED } },
+      res
+    );
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
+    expect(res.headers['Access-Control-Allow-Methods']).toBe('POST, OPTIONS');
+  });
+
+  it('NON emette MAI il wildcard * (nemmeno per origin non consentito)', async () => {
+    const res = makeRes();
+    await cacheRefreshHandler(
+      { method: 'OPTIONS', headers: { origin: DISALLOWED } },
+      res
+    );
+    expect(res.headers['Access-Control-Allow-Origin']).not.toBe('*');
   });
 });
