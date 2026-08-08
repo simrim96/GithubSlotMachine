@@ -58,6 +58,37 @@ export default async function handler(req, res) {
       return json(res, 500, { ok: false, error: 'KV non configurato' });
     }
 
+    // Modalità diagnostica: ?mode=diag — legge chiavi note senza cancellare nulla.
+    const mode = req.query?.mode ? String(req.query.mode) : 'reset';
+    if (mode === 'diag') {
+      const keys = [
+        'gsm:state',
+        'gsm:counter:spins',
+        'gsm:counter:wins',
+        'gsm:slotSvg',
+        'gsm:stateDirty',
+        'gsm:stateStale',
+        'gsm:readme:simrim96',
+      ];
+      const out = {};
+      for (const key of keys) {
+        try {
+          const r = await fetch(`${url}/key/${encodeURIComponent(key)}`, {
+            headers: { Authorization: `Bearer ${writeToken}` },
+          });
+          const d = await r.json();
+          const val = d.result ?? null;
+          out[key] =
+            typeof val === 'string' && val.length > 80
+              ? `STRING len=${val.length} head=${val.slice(0, 60)}`
+              : val;
+        } catch (e) {
+          out[key] = `ERR: ${e.message}`;
+        }
+      }
+      return json(res, 200, { ok: true, mode: 'diag', url, keys: out });
+    }
+
     // 1. Stato prima (lettura diretta, non attraverso kvGet che ha circuit-breaker)
     const before = {};
     for (const key of KEYS_TO_DELETE) {
