@@ -211,7 +211,11 @@ export function buildSVG({
   const headerSvg = generateHeader(uid, state);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid);
-  const paytableSvg = generatePaytable(uid, result.isWin ? winningLang : null);
+  const paytableSvg = generatePaytable(
+    uid,
+    result.isWin ? winningLang : null,
+    result.ED
+  );
 
   // Assemble SVG
   const rawSvg = `<?xml version="1.0" encoding="utf-8"?><svg data-testid="slot-svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="background:#171530"><defs><style>${css}</style>${defs}</defs>${cabinetSvg}${headerSvg}${screenFrameSvg}<g clip-path="url(#screen)">${marqueeBulbs}${colBGs}${reelsSvg}${colBordersSvg}${winGlowSvg}${coinsSvg}${overlaySvg}</g><g clip-path="url(#paytable)">${paytableSvg}</g>${panelSvg}</svg>`;
