@@ -95,8 +95,9 @@ export function generateDefs(uid) {
   }
 
   // Clip-path per paytable - DEFINIZIONE OBBLIGATORIA
-  // Coordinate basate su constants.js: PT_Y (sotto l'header) e PT_H
-  defs += `<clipPath id="paytable"><rect x="120" y="${PT_Y}" width="360" height="${PT_H_CONST}" rx="12"/></clipPath>`;
+  // Coordinate basate su constants.js: PT_Y (sotto l'header) e PT_H.
+  // Pannello ALLARGATO (x 80..520) per far stare agevolmente le icone.
+  defs += `<clipPath id="paytable"><rect x="80" y="${PT_Y}" width="440" height="${PT_H_CONST}" rx="12"/></clipPath>`;
 
   defs += buildSymbolDefs(uid);
   return defs;

@@ -22,6 +22,9 @@ export function generateCSS(uid, result) {
   }
 
   css += `@keyframes wp${uid}{0%,100%{opacity:0}50%{opacity:.55}}`;
+  // Anello dorato della paytable sul simbolo vincente: parte invisibile e
+  // compare (fade + pulsazione) solo dopo la fine della rotazione (delay=ED).
+  css += `@keyframes wr${uid}{0%{opacity:0}30%{opacity:.95}50%{opacity:.55}70%{opacity:.95}100%{opacity:.9}}`;
   css += `@keyframes ov${uid}{from{opacity:0}to{opacity:.92}}`;
   css += `@keyframes ot${uid}{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`;
   css += `@keyframes fi${uid}{from{opacity:0}to{opacity:1}}`;
