@@ -18,6 +18,7 @@
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { logger } from './_lib/logger.js';
+import { badgeCooldown } from './_lib/badge-cooldown.js';
 // escapeXml leggero per il testo dentro l'SVG (defense-in-depth).
 import { escapeXml } from './_lib/svg/utils.js';
 
@@ -42,6 +43,16 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     sendResponse(res, { status: 204 });
     return;
+  }
+
+  // Rate-limit per-IP: 1 badge ogni secondo dallo stesso IP (ISSUE-L1).
+  const cooldown = badgeCooldown(req);
+  if (!cooldown.allowed) {
+    return sendResponse(res, {
+      status: 429,
+      headers: { 'Retry-After': '1' },
+      body: JSON.stringify({ error: 'Too Many Requests — badge cooldown' }),
+    });
   }
 
   const lang = safeLang(req.query?.lang);
