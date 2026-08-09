@@ -1,20 +1,20 @@
 {
-  "totalSpins": 67,
-  "totalWins": 36,
+  "totalSpins": 68,
+  "totalWins": 37,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
-      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
+      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
+      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786312843364
+    "ts": 1786312856057
   },
   "version": 2,
-  "lastPullTimestamp": 1786312843364,
+  "lastPullTimestamp": 1786312856057,
   "settings": {
     "theme": "auto",
     "sound": true
