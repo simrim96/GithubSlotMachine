@@ -1,20 +1,20 @@
 {
-  "totalSpins": 53,
-  "totalWins": 27,
+  "totalSpins": 54,
+  "totalWins": 28,
   "lastWin": {
     "langId": "javascript",
     "langName": "JavaScript",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape",
+      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786310993715
+    "ts": 1786311011973
   },
   "version": 2,
-  "lastPullTimestamp": 1786310993715,
+  "lastPullTimestamp": 1786311011973,
   "settings": {
     "theme": "auto",
     "sound": true
