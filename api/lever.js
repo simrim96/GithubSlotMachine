@@ -19,12 +19,20 @@
 //
 // CTA "click me!": sopra il pomello c'è la scritta animata (gruppo .clickMe,
 // FUORI da #leverGroup che ruota/scala): bob verticale + pulsazione opacità.
-// SEMPRE visibile (sia a riposo che durante il pull): è l'affordance che
-// invita al primo click e ai successivi. Nasconderla nella finestra pulling
-// la rendeva di fatto invisibile nel README: ogni spin aggiorna ?v= e il
-// browser/Camo rifetcha la leva subito dopo lo spin, quando è in stato
-// pulling. L'intera geometria della leva è traslata di Y_OFFSET px verso il
-// basso per fare spazio al testo in alto.
+// Visibilità legata allo stato:
+//   • a riposo (.idling) è subito visibile e animata — invita al primo click;
+//   • durante lo spin (.pulling) parte NASCOSTA (opacity 0) e compare SOLO a
+//     rotazione conclusa: l'animazione ha delay = SPIN_DURATION_S, quindi la
+//     CTA entra da sola quando i rulli si fermano (sincronizzata: nel README
+//     slot e leva vengono rifetchati insieme a ogni spin, il delay è relativo
+//     al load e parte dallo stesso istante della rotazione).
+// NOTA (perché non nasconderla per l'intera finestra pulling): prima veniva
+// opacity 0 per tutti i 30s dello stato pulling, ma ogni spin aggiorna ?v= e
+// il browser/Camo rifetcha la leva subito dopo, sempre in stato pulling →
+// la CTA non si vedeva MAI. Il delay CSS (non lo stato) governa l'opacità:
+// dopo SPIN_DURATION_S la CTA entra da sola, senza bisogno di refetch.
+// L'intera geometria della leva è traslata di Y_OFFSET px verso il basso per
+// fare spazio al testo in alto.
 
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
@@ -107,6 +115,13 @@ const PULL_BALL_SCALE = 1.22; // il pomello rosso si ingrandisce LEGGERMENTE dur
 // e il rate-limit dell'API Contents (il README con ?v puo' non aggiornarsi
 // subito ad ogni spin). Vedi nota in getPullState.
 const PULL_RECENCY_WINDOW_MS = 30000;
+
+// Durata (s) della rotazione dei rulli della slot prima che la CTA compaia.
+// La colonna più lenta finisce a DUR[4] = 6.2s (api/_lib/svg/constants.js) e
+// il risultato compare a ED = 6.6s; usiamo 6.5s come il badge
+// (BADGE_DELAY_S in api/badge.js) così la CTA entra "leggermente dopo" i
+// rulli, a spin concluso — e insieme al badge, come richiesto.
+const SPIN_DURATION_S = 6.5;
 
 // Legge lastPullTimestamp dallo state.json PUBBLICO su GitHub (raw, no token).
 // spin.js aggiorna state.json a OGNI spin (commit). Questa è la fonte di
@@ -365,28 +380,39 @@ const ANIMATIONS = `
   }
 
   /* Stato "pull appena avvenuto": riproduce il pull e, al termine, entra
-     nel loop idle senza soluzione di continuità. */
-  .pulling {
+     nel loop idle senza soluzione di continuità.
+     NOTA: selettori SCOPATI a #leverGroup — lo stesso stato (.idling/.pulling)
+     è applicato anche alla radice del documento (classe 'lever', aggancio
+     per .lever .clickMe); se le regole fossero generiche, la radice
+     ruoterebbe l'INTERO SVG (idleLoop ±3°) e la CTA "click me!"
+     oscillerebbe a destra/sinistra invece di restare ferma. */
+  #leverGroup.pulling {
     animation:
       pull ${PULL_DURATION_MS}ms ease-in-out forwards,
       idleLoop ${IDLE_LOOP_MS}ms ease-in-out ${PULL_DURATION_MS}ms infinite;
   }
-  .pulling .leverBallGroup {
+  #leverGroup.pulling .leverBallGroup {
     animation: ballGrow ${PULL_DURATION_MS}ms ease-in-out forwards;
   }
 
   /* Stato di riposo (nessuno spin recente): solo loop idle. */
-  .idling {
+  #leverGroup.idling {
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
   }
 
   /* ── CTA "click me!" ──
      Bob verticale + pulsazione opacità per attirare l'attenzione.
-     SEMPRE visibile e animata (idling E pulling): anche subito dopo uno
-     spin la CTA resta — nel README è l'affordance che invita al click
-     successivo. (Prima veniva nascosta per 30s dopo ogni spin, ma ogni
-     spin aggiorna ?v= e il browser rifetcha la leva proprio in stato
-     pulling → di fatto non si vedeva mai.) */
+     Appare SOLO a spin concluso:
+       • .idling  → subito visibile e animata (invita al primo click);
+       • .pulling → parte NASCOSTA (opacity 0) e le animazioni entrano con
+         delay = SPIN_DURATION_S (durata rotazione rulli): la CTA compare
+         da sola quando i rulli si fermano, sincronizzata con la slot.
+     NOTA (perché non nasconderla per l'intera finestra pulling): prima
+     veniva opacity 0 per tutti i 30s dello stato pulling, ma ogni spin
+     aggiorna ?v= e il browser rifetcha la leva proprio in stato pulling →
+     la CTA non si vedeva MAI. Il delay CSS (non lo stato) governa la
+     comparsa: anche se l'SVG è servito in stato pulling, la CTA entra in
+     scena 6.5s dopo il load, senza bisogno di refetch. */
   @keyframes clickBob {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-3px); }
@@ -395,15 +421,32 @@ const ANIMATIONS = `
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.45; }
   }
-  .lever .clickMe {
+  /* Entrata della CTA a spin concluso: fade-in breve (0.5s) subito dopo
+     la fine della rotazione, poi parte il bob + pulsazione. */
+  @keyframes ctaIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .lever.idling .clickMe {
     animation:
       clickBob 1.2s ease-in-out infinite,
       clickPulse 1.2s ease-in-out infinite;
   }
+  .lever.pulling .clickMe {
+    opacity: 0;
+    animation:
+      ctaIn 0.5s ease-out ${SPIN_DURATION_S}s both,
+      clickBob 1.2s ease-in-out ${SPIN_DURATION_S + 0.5}s infinite,
+      clickPulse 1.2s ease-in-out ${SPIN_DURATION_S + 0.5}s infinite;
+  }
 
-  /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
+  /* Accessibilità: niente animazioni per chi ha disattivato il motion.
+     Con motion ridotto la rotazione è istantanea → la CTA è subito
+     visibile anche in stato pulling (senza animazioni il delay non
+     scatta mai e resterebbe nascosta). */
   @media (prefers-reduced-motion: reduce) {
     #leverGroup, .leverBallGroup, .clickMe { animation: none !important; }
+    .lever.pulling .clickMe { opacity: 1; }
   }
 </style>
 `;
@@ -444,8 +487,8 @@ export default async function handler(req, res) {
   svg = svg.replace('<defs>', ANIMATIONS + '\n  <defs>');
 
   // Aggiungi la classe di stato anche alla radice <svg>: la CTA .clickMe
-  // vive FUORI da #leverGroup, quindi il selettore .lever .clickMe aggancia
-  // lo stato alla radice invece che al gruppo rotante.
+  // vive FUORI da #leverGroup, quindi i selettori .lever.idling/.lever.pulling
+  // agganciano lo stato alla radice invece che al gruppo rotante.
   svg = svg.replace(
     '<svg xmlns="http://www.w3.org/2000/svg"',
     `<svg class="lever ${currentClass}" xmlns="http://www.w3.org/2000/svg"`
