@@ -264,25 +264,6 @@ export default async function handler(req, res) {
     // generateGrid è DENTRO il try: se lancia, degrada a errore graceful.
     const grid = generateGrid();
 
-    // Letture CRITICHE (percorso click→reload): solo slot.svg (KV) + stato (KV).
-    // La GET del README su GitHub (~150-400ms) è stata SPOSTATA fuori dal
-    // percorso critico: serve solo ad aggiornare i marker nel profilo, NON
-    // per calcolare né l'SVG né il redirect. Viene fatta in background dopo
-    // il redirect, così non allunga più il tempo percepito.
-    const [slotFile, stateBundle] = await Promise.all([
-      loadSlotSvg(token, OWNER, SLOT_REPO),
-      readState(token, OWNER, SLOT_REPO).catch(() => ({
-        state: { totalSpins: 0, totalWins: 0, lastWin: null },
-        sha: null,
-      })),
-    ]);
-
-    const { state, sha: stateSha } = stateBundle;
-    state.totalSpins = (state.totalSpins || 0) + 1;
-    // Impostiamo lastPullTimestamp al tempo reale dello spin
-    // Questo permette all'animazione di pull di essere mostrata per ~3 secondi dopo lo spin
-    state.lastPullTimestamp = spinStart;
-
     // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
     // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
     // spin, aggiungendo ~150-400ms. Ora la leggiamo da KV (chiave
@@ -307,12 +288,11 @@ export default async function handler(req, res) {
     // del percorso critico. PRIMA partiva solo DOPO la build SVG, aggiungendo
     // la sua latenza IN SERIE al tempo percepito dello spin — ed è proprio il
     // caso peggiore sullo spin a freddo (cache README scaduta dopo inattività,
-    // quindi GET GitHub quasi certa). Ora parte SUBITO dopo la lettura dello
-    // stato, così si sovrappone alla repo lookup e alla build SVG: su spin a
-    // freddo la GET esce dal percorso critico e il redirect aspetta solo la
-    // PUT (~150-300ms) invece di GET+PUT in serie.
-    // Timeout STRETTO (800ms, come la lettura di state.json): una GitHub lenta
-    // non deve allungare lo spin fino ai 2s di default del GITHUB_API_TIMEOUT.
+    // quindi GET GitHub quasi certa). Ora parte SUBITO, in parallelo alla
+    // lettura di slot.svg + stato e alla repo lookup: su spin a freddo la GET
+    // esce dal percorso critico e il redirect aspetta solo la PUT invece di
+    // GET+PUT in serie. Timeout STRETTO (800ms, come la lettura di state.json):
+    // una GitHub lenta non deve allungare lo spin fino ai 2s di default.
     const README_GET_TIMEOUT_MS = GH_CONTENTS_TIMEOUT_MS; // 800ms
     const README_MAX_RETRIES = 2;
     const README_RETRY_DELAY_MS = 500;
@@ -373,6 +353,23 @@ export default async function handler(req, res) {
       logger.warn('README GET failed', { max_retries: README_MAX_RETRIES, last_error: lastGetError?.message });
       return null;
     })();
+
+    // Letture CRITICHE (percorso click→reload): solo slot.svg (KV) + stato (KV).
+    // La GET del README su GitHub (readmeGetPromise qui sopra) parte IN
+    // PARALLELO a queste letture, così la sua latenza non si somma in serie.
+    const [slotFile, stateBundle] = await Promise.all([
+      loadSlotSvg(token, OWNER, SLOT_REPO),
+      readState(token, OWNER, SLOT_REPO).catch(() => ({
+        state: { totalSpins: 0, totalWins: 0, lastWin: null },
+        sha: null,
+      })),
+    ]);
+
+    const { state, sha: stateSha } = stateBundle;
+    state.totalSpins = (state.totalSpins || 0) + 1;
+    // Impostiamo lastPullTimestamp al tempo reale dello spin
+    // Questo permette all'animazione di pull di essere mostrata per ~3 secondi dopo lo spin
+    state.lastPullTimestamp = spinStart;
 
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
