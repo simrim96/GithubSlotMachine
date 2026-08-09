@@ -1,20 +1,20 @@
 {
-  "totalSpins": 13,
-  "totalWins": 7,
+  "totalSpins": 15,
+  "totalWins": 9,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\"",
+      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786274100313
+    "ts": 1786281432693
   },
   "version": 2,
-  "lastPullTimestamp": 1786275279696,
+  "lastPullTimestamp": 1786281432693,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,6 +23,5 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  },
-  "stale": true
+  }
 }
