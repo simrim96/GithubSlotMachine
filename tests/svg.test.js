@@ -155,6 +155,63 @@ describe('buildSVG — casi di gioco', () => {
   });
 });
 
+describe('buildSVG — counter WINS ritardato (non rivela la vincita prima della fine rotazione)', () => {
+  beforeEach(() => {
+    clearCache();
+  });
+
+  it('win: durante la rotazione mostra il valore PRECEDENTE, poi anima al nuovo a ED', () => {
+    const grid = winGrid(SYMBOL_IDS[0]);
+    expect(checkWins(grid).length).toBeGreaterThan(0);
+    // state.totalWins=7 è il valore GIÀ incrementato (spin.js incrementa
+    // prima di buildSVG): l'header deve mostrare 6 durante lo spin e
+    // animare verso 7 solo a rotazione terminata (ED=6.6s per DUR=6.2s).
+    const svg = buildSVG({ grid, uid: 2, state, winningLang, fact });
+
+    // Valore precedente presente nel markup
+    expect(svg).toContain('>6<');
+    // ...ma ha opacity:0 di BASE (fallback statico = valore nuovo) ed è
+    // reso visibile solo dal backwards-fill di co durante il delay fino a
+    // ED (fine rotazione): animation-fill-mode:both.
+    expect(svg).toContain('opacity:0;animation:co2 .5s 6.60s both');
+    // Nuovo valore presente, opacity:1 di BASE (fallback statico corretto)
+    // e nascosto da 0→ED+0.06 dal backwards-fill di ci
+    expect(svg).toContain('opacity:1;animation:ci2 .5s 6.66s both');
+    expect(svg).toContain('>7<');
+    // Le keyframes del counter esistono
+    expect(svg).toContain('@keyframes co2');
+    expect(svg).toContain('@keyframes ci2');
+  });
+
+  it('win: fallback statico (rendering senza animazioni CSS) mostra il valore NUOVO', () => {
+    const grid = winGrid(SYMBOL_IDS[0]);
+    const svg = buildSVG({ grid, uid: 9, state, winningLang, fact });
+    // In un rendering statico (anteprima GitHub, screenshot, img senza
+    // animazioni) le animazioni non partono: resta visibile solo ciò che
+    // ha opacity di base 1 → il valore NUOVO (7), mai il decrementato (6).
+    expect(svg).toContain('>7<');
+    expect(svg).toContain('opacity:0;animation:co9');
+    expect(svg).toContain('opacity:1;animation:ci9');
+  });
+
+  it('no-win: counter statico, nessuna animazione co/ci', () => {
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 5,
+      state,
+      winningLang: null,
+      fact,
+    });
+    // Valore corrente mostrato normalmente
+    expect(svg).toContain('>7<');
+    // Nessuna animazione di counter ritardato
+    expect(svg).not.toContain('animation:co5');
+    expect(svg).not.toContain('animation:ci5');
+    expect(svg).not.toContain('@keyframes co5');
+    expect(svg).not.toContain('@keyframes ci5');
+  });
+});
+
 describe('buildSVG — escape', () => {
   beforeEach(() => {
     clearCache();

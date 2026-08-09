@@ -208,7 +208,7 @@ export function buildSVG({
     result
   );
   const overlaySvg = '';
-  const headerSvg = generateHeader(uid, state);
+  const headerSvg = generateHeader(uid, state, result, winningLang);
   const cabinetSvg = generateCabinet(uid);
   const screenFrameSvg = generateScreenFrame(uid);
   const paytableSvg = generatePaytable(
