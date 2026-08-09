@@ -1,20 +1,20 @@
 {
-  "totalSpins": 63,
-  "totalWins": 32,
+  "totalSpins": 64,
+  "totalWins": 33,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Il nome originale era \"Mocha\", poi \"LiveScript\" e infine \"JavaScript\" — una scelta di marketing per cavalcare l'hype di Java",
-      "en": "The original name was \"Mocha\", then \"LiveScript\" and finally \"JavaScript\" — a marketing move to ride the Java hype wave."
+      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt",
+      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786311165515
+    "ts": 1786311481350
   },
   "version": 2,
-  "lastPullTimestamp": 1786311460622,
+  "lastPullTimestamp": 1786311481350,
   "settings": {
     "theme": "auto",
     "sound": true
