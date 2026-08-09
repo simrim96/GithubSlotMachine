@@ -28,3 +28,6 @@ slot.svg
 
 # script one-off di verifica issue (ISSUE-fix workflow)
 verify-issue*.mjs
+
+# worktree temporanei dei task kanban
+.worktrees/

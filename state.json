@@ -1,6 +1,6 @@
 {
-  "totalSpins": 2,
-  "totalWins": 2,
+  "totalSpins": 6,
+  "totalWins": 3,
   "lastWin": {
     "langId": "cpp",
     "langName": "C++",
@@ -11,10 +11,10 @@
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786221723464
+    "ts": 1786224788781
   },
   "version": 2,
-  "lastPullTimestamp": 1786221723464,
+  "lastPullTimestamp": 1786228384670,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,6 +23,5 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  },
-  "stale": true
+  }
 }

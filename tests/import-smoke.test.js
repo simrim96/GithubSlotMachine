@@ -16,6 +16,7 @@ const MODULES = [
   '../api/health.js',
   '../api/lever.js',
   '../api/ratelimit-status.js',
+  '../api/cache-refresh.js',
   // Libreria condivisa (_lib)
   '../api/_lib/github.js',
   '../api/_lib/repos.js',
@@ -28,6 +29,9 @@ const MODULES = [
   '../api/_lib/config-loader.js',
   '../api/_lib/svg-builder.js',
   '../api/_lib/svg-builder-accessible.js',
+  '../api/_lib/jwt-config.js',
+  '../api/_lib/jwt-keys.js',
+  '../api/_lib/require-auth.js',
   // Sotto-moduli SVG
   '../api/_lib/svg/css.js',
   '../api/_lib/svg/analysis.js',
