@@ -18,10 +18,13 @@
 // "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
 //
 // CTA "click me!": sopra il pomello c'è la scritta animata (gruppo .clickMe,
-// FUORI da #leverGroup che ruota/scala): bob verticale + pulsazione opacità,
-// visibile solo a riposo (.idling). Dopo un pull recente (.pulling) sparisce
-// perché l'utente ha già cliccato. L'intera geometria della leva è traslata
-// di Y_OFFSET px verso il basso per fare spazio al testo in alto.
+// FUORI da #leverGroup che ruota/scala): bob verticale + pulsazione opacità.
+// SEMPRE visibile (sia a riposo che durante il pull): è l'affordance che
+// invita al primo click e ai successivi. Nasconderla nella finestra pulling
+// la rendeva di fatto invisibile nel README: ogni spin aggiorna ?v= e il
+// browser/Camo rifetcha la leva subito dopo lo spin, quando è in stato
+// pulling. L'intera geometria della leva è traslata di Y_OFFSET px verso il
+// basso per fare spazio al testo in alto.
 
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
@@ -379,8 +382,11 @@ const ANIMATIONS = `
 
   /* ── CTA "click me!" ──
      Bob verticale + pulsazione opacità per attirare l'attenzione.
-     Visibile SOLO a riposo (.idling): dopo un pull recente (.pulling)
-     sparisce — l'utente ha già cliccato e la CTA non serve più. */
+     SEMPRE visibile e animata (idling E pulling): anche subito dopo uno
+     spin la CTA resta — nel README è l'affordance che invita al click
+     successivo. (Prima veniva nascosta per 30s dopo ogni spin, ma ogni
+     spin aggiorna ?v= e il browser rifetcha la leva proprio in stato
+     pulling → di fatto non si vedeva mai.) */
   @keyframes clickBob {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-3px); }
@@ -389,14 +395,10 @@ const ANIMATIONS = `
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.45; }
   }
-  .lever.idling .clickMe {
+  .lever .clickMe {
     animation:
       clickBob 1.2s ease-in-out infinite,
       clickPulse 1.2s ease-in-out infinite;
-  }
-  .lever.pulling .clickMe {
-    animation: none;
-    opacity: 0;
   }
 
   /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
@@ -442,8 +444,8 @@ export default async function handler(req, res) {
   svg = svg.replace('<defs>', ANIMATIONS + '\n  <defs>');
 
   // Aggiungi la classe di stato anche alla radice <svg>: la CTA .clickMe
-  // vive FUORI da #leverGroup, quindi i selettori .lever.idling/.lever.pulling
-  // agganciano lo stato alla radice invece che al gruppo rotante.
+  // vive FUORI da #leverGroup, quindi il selettore .lever .clickMe aggancia
+  // lo stato alla radice invece che al gruppo rotante.
   svg = svg.replace(
     '<svg xmlns="http://www.w3.org/2000/svg"',
     `<svg class="lever ${currentClass}" xmlns="http://www.w3.org/2000/svg"`

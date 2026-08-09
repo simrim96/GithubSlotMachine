@@ -4,9 +4,11 @@
  * Requisiti:
  *   - La scritta "click me!" (testo + freccia) è presente sopra il pomello,
  *     FUORI da #leverGroup (che ruota/scala durante pull e idle loop).
- *   - È animata (keyframes clickBob/clickPulse) SOLO a riposo (.idling).
- *   - Dopo un pull recente (.pulling) sparisce (opacity 0) — l'utente ha già
- *     cliccato.
+ *   - È animata (keyframes clickBob/clickPulse) in ENTRAMBI gli stati:
+ *     a riposo (.idling) e durante il pull (.pulling) — la CTA è l'affordance
+ *     sempre visibile che invita al click (nasconderla dopo lo spin la
+ *     rendeva invisibile nel README: ogni spin aggiorna ?v= e il browser
+ *     rifetcha la leva proprio in stato pulling).
  *   - L'SVG si allunga in alto (Y_OFFSET) per fare spazio al testo: la
  *     geometria della leva (TIP_Y/BUMPER_CY) è traslata verso il basso.
  *   - prefers-reduced-motion disattiva anche l'animazione della CTA.
@@ -99,14 +101,14 @@ describe('CTA animata "click me!" (api/lever.js)', () => {
     expect(body).toMatch(/<path d="M21 29 L31 29 L26 35 Z"/);
     expect(body).toContain('aria-hidden="true"');
 
-    // Animazioni CTA: keyframes + regola visibile solo a riposo
+    // Animazioni CTA: keyframes + regola valida in ENTRAMBI gli stati
     expect(body).toContain('@keyframes clickBob');
     expect(body).toContain('@keyframes clickPulse');
-    expect(body).toContain('.lever.idling .clickMe');
+    expect(body).toContain('.lever .clickMe');
     expect(body).toContain('clickBob 1.2s ease-in-out infinite');
   });
 
-  it('dopo un pull recente (.pulling) la CTA è nascosta (opacity 0)', async () => {
+  it('dopo un pull recente (.pulling) la CTA resta visibile e animata', async () => {
     const recent = Date.now();
     await leverHandler(makeReq(recent), makeRes());
     const body = captured.body;
@@ -114,13 +116,12 @@ describe('CTA animata "click me!" (api/lever.js)', () => {
     expect(body).toContain('<svg class="lever pulling"');
     expect(body).toContain('class="leverArm pulling"');
 
-    // La CTA resta nel markup (è CSS-driven) ma la regola la nasconde
+    // La CTA resta nel markup E resta visibile: nessuna regola che la
+    // nasconda nello stato pulling (la regola è .lever .clickMe, non
+    // condizionata allo stato).
     expect(body).toContain('click me!');
-    expect(body).toContain('.lever.pulling .clickMe');
-    expect(body).toContain(
-      '.lever.pulling .clickMe {\n    animation: none;\n    opacity: 0;\n  }'
-    );
-    expect(body).toContain('opacity: 0');
+    expect(body).toContain('.lever .clickMe');
+    expect(body).not.toContain('.lever.pulling .clickMe');
   });
 
   it('la CTA sta SOPRA il pomello: baseline testo e punta freccia sopra alone e palla', async () => {
