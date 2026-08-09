@@ -1,20 +1,20 @@
 {
-  "totalSpins": 42,
-  "totalWins": 22,
+  "totalSpins": 43,
+  "totalWins": 23,
   "lastWin": {
-    "langId": "glsl",
-    "langName": "GLSL",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "In GLSL non esistono puntatori né allocazione dinamica: tutto è pensato per il calcolo SIMD massivamente parallelo",
-      "en": "GLSL has no pointers and no dynamic allocation: everything is designed for massively parallel SIMD computation."
+      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
+      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786297162807
+    "ts": 1786297886068
   },
   "version": 2,
-  "lastPullTimestamp": 1786297873462,
+  "lastPullTimestamp": 1786297886068,
   "settings": {
     "theme": "auto",
     "sound": true
