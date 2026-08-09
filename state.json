@@ -1,20 +1,20 @@
 {
-  "totalSpins": 18,
-  "totalWins": 12,
+  "totalSpins": 19,
+  "totalWins": 13,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "JavaScript è stato progettato da Brendan Eich in soli 10 giorni, nel maggio 1995, mentre lavorava a Netscape",
+      "en": "JavaScript was designed by Brendan Eich in just 10 days, in May 1995, while he was at Netscape."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786281466709
+    "ts": 1786283607149
   },
   "version": 2,
-  "lastPullTimestamp": 1786281466709,
+  "lastPullTimestamp": 1786283607149,
   "settings": {
     "theme": "auto",
     "sound": true
