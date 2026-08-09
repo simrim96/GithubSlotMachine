@@ -1,20 +1,20 @@
 {
-  "totalSpins": 6,
-  "totalWins": 3,
+  "totalSpins": 9,
+  "totalWins": 4,
   "lastWin": {
     "langId": "cpp",
     "langName": "C++",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
+      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786224788781
+    "ts": 1786228403024
   },
   "version": 2,
-  "lastPullTimestamp": 1786228384670,
+  "lastPullTimestamp": 1786274069132,
   "settings": {
     "theme": "auto",
     "sound": true
