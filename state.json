@@ -1,20 +1,20 @@
 {
-  "totalSpins": 29,
-  "totalWins": 17,
+  "totalSpins": 30,
+  "totalWins": 18,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
-      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
+      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
+      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786283707331
+    "ts": 1786284810807
   },
   "version": 2,
-  "lastPullTimestamp": 1786284801175,
+  "lastPullTimestamp": 1786284810807,
   "settings": {
     "theme": "auto",
     "sound": true
