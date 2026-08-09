@@ -1,20 +1,20 @@
 {
-  "totalSpins": 33,
-  "totalWins": 18,
+  "totalSpins": 37,
+  "totalWins": 20,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "c",
+    "langName": "C",
     "fact": {
-      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
-      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
+      "it": "C è stato sviluppato da Dennis Ritchie nei Bell Labs tra il 1969 e il 1973: è la base di Unix, di praticamente tutti i kernel moderni (Linux, Windows NT) e dei runtime di quasi ogni linguaggio \"moderno\" (Python, Ruby, PHP, Lua…)",
+      "en": "C was developed by Dennis Ritchie at Bell Labs between 1969 and 1973: it's the foundation of Unix, virtually every modern kernel (Linux, Windows NT) and the runtime of almost every \"modern\" language (Python, Ruby, PHP, Lua…)"
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786284810807
+    "ts": 1786296433646
   },
   "version": 2,
-  "lastPullTimestamp": 1786296225775,
+  "lastPullTimestamp": 1786297117581,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,6 +23,5 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  },
-  "stale": true
+  }
 }
