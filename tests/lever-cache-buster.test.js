@@ -71,4 +71,35 @@ describe('Lever Cache Buster (Issue Fix)', () => {
     expect(test2.replace(leverRegex, 'api/lever?v=999')).toBe('api/lever?v=999');
     expect(test3.replace(leverRegex, 'api/lever?v=999')).toBe('api/lever?v=999');
   });
+
+  it('La regex dell\'immagine deve aggiungere ?v anche agli embed senza query (fix "risultato precedente")', () => {
+    // Pattern replicato da api/spin.js (due passate: aggiorna il cache-buster
+    // esistente, poi aggiunge ?v agli embed SENZA query — senza toccare URL
+    // con altri parametri o path estesi).
+    const imageRegex1 = /api\/image\?(?:v|cache_buster)=[0-9]*/g;
+    const imageRegex2 = /api\/image(?![\w?/.\-])/g;
+    const bump = (s, v) =>
+      s
+        .replace(imageRegex1, `api/image?v=${v}`)
+        .replace(imageRegex2, `api/image?v=${v}`);
+
+    // Cache-buster esistente → aggiornato
+    expect(bump('api/image?v=123456', 999)).toBe('api/image?v=999');
+    expect(bump('api/image?cache_buster=789', 999)).toBe('api/image?v=999');
+    // Embed senza query → ?v aggiunto (prima NON veniva toccato → Camo
+    // serviva per sempre la prima immagine cacheata)
+    expect(bump('api/image', 999)).toBe('api/image?v=999');
+    expect(bump('src="https://x.vercel.app/api/image"', 999)).toBe(
+      'src="https://x.vercel.app/api/image?v=999"'
+    );
+    // URL con altri parametri o path estesi → NON toccati (nessuna corruzione)
+    expect(bump('api/image?foo=1', 999)).toBe('api/image?foo=1');
+    expect(bump('api/image-2', 999)).toBe('api/image-2');
+    expect(bump('api/image/foo', 999)).toBe('api/image/foo');
+
+    // Verifica statica: spin.js contiene entrambe le passate (nel sorgente la
+    // regex è scritta con escape: /api\/image(?!...)/)
+    const spinContent = readFileSync('./api/spin.js', 'utf-8');
+    expect(spinContent).toContain('image(?!');
+  });
 });

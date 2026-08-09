@@ -138,7 +138,7 @@ describe('buildSVG — casi di gioco', () => {
     expect(svg).not.toContain('nm5');
   });
 
-  it('NON contiene alcun link/testo repo nell\'SVG (il link vive nel README)', () => {
+  it("NON contiene alcun link/testo repo nell'SVG (il link vive nel README)", () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     const svg = buildSVG({
       grid,
@@ -209,6 +209,59 @@ describe('buildSVG — counter WINS ritardato (non rivela la vincita prima della
     expect(svg).not.toContain('animation:ci5');
     expect(svg).not.toContain('@keyframes co5');
     expect(svg).not.toContain('@keyframes ci5');
+  });
+});
+
+describe('buildSVG — header: contatori centrati sotto la propria etichetta', () => {
+  beforeEach(() => {
+    clearCache();
+  });
+
+  it('etichette ai bordi (design originale), valori centrati in corrispondenza', () => {
+    const svg = buildSVG({
+      grid: emptyGrid(),
+      uid: 3,
+      state,
+      winningLang: null,
+      fact,
+    });
+
+    // Etichette ancorate ai bordi, INVARIATE rispetto al design originale:
+    // COMMUNITY SPINS a sinistra (x=50, anchor start), WINS a destra
+    // (x=550 = SVG_W-50, anchor end).
+    expect(svg).toContain(
+      '<text x="50" y="55" font-size="8.5" fill="#8b8bac" font-weight="700" letter-spacing="1.2">COMMUNITY SPINS</text>'
+    );
+    expect(svg).toContain(
+      '<text x="550" y="55" text-anchor="end" font-size="8.5" fill="#8b8bac" font-weight="700" letter-spacing="1.2">WINS</text>'
+    );
+
+    // Valori centrati sul centro dell'etichetta sopra (text-anchor="middle"):
+    // 98.5 = 50 + 97/2 (larghezza misurata "COMMUNITY SPINS"),
+    // 537 = 550 - 26/2 (larghezza misurata "WINS").
+    expect(svg).toContain(
+      '<text x="98.5" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="#ffd700">42</text>'
+    );
+    expect(svg).toContain(
+      '<text x="537" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="#4ade80">7</text>'
+    );
+  });
+
+  it('win: anche i due <text> animati del counter WINS restano centrati (x=537, middle)', () => {
+    const grid = winGrid(SYMBOL_IDS[0]);
+    const svg = buildSVG({ grid, uid: 4, state, winningLang, fact });
+    // Entrambi i testi (vecchio che esce, nuovo che entra) usano la stessa
+    // ancora centrale dell'etichetta WINS.
+    expect(svg).toContain(
+      '<text x="537" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="#4ade80" style="opacity:0;animation:co4 .5s 6.60s both">6</text>'
+    );
+    expect(svg).toContain(
+      '<text x="537" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="#4ade80" style="opacity:1;animation:ci4 .5s 6.66s both">7</text>'
+    );
+    // E il counter SPINS resta centrato sotto "COMMUNITY SPINS"
+    expect(svg).toContain(
+      '<text x="98.5" y="70" text-anchor="middle" font-size="14" font-weight="800" fill="#ffd700">42</text>'
+    );
   });
 });
 

@@ -263,11 +263,9 @@ describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () 
       kvSet: vi.fn(async () => false),
       kvEnabled: true,
     };
-    vi.doMock('../api/_lib/kv.js', () => slowKv);
-    vi.resetModules();
-    const repos = await import('../api/_lib/repos.js');
-
-    // Pre-popola il tier lastgood in KV prima del cold start.
+    // Pre-popola il tier lastgood in KV PRIMA dell'import del modulo: il
+    // preload module-level di repos.js (loadFromKv all'init) lo legge e lo
+    // carica in memoria, così getRepoForLanguage serve i repo senza rete.
     slowKv.kvGet.mockImplementation(async (key) => {
       if (key === 'gsm:repoCache:lastgood') {
         return {
@@ -277,6 +275,9 @@ describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () 
       }
       return null;
     });
+    vi.doMock('../api/_lib/kv.js', () => slowKv);
+    vi.resetModules();
+    const repos = await import('../api/_lib/repos.js');
 
     const t0 = Date.now();
     const match = await repos.getRepoForLanguage(

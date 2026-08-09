@@ -13,6 +13,7 @@
 //     SET foo bar    → POST {url}/set/foo/bar            (args nel path)
 //     SET foo bar EX 100 → POST {url}/set/foo/bar/EX/100
 //     INCR foo       → POST {url}/incr/foo
+//     DEL foo        → POST {url}/del/foo
 //     MGET a b       → GET  {url}/mget/a/b
 //     MSET a 1 b 2   → POST {url}/mset/a/1/b/2
 //   Per valori GRANDI (es. slot.svg ~56KB) il path URL è inadatto → si usa
@@ -340,6 +341,41 @@ export async function kvIncr(key) {
     _cbFailure();
     console.warn('[kvIncr] failed', { key, error: err?.message || err });
     return null;
+  }
+}
+
+export async function kvDel(key) {
+  if (!kvEnabled) return false;
+  if (!kvWritable) {
+    console.warn('[kvDel] nessun token di SCRITTURA configurato:', { key });
+    return false;
+  }
+  if (evaluateCircuitBreaker() === 'blocked') {
+    logger.debug('[kv] circuit-breaker open, kvDel skipped', { key });
+    return false;
+  }
+  try {
+    // Formato REST Upstash: POST {url}/del/{key} → { result: 1 } se la chiave
+    // esisteva, { result: 0 } se era già assente (o array con pipeline).
+    const response = await withTimeout(
+      fetch(`${url}/del/${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: getHeaders(writeToken),
+      })
+    );
+    if (!response.ok) {
+      _cbFailure();
+      return false;
+    }
+    _cbSuccess();
+    const data = await response.json();
+    let result = Array.isArray(data) ? data[0]?.result : data.result;
+    if (Array.isArray(result)) result = result[0];
+    return Number(result) > 0;
+  } catch (err) {
+    _cbFailure();
+    console.warn('[kvDel] failed', { key, error: err?.message || err });
+    return false;
   }
 }
 

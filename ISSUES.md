@@ -342,3 +342,23 @@
 6. Retry ghGetJson su 5xx (B6) → **-1s** in caso di 5xx
 
 **Tempo totale stimato dopo fix: ~100-500ms per spin** (vs ~250-1400ms attuale).
+
+---
+
+## SPIN A FREDDO — OTTIMIZZAZIONE (2026-08-09)
+
+> Task kanban t_2dd28800: dopo lunga inattività (cold start Vercel + cache scadute) lo spin è lento. Analisi del percorso critico e fix applicati:
+
+**Cosa pesava sullo spin a freddo (in ordine di impatto):**
+1. **GET README in serie al percorso critico** — la GET GitHub della README (~150-400ms) partiva solo DOPO la build SVG: su spin a freddo (cache `gsm:readme` TTL 60s scaduta → GET quasi certa) aggiungeva la sua latenza IN SERIE al redirect. **Fix**: la GET è ora anticipata (`readmeGetPromise`, parte subito dopo la lettura dello stato) e si sovrappone a repo lookup + build SVG. Il redirect aspetta solo la PUT (~150-300ms).
+2. **Timeout GET README troppo largo** — usava il default `GITHUB_API_TIMEOUT_MS` (2s) pur essendo una lettura di contenuto sul percorso critico. **Fix**: ora usa `GH_CONTENTS_TIMEOUT_MS` (800ms, come state.json) → worst case GET+retry = 2.1s invece di 4.5s (il cap di sicurezza README_TIMEOUT_MS=4s resta come ultima rete).
+3. **Preload cache repo rotto (TDZ)** — `loadFromKv()` al caricamento del modulo (repos.js) era chiamata PRIMA della dichiarazione di `kvLoaded` → `ReferenceError: Cannot access 'kvLoaded' before initialization` a OGNI cold start: il preload KV non è mai partito, e il primo `getRepoForLanguage` poteva cascare nel falso cold start (stall GitHub fino a 1s) pur avendo i repo in KV. **Fix**: chiamata spostata dopo le dichiarazioni + dedup della promise in corso (`kvLoadPromise`) così i chiamanti concorrenti attendono la STESSA load.
+4. **Sha stale nella cache README (P1)** — dopo una PUT si salvava in cache lo sha PRE-PUT → a ogni cache HIT la PUT falliva con 409 e ghPut rifetchava (GET inutile a ogni spin entro il TTL). **Fix**: `ghPut` ora ritorna lo sha POST-PUT e la cache lo salva → cache HIT = una sola PUT (200 diretto).
+
+**Impatto stimato**: spin a freddo ~-300/400ms tipici (GET fuori dal percorso critico), worst case GitHub lento 4.5s → ~2.1s, e spariti: ReferenceError al boot, GET extra per 409 a ogni cache HIT, falso cold start da 1s quando KV ha i repo.
+
+**Rimasto fuori (valutato, non applicato)**:
+- **Keep-warm**: un cron che bussi a `/api/spin` non è proponibile (farebbe spin veri: contatori + PUT README); un endpoint `/api/warm` dedicato richiederebbe un nuovo deploy/cron e su Vercel il keep-warm non garantisce isolati caldi. Si può valutare "Minimum Instances" (piano Pro) se il cold start Vercel (~300-600ms) diventa il collo di bottiglia percepito.
+- **Tier "lastgood" per la cache README**: scarteremmo la GET su spin a freddo, ma allargherebbe la finestra di sovrascrittura di edit manuali alla README (ora limitata a 60s di TTL). Non applicato per non cambiare il contratto P1.
+
+---

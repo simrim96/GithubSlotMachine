@@ -21,6 +21,7 @@ vi.mock('../api/_lib/github.js', () => ({
   ghGetJson: vi.fn(),
   ghPut: vi.fn(),
   updateReadmeMarkers: vi.fn((r) => r),
+  GH_CONTENTS_TIMEOUT_MS: 800,
 }));
 vi.mock('../api/_lib/kv.js', () => ({
   kvEnabled: false,
