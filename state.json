@@ -1,20 +1,20 @@
 {
-  "totalSpins": 60,
-  "totalWins": 30,
+  "totalSpins": 61,
+  "totalWins": 31,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786311109301
+    "ts": 1786311146794
   },
   "version": 2,
-  "lastPullTimestamp": 1786311109301,
+  "lastPullTimestamp": 1786311146794,
   "settings": {
     "theme": "auto",
     "sound": true
