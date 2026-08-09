@@ -16,6 +16,12 @@
 //
 // Layout: leva quasi verticale (delta x = 10px su delta y = 78px) → quindi
 // "leggermente parallela" al fianco della slot, non più diagonale aggressiva.
+//
+// CTA "click me!": sopra il pomello c'è la scritta animata (gruppo .clickMe,
+// FUORI da #leverGroup che ruota/scala): bob verticale + pulsazione opacità,
+// visibile solo a riposo (.idling). Dopo un pull recente (.pulling) sparisce
+// perché l'utente ha già cliccato. L'intera geometria della leva è traslata
+// di Y_OFFSET px verso il basso per fare spazio al testo in alto.
 
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
@@ -23,16 +29,31 @@ import { kvGet } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
 
 const W = 52;
-const H = 150;
 
-// Pivot del bumper: centrato nell'SVG (W=52)
+// Zona extra in alto riservata alla CTA animata: tutta la geometria della
+// leva (bumper, asta, pomello) viene spostata in basso di Y_OFFSET px.
+const Y_OFFSET = 36;
+const H = 150 + Y_OFFSET;
+
+// Pivot del bumper: centrato orizzontalmente (W=52), traslato in basso
 const BUMPER_CX = 26;
-const BUMPER_CY = 100;
+const BUMPER_CY = 100 + Y_OFFSET;
 const BUMPER_R = 10;
 
 // Tip dell'asta: centrato orizzontalmente, verso il basso
 const TIP_X = 26;
-const TIP_Y = 22;
+const TIP_Y = 22 + Y_OFFSET;
+
+// ── CTA "click me!" ──────────────────────────────────────────────────────────
+// Scritta animata sopra il pomello: testo centrato + freccia verso il basso
+// che punta alla leva. Vive FUORI da #leverGroup così non subisce il pull
+// (scale) né l'idle loop (rotate). Visibile solo a riposo (.idling).
+const CTA_TEXT_Y = 24; // baseline del testo
+const CTA_FONT_SIZE = 8.5;
+const CTA_ARROW_TOP = 29; // base della freccia (triangolo verso il basso)
+const CTA_ARROW_TIP = 35; // punta della freccia
+const CTA_FILL = '#ffd84a'; // giallo marquee, coerente con le lampadine della slot
+const CTA_STROKE = '#3a1600'; // contorno scuro per la leggibilità su README chiaro
 
 // Pomello rosso (stesso colore del cabinet).
 const BALL_R = 11;
@@ -57,7 +78,8 @@ const STATE_KEY = 'gsm:state';
 
 // Owner/repo per leggere state.json pubblico (fonte di verità alternativa a ?v).
 // Deve combaciare con quanto usato da spin.js (PROFILE_REPO / SLOT_REPO).
-const OWNER = process.env.PROFILE_REPO_OWNER || process.env.GITHUB_OWNER || 'simrim96';
+const OWNER =
+  process.env.PROFILE_REPO_OWNER || process.env.GITHUB_OWNER || 'simrim96';
 const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 
 // Durate animazione in ms
@@ -70,11 +92,11 @@ const IDLE_LOOP_MS = 2000; // Durata del loop idle
 // PIENA (niente rimpicciolimento, che darebbe sensazione di allontanamento).
 // Origine = BUMPER in basso (fisso): con scale X=1 Y=0.8 l'asta si allunga
 // verso il basso e il pomello scende, la base resta ferma (niente stacco).
-const PULL_SCALE_X = 1;    // larghezza invariata (niente restringimento)
-const PULL_SCALE_Y = 0.8;  // l'asta si accorcia in verticale: pomello scende
-const PULL_DROP = 4;       // minima traslazione verticale aggiuntiva verso il basso
+const PULL_SCALE_X = 1; // larghezza invariata (niente restringimento)
+const PULL_SCALE_Y = 0.8; // l'asta si accorcia in verticale: pomello scende
+const PULL_DROP = 4; // minima traslazione verticale aggiuntiva verso il basso
 const PULL_BALL_SCALE = 1.22; // il pomello rosso si ingrandisce LEGGERMENTE durante
-                              // il pull (effetto avvicinamento al giocatore)
+// il pull (effetto avvicinamento al giocatore)
 
 // Finestra (ms) entro cui uno spin è considerato "recente" e la leva deve
 // riprodurre l'animazione di pull prima di tornare all'idle loop.
@@ -121,7 +143,10 @@ async function getLastPullFromRawGithub() {
 async function getPullState(req) {
   const now = Date.now();
   const withinWindow = (ts) =>
-    ts && Number.isFinite(ts) && now - ts >= 0 && now - ts < PULL_RECENCY_WINDOW_MS;
+    ts &&
+    Number.isFinite(ts) &&
+    now - ts >= 0 &&
+    now - ts < PULL_RECENCY_WINDOW_MS;
 
   // 1) Fonte deterministica: timestamp di spin nell'URL (?v=spinStart)
   const vRaw = req?.query?.v;
@@ -152,7 +177,9 @@ async function getPullState(req) {
       };
     }
   } catch (err) {
-    logger.warn('lever.js: error reading state', { error: err?.message || err });
+    logger.warn('lever.js: error reading state', {
+      error: err?.message || err,
+    });
   }
 
   // 3) Fallback LENTO: state.json pubblico su GitHub (raw). Solo se KV è vuoto
@@ -170,7 +197,9 @@ async function getPullState(req) {
       };
     }
   } catch (err) {
-    logger.warn('lever.js: raw github state read failed', { error: err?.message || err });
+    logger.warn('lever.js: raw github state read failed', {
+      error: err?.message || err,
+    });
   }
 
   return { isPulling: false, reason: 'no_recent_pull' };
@@ -269,6 +298,20 @@ const LEVER_SVG_TEMPLATE = `
   <!-- ── Overlay anti-glitch: foro centrale del bumper sopra l'asta ── -->
   <circle cx="${BUMPER_CX + 1.5}" cy="${BUMPER_CY}" r="3"
           fill="#0a0a0a" stroke="#3a3a44" stroke-width="0.4"/>
+
+  <!-- ── CTA animata: "click me!" sopra la leva ──
+       Testo centrato + freccia verso il basso che punta al pomello.
+       FUORI da #leverGroup (che ruota/scala durante pull e idle loop):
+       il gruppo resta fermo e viene animato solo dalle sue keyframes.
+       aria-hidden: l'azione è già comunicata dall'aria-label della <svg>. -->
+  <g class="clickMe" aria-hidden="true"
+     font-family="'Segoe UI','Helvetica Neue',sans-serif">
+    <text x="${W / 2}" y="${CTA_TEXT_Y}" text-anchor="middle"
+          font-size="${CTA_FONT_SIZE}" font-weight="800" letter-spacing="0.4"
+          fill="${CTA_FILL}" stroke="${CTA_STROKE}" stroke-width="0.5">click me!</text>
+    <path d="M${W / 2 - 5} ${CTA_ARROW_TOP} L${W / 2 + 5} ${CTA_ARROW_TOP} L${W / 2} ${CTA_ARROW_TIP} Z"
+          fill="${CTA_FILL}" stroke="${CTA_STROKE}" stroke-width="0.5"/>
+  </g>
 </svg>
 `;
 
@@ -334,9 +377,31 @@ const ANIMATIONS = `
     animation: idleLoop ${IDLE_LOOP_MS}ms ease-in-out infinite;
   }
 
+  /* ── CTA "click me!" ──
+     Bob verticale + pulsazione opacità per attirare l'attenzione.
+     Visibile SOLO a riposo (.idling): dopo un pull recente (.pulling)
+     sparisce — l'utente ha già cliccato e la CTA non serve più. */
+  @keyframes clickBob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+  }
+  @keyframes clickPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
+  }
+  .lever.idling .clickMe {
+    animation:
+      clickBob 1.2s ease-in-out infinite,
+      clickPulse 1.2s ease-in-out infinite;
+  }
+  .lever.pulling .clickMe {
+    animation: none;
+    opacity: 0;
+  }
+
   /* Accessibilità: niente animazioni per chi ha disattivato il motion. */
   @media (prefers-reduced-motion: reduce) {
-    #leverGroup, .leverBallGroup { animation: none !important; }
+    #leverGroup, .leverBallGroup, .clickMe { animation: none !important; }
   }
 </style>
 `;
@@ -372,13 +437,18 @@ export default async function handler(req, res) {
 
   // Costruisci SVG con animazioni CSS
   let svg = LEVER_SVG_TEMPLATE;
-  
+
   // Inserisci le animazioni CSS prima dei defs
+  svg = svg.replace('<defs>', ANIMATIONS + '\n  <defs>');
+
+  // Aggiungi la classe di stato anche alla radice <svg>: la CTA .clickMe
+  // vive FUORI da #leverGroup, quindi i selettori .lever.idling/.lever.pulling
+  // agganciano lo stato alla radice invece che al gruppo rotante.
   svg = svg.replace(
-    '<defs>',
-    ANIMATIONS + '\n  <defs>'
+    '<svg xmlns="http://www.w3.org/2000/svg"',
+    `<svg class="lever ${currentClass}" xmlns="http://www.w3.org/2000/svg"`
   );
-  
+
   // Aggiungi la classe appropriata al gruppo della leva
   if (currentClass) {
     svg = svg.replace(
@@ -391,8 +461,9 @@ export default async function handler(req, res) {
     status: 200,
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
-      'ETag': `"lever-${Date.now()}"`,
+      'Cache-Control':
+        'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
+      ETag: `"lever-${Date.now()}"`,
       Expires: new Date(Date.now() + 5000).toUTCString(),
     },
     body: svg,
