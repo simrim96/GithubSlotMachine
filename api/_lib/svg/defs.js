@@ -4,7 +4,7 @@
 import { ROWS, COLS } from '../game.js';
 import { buildSymbolDefs } from '../languages.js';
 import { CW, CH, GAP } from './constants.js';
-import { PT_H as PT_H_CONST, PT_Y } from './constants.js';
+import { PT_H as PT_H_CONST, PT_PANEL_Y } from './constants.js';
 import { getMX, getGY } from './coordinates.js';
 
 export function generateDefs(uid) {
@@ -95,9 +95,10 @@ export function generateDefs(uid) {
   }
 
   // Clip-path per paytable - DEFINIZIONE OBBLIGATORIA
-  // Coordinate basate su constants.js: PT_Y (sotto l'header) e PT_H.
+  // Coordinate basate su constants.js: PT_PANEL_Y (paytable spostata 8px
+  // sotto l'header per non toccare i contatori) e PT_H.
   // Pannello ALLARGATO (x 80..520) per far stare agevolmente le icone.
-  defs += `<clipPath id="paytable"><rect x="80" y="${PT_Y}" width="440" height="${PT_H_CONST}" rx="12"/></clipPath>`;
+  defs += `<clipPath id="paytable"><rect x="80" y="${PT_PANEL_Y}" width="440" height="${PT_H_CONST}" rx="12"/></clipPath>`;
 
   defs += buildSymbolDefs(uid);
   return defs;

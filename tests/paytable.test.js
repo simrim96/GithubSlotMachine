@@ -6,6 +6,7 @@
 // della rotazione (delay = ED).
 import { describe, it, expect } from 'vitest';
 import { generatePaytable } from '../api/_lib/svg/paytable.js';
+import { PT_PANEL_Y } from '../api/_lib/svg/constants.js';
 import { LANGUAGES } from '../api/_lib/languages.js';
 
 // Conta i pallini ACCESI (opacity >= 0.4) nella cella del simbolo dato
@@ -54,7 +55,7 @@ describe('generatePaytable — icone', () => {
       const y = parseFloat(m[2]);
       expect(x).toBeGreaterThanOrEqual(80);
       expect(x + 38).toBeLessThanOrEqual(520);
-      expect(y).toBe(108); // PT_Y + 38
+      expect(y).toBe(PT_PANEL_Y + 38); // ICON_TOP
     }
   });
 });

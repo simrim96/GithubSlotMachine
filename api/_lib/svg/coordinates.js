@@ -13,6 +13,7 @@ export const cellY = (r, GY) => GY + r * CH;
 export function getGY() {
   // Lascia molto spazio rosso sotto la paytable prima dei rulli:
   // il bordo del frame parte a getGY() - FRAME_PAD - 4, quindi con +52
-  // c'è ~26px di rosso pulito tra il pannello paytable e il frame.
+  // c'è ~18px di rosso pulito tra il pannello paytable (che ora parte a
+  // PT_PANEL_Y = PT_Y + 8, finisce a 170) e il frame.
   return PT_Y + PT_H + 52;
 }
