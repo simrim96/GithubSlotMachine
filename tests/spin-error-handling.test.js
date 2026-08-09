@@ -37,6 +37,8 @@ vi.mock('../api/_lib/github.js', async () => {
     saveSlotSvg: vi.fn().mockResolvedValue({}),
     loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: null }),
     updateReadmeMarkers: vi.fn((r) => r),
+    GH_CONTENTS_TIMEOUT_MS:
+      (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
   };
 });
 

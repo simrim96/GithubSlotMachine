@@ -26,11 +26,6 @@ import { GITHUB_API_TIMEOUT_MS, ghHeaders } from './github.js';
 import { logger } from '../_lib/logger.js';
 import { randomInt } from 'node:crypto';
 
-// Popola la cache da KV al caricamento del modulo, per evitare stall GitHub al primo spin.
-loadFromKv().catch((e) =>
-  logger.warn('repos loadFromKv on-init failed', { error: e.message })
-);
-
 // ─── Repo da NON usare MAI come destinazione di redirect (ISSUE) ────────────
 // Uno spin vincente reindirizza l'utente verso un repo dell'owner che usa il
 // linguaggio uscito per ≥30%. Due repo devono essere ESCLUSI dalla
@@ -72,6 +67,18 @@ const KV_LASTGOOD_KEY = 'gsm:repoCache:lastgood';
 export const REPO_SEARCH_CONCURRENCY = 20;
 const cache = { ts: 0, byLangId: {} };
 let kvLoaded = false;
+// Promise dell'eventuale loadFromKv in corso: i chiamanti concorrenti
+// attendono la STESSA load invece di ripartire da zero (e rischiare di
+// vederla non ancora completata → falso cold start → stall GitHub di 1s).
+let kvLoadPromise = null;
+
+// Popola la cache da KV al caricamento del modulo, per evitare stall GitHub
+// al primo spin. Chiamata QUI, DOPO le dichiarazioni di `cache`/`kvLoaded`:
+// prima stava in cima al file e lanciava "Cannot access 'kvLoaded' before
+// initialization" (TDZ) a OGNI cold start → il preload non è mai partito.
+loadFromKv().catch((e) =>
+  logger.warn('repos loadFromKv on-init failed', { error: e.message })
+);
 
 // Fetch con timeout (AbortController) riusando l'infrastruttura
 // di github.js così lo stall GitHub NON può restare appeso all'infinito.
@@ -123,31 +130,40 @@ async function mapBatch(items, size, worker) {
 
 async function loadFromKv() {
   if (!kvEnabled || kvLoaded) return;
-  kvLoaded = true; // marchiamo come tentato anche in caso di timeout parziale
-  // Leggiamo entrambi i tier in parallelo. Ogni lettura è incapsulata in un
-  // catch: se Upstash è down/lento e kvGet LANCIA (non solo timeout→null),
-  // l'errore NON deve propagarsi e rompere lo spin (R5). Un timeout su uno
-  // non deve uccidere l'altro; il tier "lastgood" è il fallback tiered.
-  const safeGet = (key) =>
-    kvGet(key).catch((e) => {
-      logger.warn('repos loadFromKv kvGet failed', { error: e?.message });
-      return null;
-    });
-  const [fresh, lastgood] = await Promise.all([
-    safeGet(KV_KEY),
-    safeGet(KV_LASTGOOD_KEY),
-  ]);
-  if (fresh && fresh.ts && fresh.byLangId) {
-    // Tier fresh (TTL 30m) ancora valido → usiamo quello.
-    cache.ts = fresh.ts;
-    cache.byLangId = fresh.byLangId;
-  } else if (lastgood && lastgood.byLangId) {
-    // Tier lastgood: dati semi-stale ma SEMPRE servibili. Non azzeriamo
-    // cache.ts (resta = lastgood.ts) così la refresh gira in background
-    // nel branch !fresh, mantenendo i repo disponibili nel frattempo.
-    cache.ts = lastgood.ts || 0;
-    cache.byLangId = lastgood.byLangId;
-  }
+  // Dedup: se una load è già in corso (es. quella al caricamento del modulo),
+  // i chiamanti successivi attendono la STESSA promise. Senza questo, il
+  // primo getRepoForLanguage dopo un cold start poteva scattare PRIMA che la
+  // load avesse popolato la cache e cascare nel falso cold start (stall
+  // GitHub fino a 1s) pur avendo i repo in KV.
+  if (kvLoadPromise) return kvLoadPromise;
+  kvLoadPromise = (async () => {
+    kvLoaded = true; // marchiamo come tentato anche in caso di timeout parziale
+    // Leggiamo entrambi i tier in parallelo. Ogni lettura è incapsulata in un
+    // catch: se Upstash è down/lento e kvGet LANCIA (non solo timeout→null),
+    // l'errore NON deve propagarsi e rompere lo spin (R5). Un timeout su uno
+    // non deve uccidere l'altro; il tier "lastgood" è il fallback tiered.
+    const safeGet = (key) =>
+      kvGet(key).catch((e) => {
+        logger.warn('repos loadFromKv kvGet failed', { error: e?.message });
+        return null;
+      });
+    const [fresh, lastgood] = await Promise.all([
+      safeGet(KV_KEY),
+      safeGet(KV_LASTGOOD_KEY),
+    ]);
+    if (fresh && fresh.ts && fresh.byLangId) {
+      // Tier fresh (TTL 30m) ancora valido → usiamo quello.
+      cache.ts = fresh.ts;
+      cache.byLangId = fresh.byLangId;
+    } else if (lastgood && lastgood.byLangId) {
+      // Tier lastgood: dati semi-stale ma SEMPRE servibili. Non azzeriamo
+      // cache.ts (resta = lastgood.ts) così la refresh gira in background
+      // nel branch !fresh, mantenendo i repo disponibili nel frattempo.
+      cache.ts = lastgood.ts || 0;
+      cache.byLangId = lastgood.byLangId;
+    }
+  })();
+  return kvLoadPromise;
 }
 
 function saveToKv() {

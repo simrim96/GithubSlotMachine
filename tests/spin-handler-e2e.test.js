@@ -63,6 +63,8 @@ vi.mock('../api/_lib/github.js', async () => {
     updateReadmeMarkers: vi.fn((r) => r),
     auditToken: vi.fn(),
     clearReadmeMarkers: vi.fn(clearReadmeMarkers),
+    GH_CONTENTS_TIMEOUT_MS:
+      (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
   };
 });
 

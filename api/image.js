@@ -20,6 +20,19 @@ import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 
 const SVG_PATH = 'slot.svg';
 
+// Estrae lo uid dello spin che ha generato l'SVG (es. `slot-title-1786281466709`
+// scritto da svg-builder-accessible.js). Serve al guard anti-stale: se l'SVG in
+// KV è più vecchio dell'ultimo spin registrato in gsm:state, è una copia STALE
+// (la scrittura KV dello spin è fallita) e va ignorata a favore del GitHub
+// fallback, che saveSlotSvg tiene fresco proprio per questo.
+function extractSvgUid(svg) {
+  if (typeof svg !== 'string') return null;
+  const m = svg.match(/slot-(?:title|desc)-(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+export { extractSvgUid };
+
 export default async function handler(req, res) {
   const user = process.env.SLOT_OWNER || 'simrim96';
   const repo = process.env.SLOT_REPO || 'GithubSlotMachine';
@@ -48,17 +61,42 @@ export default async function handler(req, res) {
 
   if (kvEnabled) {
     try {
-      const svg = await kvGet('gsm:slotSvg');
+      // Leggiamo svg + stato in parallelo: il guard anti-stale confronta lo uid
+      // dell'SVG con lastPullTimestamp dell'ultimo spin. Se lo uid è più
+      // vecchio, la copia KV è STALE (il kvSet dello spin era fallito) e
+      // ricadiamo su GitHub — che saveSlotSvg ha appena aggiornato. Senza
+      // questo guard, l'utente rivedrebbe l'animazione/risultato precedente
+      // nonostante il GitHub fresco (bug t_690b8db0).
+      const [svg, state] = await Promise.all([
+        kvGet('gsm:slotSvg'),
+        kvGet('gsm:state'),
+      ]);
       if (svg) {
-        sendResponse(res, {
-          status: 200,
-          headers: {
-            'Content-Type': 'image/svg+xml',
-            'Cache-Control': 'no-store',
-          },
-          body: svg,
-        });
-        return;
+        const svgUid = extractSvgUid(svg);
+        const lastPull = Number(state?.lastPullTimestamp);
+        const stale =
+          svgUid != null &&
+          Number.isFinite(svgUid) &&
+          Number.isFinite(lastPull) &&
+          svgUid < lastPull;
+        if (!stale) {
+          sendResponse(res, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/svg+xml',
+              'Cache-Control': 'no-store',
+            },
+            body: svg,
+          });
+          return;
+        }
+        logger.warn(
+          'kv slotSvg is stale (uid < lastPullTimestamp), falling back to github',
+          {
+            svgUid,
+            lastPull,
+          }
+        );
       }
     } catch (e) {
       /* Sentry already handled by logger */

@@ -63,6 +63,7 @@ vi.mock('../api/_lib/github.js', () => ({
   clearReadmeMarkers: vi.fn((r) => r),
   updateReadmeMarkers: vi.fn((r) => r),
   auditToken: vi.fn(),
+  GH_CONTENTS_TIMEOUT_MS: 800,
 }));
 
 vi.mock('../api/_lib/repos.js', () => ({

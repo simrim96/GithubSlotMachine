@@ -32,6 +32,7 @@ vi.mock('../api/_lib/github.js', () => ({
   ghGetJson: vi.fn(),
   ghPut: vi.fn(),
   updateReadmeMarkers: vi.fn((readme) => readme),
+  GH_CONTENTS_TIMEOUT_MS: 800,
 }));
 
 // ─── Integration Test: Complete Spin Flow ────────────────────────────────────

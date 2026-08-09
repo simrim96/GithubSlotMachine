@@ -31,6 +31,7 @@ import {
   updateReadmeMarkers,
   clearReadmeMarkers,
   auditToken,
+  GH_CONTENTS_TIMEOUT_MS,
 } from './_lib/github.js';
 import { kvGet, kvSet, kvEnabled } from './_lib/kv.js';
 import { applyCors } from './_lib/cors.js';
@@ -282,6 +283,97 @@ export default async function handler(req, res) {
     // Questo permette all'animazione di pull di essere mostrata per ~3 secondi dopo lo spin
     state.lastPullTimestamp = spinStart;
 
+    // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
+    // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
+    // spin, aggiungendo ~150-400ms. Ora la leggiamo da KV (chiave
+    // `gsm:readme:<owner>`, TTL 60s): su cache HIT saltiamo del tutto la GET
+    // GitHub; su cache MISS facciamo la GET e popoliamo la cache. Dopo una
+    // PUT riuscita refreschiamo la cache col contenuto appena scritto, così
+    // gli spin successivi (entro il TTL) non rifanno la GET. Il TTL breve
+    // garantisce che modifiche esterne alla README (es. edit manuale sul
+    // profilo) vengano rilevate entro ~60s, e ghPut gestisce da solo lo
+    // SHA stale (409 → re-fetch) nel caso raro di divergenza.
+    //
+    // NOTA: non invalidiamo la cache "a ogni scrittura di state.json" come
+    // suggerito testualmente dall'ISSUE, perché state.json viene scritto a
+    // OGNI spin → invalidare ogni volta riporterebbe la GET a ogni spin,
+    // annullando il guadagno. Il refresh-on-PUT qui sotto tiene la cache
+    // coerente con lo stato senza mai forzarla vuota tra spin consecutivi.
+    const README_CACHE_KEY = `gsm:readme:${PROFILE_REPO}`;
+    const README_CACHE_TTL_SEC = 60;
+
+    // ── README: GET ANTICIPATA (spin a "freddo" più veloce) ────────────────
+    // La GET della README (cache KV → GitHub, ~150-400ms) è la lettura lenta
+    // del percorso critico. PRIMA partiva solo DOPO la build SVG, aggiungendo
+    // la sua latenza IN SERIE al tempo percepito dello spin — ed è proprio il
+    // caso peggiore sullo spin a freddo (cache README scaduta dopo inattività,
+    // quindi GET GitHub quasi certa). Ora parte SUBITO dopo la lettura dello
+    // stato, così si sovrappone alla repo lookup e alla build SVG: su spin a
+    // freddo la GET esce dal percorso critico e il redirect aspetta solo la
+    // PUT (~150-300ms) invece di GET+PUT in serie.
+    // Timeout STRETTO (800ms, come la lettura di state.json): una GitHub lenta
+    // non deve allungare lo spin fino ai 2s di default del GITHUB_API_TIMEOUT.
+    const README_GET_TIMEOUT_MS = GH_CONTENTS_TIMEOUT_MS; // 800ms
+    const README_MAX_RETRIES = 2;
+    const README_RETRY_DELAY_MS = 500;
+    const readmeGetPromise = (async () => {
+      // Lettura da cache KV (P1). Se presente, saltiamo la GET GitHub.
+      if (kvEnabled) {
+        try {
+          const cached = await kvGet(README_CACHE_KEY);
+          if (cached) {
+            const parsed =
+              typeof cached === 'string' ? JSON.parse(cached) : cached;
+            if (parsed && parsed.content) {
+              logger.info('[readme-update] cache HIT — skip GitHub GET');
+              return { content: parsed.content, sha: parsed.sha ?? null };
+            }
+          }
+        } catch (e) {
+          logger.warn('[readme-update] cache read failed, fallback GET:', { error: e.message });
+        }
+      }
+
+      let lastGetError = null;
+      for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
+        try {
+          logger.info('[readme-update] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
+          const rf = await ghGetJson(
+            token,
+            PROFILE_REPO,
+            PROFILE_REPO,
+            'README.md',
+            README_GET_TIMEOUT_MS
+          );
+          if (!rf) {
+            logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
+            return null;
+          }
+          if (kvEnabled) {
+            try {
+              await kvSet(
+                README_CACHE_KEY,
+                { content: rf.content, sha: rf.sha },
+                README_CACHE_TTL_SEC
+              );
+              logger.info('[readme-update] cache populated from GitHub GET');
+            } catch (e) {
+              logger.warn('[readme-update] cache set failed:', { error: e.message });
+            }
+          }
+          return rf;
+        } catch (e) {
+          lastGetError = e;
+          logger.warn('README GET attempt failed', { attempt: attempt + 1, error: e.message });
+          if (attempt < README_MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, README_RETRY_DELAY_MS));
+          }
+        }
+      }
+      logger.warn('README GET failed', { max_retries: README_MAX_RETRIES, last_error: lastGetError?.message });
+      return null;
+    })();
+
     const wins = checkWins(grid);
     const isWin = wins.length > 0;
     const winningLang = isWin ? LANGUAGE_BY_ID[winningLangId(wins)] : null;
@@ -380,34 +472,18 @@ export default async function handler(req, res) {
     // svg più volte"). La latenza totale è il max dei task, non la somma:
     //   - slot.svg (KV): ~10-20ms
     //   - state (KV):    ~10-20ms
-    //   - README GET+PUT GitHub: ~270ms (vedi /api/health github_readme_get_ms)
-    // Timeout di sicurezza per il path README: copre clear + fill (GET+PUT
+    //   - README PUT GitHub: ~270ms (la GET è già stata anticipata sopra e si
+    //     sovrappone a repo lookup + build SVG — vedi readmeGetPromise)
+    // Timeout di sicurezza per il path README: copre clear + fill (PUT
     // GitHub, ~1.5s) con margine. Non deve mai bloccare il redirect.
     const README_TIMEOUT_MS = 4000;
-
-    // ── P1 (ISSUES.md): cache README in KV ─────────────────────────────────
-    // Prima dello spin la README veniva letta da GitHub (GET /readme) a OGNI
-    // spin, aggiungendo ~150-400ms. Ora la leggiamo da KV (chiave
-    // `gsm:readme:<owner>`, TTL 60s): su cache HIT saltiamo del tutto la GET
-    // GitHub; su cache MISS facciamo la GET e popoliamo la cache. Dopo una
-    // PUT riuscita refreschiamo la cache col contenuto appena scritto, così
-    // gli spin successivi (entro il TTL) non rifanno la GET. Il TTL breve
-    // garantisce che modifiche esterne alla README (es. edit manuale sul
-    // profilo) vengano rilevate entro ~60s, e ghPut gestisce da solo lo
-    // SHA stale (409 → re-fetch) nel caso raro di divergenza.
-    //
-    // NOTA: non invalidiamo la cache "a ogni scrittura di state.json" come
-    // suggerito testualmente dall'ISSUE, perché state.json viene scritto a
-    // OGNI spin → invalidare ogni volta riporterebbe la GET a ogni spin,
-    // annullando il guadagno. Il refresh-on-PUT qui sotto tiene la cache
-    // coerente con lo stato senza mai forzarla vuota tra spin consecutivi.
-    const README_CACHE_KEY = `gsm:readme:${PROFILE_REPO}`;
-    const README_CACHE_TTL_SEC = 60;
 
     // ── README: UNICA GET+PUT (clear + fill insieme, senza delay) ──────────
     // 1) Svuota i marker (rimuove il link della vittoria PRECEDENTE) così
     //    durante la rotazione dei rulli NON compare nessun link vecchio.
     // 2) Li riempie subito con il link della vittoria corrente.
+    // La GET è stata ANTICIPATA (readmeGetPromise, subito dopo la lettura
+    // dello stato): qui si attende il suo esito e si scrive la PUT.
     // NESSUN setTimeout artificiale: il link viene scritto il prima possibile,
     // in parallelo al redirect. La "comparsione dopo la rotazione" è ottenuta
     // gratis dalla latenza di re-render del README su GitHub (alcuni secondi
@@ -415,58 +491,32 @@ export default async function handler(req, res) {
     // deve) bloccare l'SVG o il redirect con un timer.
     const readmePromise = (async () => {
       logger.info('[readme-update] START', { spin: spinStart });
-      const MAX_RETRIES = 2;
-      const RETRY_DELAY_MS = 500;
-      let lastError = null;
-
-      // Lettura da cache KV (P1). Se presente, saltiamo la GET GitHub.
-      let rf = null;
-      if (kvEnabled) {
-        try {
-          const cached = await kvGet(README_CACHE_KEY);
-          if (cached) {
-            const parsed =
-              typeof cached === 'string' ? JSON.parse(cached) : cached;
-            if (parsed && parsed.content) {
-              rf = { content: parsed.content, sha: parsed.sha ?? null };
-              logger.info('[readme-update] cache HIT — skip GitHub GET');
-            }
-          }
-        } catch (e) {
-          logger.warn('[readme-update] cache read failed, fallback GET:', { error: e.message });
-        }
+      const rf = await readmeGetPromise;
+      if (!rf) {
+        logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
+        return;
       }
+      logger.info('[readme-update] ghGetJson OK', { sha_present: Boolean(rf.sha) });
 
-      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      let lastError = null;
+      for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
         try {
-          if (!rf) {
-            logger.info('[readme-update] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
-            rf = await ghGetJson(token, PROFILE_REPO, PROFILE_REPO, 'README.md');
-            if (rf && kvEnabled) {
-              try {
-                await kvSet(
-                  README_CACHE_KEY,
-                  { content: rf.content, sha: rf.sha },
-                  README_CACHE_TTL_SEC
-                );
-                logger.info('[readme-update] cache populated from GitHub GET');
-              } catch (e) {
-                logger.warn('[readme-update] cache set failed:', { error: e.message });
-              }
-            }
-          }
-          if (!rf) {
-            logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
-            return;
-          }
-          logger.info('[readme-update] ghGetJson OK', { sha_present: Boolean(rf.sha) });
-
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
           // (1) svuota i marker della vittoria precedente
           let newReadme = clearReadmeMarkers(oldReadme);
           // (2) aggiorna versione + riempie con la vittoria corrente
+          // FIX "risultato precedente" (t_690b8db0): se l'embed di api/image è
+          // SENZA query (?v assente, es. embed aggiunto a mano), il vecchio
+          // replace non lo toccava → l'URL non cambiava mai → GitHub Camo
+          // serviva per sempre la PRIMA immagine cacheata. La seconda passata
+          // aggiunge ?v agli embed senza query (senza toccare URL con altri
+          // parametri o path estesi, es. api/image-2, api/image/foo).
           newReadme = newReadme.replace(
             /api\/image\?(?:v|cache_buster)=[0-9]*/g,
+            `api/image?v=${spinStart}`
+          );
+          newReadme = newReadme.replace(
+            /api\/image(?![\w?/.\-])/g,
             `api/image?v=${spinStart}`
           );
           newReadme = newReadme.replace(
@@ -481,7 +531,7 @@ export default async function handler(req, res) {
             spinStart
           );
           if (newReadme !== oldReadme) {
-            await ghPut(
+            const newSha = await ghPut(
               token,
               PROFILE_REPO,
               PROFILE_REPO,
@@ -491,14 +541,17 @@ export default async function handler(req, res) {
               '🎰 Update slot'
             );
             logger.info('[readme-update] ghPut OK', { version: spinStart });
-            // Refresh cache con il contenuto appena scritto (P1).
+            // Refresh cache con il contenuto appena scritto (P1). Salviamo lo
+            // sha POST-PUT (ghPut ora lo ritorna): prima si salvava lo sha
+            // PRE-PUT, quindi OGNI cache HIT faceva PUT → 409 "sha mismatch"
+            // → GET + PUT (una GET inutile a ogni spin entro il TTL).
             if (kvEnabled) {
               try {
                 await kvSet(
                   README_CACHE_KEY,
                   {
                     content: Buffer.from(newReadme, 'utf-8').toString('base64'),
-                    sha: rf.sha,
+                    sha: newSha ?? rf.sha,
                   },
                   README_CACHE_TTL_SEC
                 );
@@ -514,12 +567,12 @@ export default async function handler(req, res) {
         } catch (e) {
           lastError = e;
           logger.warn('README update attempt failed', { attempt: attempt + 1, error: e.message });
-          if (attempt < MAX_RETRIES - 1) {
-            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          if (attempt < README_MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, README_RETRY_DELAY_MS));
           }
         }
       }
-      logger.error('README update failed', { max_retries: MAX_RETRIES, last_error: lastError?.message });
+      logger.error('README update failed', { max_retries: README_MAX_RETRIES, last_error: lastError?.message });
     })();
 
     // slot.svg + state + README girano in parallelo. Se la README supera il

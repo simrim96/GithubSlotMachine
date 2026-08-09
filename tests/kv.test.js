@@ -296,6 +296,117 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     });
   });
 
+  describe('kvDel: invalidazione chiave (fix risultato precedente)', () => {
+    beforeEach(() => {
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      delete process.env.KV_REST_API_URL;
+      delete process.env.KV_REST_API_TOKEN;
+      delete process.env.KV_REST_API_READ_ONLY_TOKEN;
+    });
+
+    it('kvDel ritorna false quando Redis non è abilitato', async () => {
+      vi.resetModules();
+      const { kvDel } = await import('../api/_lib/kv.js');
+      expect(await kvDel('gsm:slotSvg')).toBe(false);
+    });
+
+    it('kvDel ritorna false e logga warning senza token di scrittura', async () => {
+      process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
+      process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-token';
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.resetModules();
+      const { kvDel } = await import('../api/_lib/kv.js');
+
+      expect(await kvDel('gsm:slotSvg')).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[kvDel] nessun token di SCRITTURA configurato:',
+        { key: 'gsm:slotSvg' }
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('kvDel chiama POST {url}/del/{key} e ritorna true se la chiave esisteva', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: 1 }),
+      });
+
+      const { kvDel } = await import('../api/_lib/kv.js');
+      const result = await kvDel('gsm:slotSvg');
+      expect(result).toBe(true);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://kv.upstash.io/del/gsm%3AslotSvg',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer ***',
+          }),
+        })
+      );
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+
+    it('kvDel ritorna false su chiave assente (result 0) e su errore HTTP', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+      const originalFetch = globalThis.fetch;
+
+      // result: 0 → chiave non presente → false
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: 0 }),
+      });
+      const { kvDel } = await import('../api/_lib/kv.js');
+      expect(await kvDel('gsm:slotSvg')).toBe(false);
+
+      // errore HTTP → false
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+      expect(await kvDel('gsm:slotSvg')).toBe(false);
+
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+
+    it('kvDel gestisce il timeout senza lanciare (ritorna false)', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
+
+      vi.resetModules();
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('fetch timeout')), 1000)
+            )
+        );
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { kvDel } = await import('../api/_lib/kv.js');
+      expect(await kvDel('gsm:slotSvg')).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[kvDel] failed',
+        expect.objectContaining({ key: 'gsm:slotSvg' })
+      );
+
+      warnSpy.mockRestore();
+      if (originalFetch) globalThis.fetch = originalFetch;
+    });
+  });
+
   describe('SEC-2: test mancanti per kvMset e kvMget', () => {
     beforeEach(() => {
       delete process.env.UPSTASH_REDIS_REST_URL;

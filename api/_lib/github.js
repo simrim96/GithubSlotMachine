@@ -1,7 +1,7 @@
 // ─── GitHub API + README markers (estratto da spin.js) ───────────────────────
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
-import { kvEnabled, kvGet, kvSet } from './kv.js';
+import { kvEnabled, kvGet, kvSet, kvDel } from './kv.js';
 import { logRateLimit } from './ratelimit-tracker.js';
 import { logger } from '../_lib/logger.js';
 
@@ -174,6 +174,8 @@ export async function ghPut(
   _retry = false,
   timeoutMs = GITHUB_API_TIMEOUT_MS
 ) {
+  // Ritorna lo SHA del file dopo la PUT riuscita (o null se non estraibile),
+  // così i chiamanti possono aggiornare le proprie cache con lo sha corretto.
   const RETRY_MAX = 1;
   const RETRYABLE_4XX = new Set([408, 429]); // retry su 408/429 (ma non su 409 che è handled diversamente)
 
@@ -247,24 +249,59 @@ export async function ghPut(
     if (!response.ok)
       throw new Error(`PUT ${owner}/${repo}/${path}: ${response.status}`);
 
-    return;
+    // Ritorna lo SHA del file appena scritto (dal body della risposta GitHub
+    // Contents API). I chiamanti lo usano per tenere le cache locali allineate
+    // (es. cache README P1): se salvassimo lo sha PRE-PUT, lo spin successivo
+    // farebbe PUT → 409 "sha mismatch" → GET + PUT (una GET inutile a ogni
+    // spin entro il TTL della cache).
+    try {
+      const data = await response.json();
+      return data?.sha ?? null;
+    } catch {
+      // Body non JSON (mai successo con Contents API): nessun sha utilizzabile.
+      return null;
+    }
   }
 }
 
-// ── Persistenza slot.svg ──────────────────────────────────────────────────────
-// Su Upstash Redis (kv:gsm:slotSvg) se configurato: letture/scritture ~10ms
+// Persistenza slot.svg — Su Upstash Redis (kv:gsm:slotSvg) se configurato: letture/scritture ~10ms
 // same-region, eliminando il GET su GitHub (150-400ms) ad ogni caricamento della
 // slot. Fallback su GitHub Contents se Redis non è disponibile o in timeout.
 // Tutte le chiamate KV passano dai wrapper con timeout (200ms) in kv.js.
+//
+// FIX "risultato precedente a volte" (t_690b8db0): PRIMA, quando kvSet
+// riusciva, si tornava SUBITO e GitHub slot.svg NON veniva aggiornato (restava
+// fermo all'ultimo spin in cui KV era fallito — anche ore/giorni prima). E
+// quando kvSet falliva, KV conservava il vecchio svg mentre GitHub veniva
+// aggiornato: image.js (che legge KV per primo) serviva però il vecchio svg,
+// ignorando il GitHub fresco → l'utente rivedeva l'animazione/risultato
+// precedente. ORA:
+//   1. kvSet riuscito → aggiorniamo GitHub slot.svg in best-effort
+//      (fire-and-forget, non blocca il redirect) così il fallback GitHub non
+//      resta mai indietro di ore/giorni;
+//   2. kvSet fallito → INVALIDIAMO la copia stale in KV (kvDel) così image.js
+//      NON serve il vecchio svg e ricade sul GitHub appena scritto.
 export async function saveSlotSvg(token, owner, repo, svg, sha) {
   if (kvEnabled) {
+    let kvOk = false;
     try {
-      const ok = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
-      if (ok) return;
+      kvOk = await kvSet('gsm:slotSvg', svg, SLOT_SVG_TTL_SEC);
     } catch (e) {
-      logger.warn('kv slotSvg save failed/timed out, falling back to github');
-      // Sentry handled by logger
+      logger.warn('kv slotSvg save failed/timed out', { error: e.message });
     }
+    if (kvOk) {
+      // (1) Mantieni fresco il fallback GitHub (best-effort): se un giorno KV
+      // è giù, image.js ricade su slot.svg e deve trovare l'ULTIMO risultato.
+      // Non attendiamo: il redirect non deve rallentare (e se Vercel uccide il
+      // background job, KV resta la fonte primaria — nessuna regressione).
+      ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot').catch(() => {});
+      return;
+    }
+    // (2) kvSet fallito: KV contiene ancora il vecchio svg. Senza
+    // invalidazione, image.js (KV first) servirebbe il risultato PRECEDENTE
+    // ignorando il GitHub appena aggiornato → bug "risultato precedente".
+    logger.warn('kv slotSvg write failed — invalidating stale KV copy, falling back to GitHub');
+    await kvDel('gsm:slotSvg').catch(() => {});
   }
   await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');
 }

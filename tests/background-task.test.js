@@ -112,7 +112,7 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(githubContent).not.toMatch(/getDefaultTracker\(\)/);
   });
 
-  it('spin.js: ghGetJson/ghPut per la README usano 4 argomenti (owner, repo, path)', () => {
+  it('spin.js: ghGetJson/ghPut per la README usano 4+ argomenti (owner, repo, path[, timeout])', () => {
     const spinContent = require('fs').readFileSync(
       new URL('../api/spin.js', import.meta.url),
       'utf-8'
@@ -129,9 +129,11 @@ describe('No RateLimitQueue (direct calls)', () => {
     expect(spinContent).not.toMatch(
       /ghPut\(\s*token,\s*PROFILE_REPO,\s*'README\.md'/
     );
-    // La forma a 4 argomenti (owner, repo, path) deve essere presente.
+    // La forma a 4 argomenti (owner, repo, path) deve essere presente —
+    // ammesso un 5° argomento opzionale (timeout stretto per la GET nel
+    // percorso critico, vedi readmeGetPromise).
     expect(spinContent).toMatch(
-      /ghGetJson\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'\s*\)/
+      /ghGetJson\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'(?:\s*,\s*[^)]*)?\s*\)/
     );
     expect(spinContent).toMatch(
       /ghPut\(\s*token,\s*PROFILE_REPO,\s*PROFILE_REPO,\s*'README\.md'/
