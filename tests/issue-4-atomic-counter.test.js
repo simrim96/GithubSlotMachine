@@ -95,6 +95,7 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
     // Simuliamo un Redis con Map per stato e counter
     const redisState = new Map();
+    const counters = new Map();
 
     // Mock di fetch per simulare tutte le operazioni REST API
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
