@@ -1,20 +1,20 @@
 {
-  "totalSpins": 9,
-  "totalWins": 4,
+  "totalSpins": 10,
+  "totalWins": 5,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
-      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786228403024
+    "ts": 1786274079575
   },
   "version": 2,
-  "lastPullTimestamp": 1786274069132,
+  "lastPullTimestamp": 1786274079575,
   "settings": {
     "theme": "auto",
     "sound": true
