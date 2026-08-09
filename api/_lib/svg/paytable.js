@@ -9,7 +9,7 @@
 // (delay = ED), così i giocatori non possono prevedere la vincita
 // prima della fine dello spin.
 
-import { PT_H, PT_Y } from './constants.js';
+import { PT_H, PT_PANEL_Y } from './constants.js';
 import { ALL_SYMBOLS, WILD_ID, SCATTER_ID, symbolUse } from '../languages.js';
 
 const DOT = '#41CD52';
@@ -35,24 +35,26 @@ function renderDots(x, y, count, max = 5) {
 }
 
 export function generatePaytable(uid, winningLang, ED = 0) {
-  // Area visibile: x 80..520 (pannello allargato), y PT_Y..(PT_Y+PT_H)
-  // — clip-path in defs.js. PT_Y = subito sotto l'header (y=70),
-  // PT_H = 92 -> finisce a 162, PRIMA del frame schermo (margine ~26px).
+  // Area visibile: x 80..520 (pannello allargato), y PT_PANEL_Y..(PT_PANEL_Y+PT_H)
+  // — clip-path in defs.js. PT_PANEL_Y = PT_Y + 8 (PT_Y = subito sotto
+  // l'header, y=70): il pannello è spostato 8px in basso per non
+  // sovrapporsi ai valori dei contatori SPINS/WINS (bbox ~57..73).
+  // PT_H = 92 -> finisce a 170, PRIMA del frame schermo (margine ~18px).
   const PANEL_X = 80;
   const PANEL_W = 440;
   const CELL_W = 52;
   const ICON_SIZE = 38;
-  const ICON_TOP = PT_Y + 38;
+  const ICON_TOP = PT_PANEL_Y + 38;
   const ROW_X = PANEL_X + (PANEL_W - PAY_SYMBOLS.length * CELL_W) / 2;
 
   let paytable = '';
 
   // ─── PANNELLO ──────────────────────────────────────────────
-  paytable += `<rect x="${PANEL_X}" y="${PT_Y}" width="${PANEL_W}" height="${PT_H}" rx="12" fill="#13122d" stroke="#4ecdc4" stroke-width="1.5"/>`;
+  paytable += `<rect x="${PANEL_X}" y="${PT_PANEL_Y}" width="${PANEL_W}" height="${PT_H}" rx="12" fill="#13122d" stroke="#4ecdc4" stroke-width="1.5"/>`;
 
   // ─── TITOLO ────────────────────────────────────────────────
-  paytable += `<text x="300" y="${PT_Y + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-weight="700" fill="#4ecdc4" letter-spacing="1.5">PAYTABLE</text>`;
-  paytable += `<text x="300" y="${PT_Y + 25}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#8b8baf">More dots = more mastery</text>`;
+  paytable += `<text x="300" y="${PT_PANEL_Y + 16}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="11" font-weight="700" fill="#4ecdc4" letter-spacing="1.5">PAYTABLE</text>`;
+  paytable += `<text x="300" y="${PT_PANEL_Y + 25}" text-anchor="middle" font-family="'Segoe UI',sans-serif" font-size="7.5" fill="#8b8baf">More dots = more mastery</text>`;
 
   // ─── SOLO LINGUAGGI + PALLINI (competenza 1-5) ─────────────
   const dotsY = ICON_TOP + ICON_SIZE + 6;
