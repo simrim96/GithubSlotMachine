@@ -1,20 +1,20 @@
 {
-  "totalSpins": 48,
-  "totalWins": 24,
+  "totalSpins": 49,
+  "totalWins": 25,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R",
-      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
+      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
+      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786297899758
+    "ts": 1786308517495
   },
   "version": 2,
-  "lastPullTimestamp": 1786307502352,
+  "lastPullTimestamp": 1786308517495,
   "settings": {
     "theme": "auto",
     "sound": true
