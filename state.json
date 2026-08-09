@@ -1,20 +1,20 @@
 {
-  "totalSpins": 15,
-  "totalWins": 9,
+  "totalSpins": 16,
+  "totalWins": 10,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Il libro \"The C Programming Language\" di Kernighan e Ritchie (1978) è uno dei testi tecnici più venduti di sempre: ha codificato il celebre esempio \"hello, world\"",
-      "en": "\"The C Programming Language\" by Kernighan and Ritchie (1978) is one of the best-selling technical books ever: it codified the iconic \"hello, world\" example."
+      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
+      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786281432693
+    "ts": 1786281446138
   },
   "version": 2,
-  "lastPullTimestamp": 1786281432693,
+  "lastPullTimestamp": 1786281446138,
   "settings": {
     "theme": "auto",
     "sound": true
