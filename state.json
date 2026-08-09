@@ -1,5 +1,5 @@
 {
-  "totalSpins": 26,
+  "totalSpins": 25,
   "totalWins": 15,
   "lastWin": {
     "langId": "python",
@@ -14,7 +14,7 @@
     "ts": 1786283673547
   },
   "version": 2,
-  "lastPullTimestamp": 1786283686413,
+  "lastPullTimestamp": 1786283673547,
   "settings": {
     "theme": "auto",
     "sound": true
