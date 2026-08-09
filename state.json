@@ -1,20 +1,20 @@
 {
-  "totalSpins": 16,
-  "totalWins": 10,
+  "totalSpins": 17,
+  "totalWins": 11,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
+      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786281446138
+    "ts": 1786281456338
   },
   "version": 2,
-  "lastPullTimestamp": 1786281446138,
+  "lastPullTimestamp": 1786281456338,
   "settings": {
     "theme": "auto",
     "sound": true
