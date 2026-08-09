@@ -1,20 +1,20 @@
 {
-  "totalSpins": 66,
-  "totalWins": 35,
+  "totalSpins": 67,
+  "totalWins": 36,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio",
-      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
+      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786311495149
+    "ts": 1786312843364
   },
   "version": 2,
-  "lastPullTimestamp": 1786311495149,
+  "lastPullTimestamp": 1786312843364,
   "settings": {
     "theme": "auto",
     "sound": true
