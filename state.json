@@ -1,20 +1,20 @@
 {
-  "totalSpins": 34,
-  "totalWins": 18,
+  "totalSpins": 35,
+  "totalWins": 19,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
-      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
+      "it": "Qt potenzia software industriale di prima fascia: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop e l'infotainment di moltissime auto sono basati su Qt",
+      "en": "Qt powers top-tier industrial software: KDE, VirtualBox, OBS Studio, Autodesk Maya, Telegram Desktop and the in-car infotainment of countless automobiles are all built on Qt."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786284810807
+    "ts": 1786296421177
   },
   "version": 2,
-  "lastPullTimestamp": 1786296237766,
+  "lastPullTimestamp": 1786296421177,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,5 +23,6 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  }
+  },
+  "stale": true
 }
