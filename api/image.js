@@ -16,7 +16,6 @@ import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { errorSVGString } from './_lib/svg-builder.js';
 import { logger } from './_lib/logger.js';
-import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 
 const SVG_PATH = 'slot.svg';
 
@@ -46,39 +45,41 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Rate-limit per-IP (ISSUE-C3): same cooldown as spin to prevent abuse.
-  const cooldown = await checkSpinCooldown(req);
-  if (!cooldown.allowed) {
-    sendResponse(res, {
-      status: 302,
-      headers: {
-        'Retry-After': String(cooldown.retryAfterSec),
-      },
-      redirect: `https://github.com/${user}`,
-    });
-    return;
-  }
+  // ── NOTA: NESSUN cooldown per-IP qui (bug t_a81cdf35) ────────────────────
+  // checkSpinCooldown è check-AND-set: un GET passivo (questo, o /api/lever)
+  // registrava l'IP del chiamante, quindi lo spin successivo entro la finestra
+  // veniva RIFIUTATO con un 302 silenzioso verso il profilo → nessuno spin
+  // veniva eseguito e l'utente rivedeva il risultato PRECEDENTE ("come se
+  // l'svg non venisse aggiornato"). Il cooldown resta SOLO su /api/spin,
+  // l'unico endpoint che esegue davvero un'azione. L'abuso dell'immagine
+  // (fallback GitHub) è già contenuto dal circuit-breaker KV e dai rate limit
+  // GitHub (ISSUE-L2 era APERTA senza cooldown: rischio accettato).
 
+  // Leggiamo svg + stato in parallelo: il guard anti-stale confronta lo uid
+  // dell'SVG con lastPullTimestamp dell'ultimo spin. Se lo uid è più vecchio,
+  // la copia KV è STALE (la scrittura KV dello spin era fallita) e ricadiamo
+  // su GitHub — che saveSlotSvg tiene fresco proprio per questo (fix
+  // t_690b8db0 + t_a81cdf35: la scrittura GitHub ora è ATTESA, non più
+  // fire-and-forget ucciso da Vercel). Senza questo guard, l'utente
+  // rivedrebbe l'animazione/risultato precedente nonostante il GitHub fresco.
+  let kvSvg = null;
+  let kvUid = null;
+  let lastPull = NaN;
   if (kvEnabled) {
     try {
-      // Leggiamo svg + stato in parallelo: il guard anti-stale confronta lo uid
-      // dell'SVG con lastPullTimestamp dell'ultimo spin. Se lo uid è più
-      // vecchio, la copia KV è STALE (il kvSet dello spin era fallito) e
-      // ricadiamo su GitHub — che saveSlotSvg ha appena aggiornato. Senza
-      // questo guard, l'utente rivedrebbe l'animazione/risultato precedente
-      // nonostante il GitHub fresco (bug t_690b8db0).
       const [svg, state] = await Promise.all([
         kvGet('gsm:slotSvg'),
         kvGet('gsm:state'),
       ]);
+      kvSvg = svg;
       if (svg) {
-        const svgUid = extractSvgUid(svg);
-        const lastPull = Number(state?.lastPullTimestamp);
+        kvUid = extractSvgUid(svg);
+        lastPull = Number(state?.lastPullTimestamp);
         const stale =
-          svgUid != null &&
-          Number.isFinite(svgUid) &&
+          kvUid != null &&
+          Number.isFinite(kvUid) &&
           Number.isFinite(lastPull) &&
-          svgUid < lastPull;
+          kvUid < lastPull;
         if (!stale) {
           sendResponse(res, {
             status: 200,
@@ -93,7 +94,7 @@ export default async function handler(req, res) {
         logger.warn(
           'kv slotSvg is stale (uid < lastPullTimestamp), falling back to github',
           {
-            svgUid,
+            svgUid: kvUid,
             lastPull,
           }
         );
@@ -143,6 +144,38 @@ export default async function handler(req, res) {
     return;
   }
   const svg = Buffer.from(data.content, 'base64').toString('utf-8');
+
+  // ── Hardening (bug t_a81cdf35) ────────────────────────────────────────────
+  // Il fallback GitHub può essere PIÙ VECCHIO della copia KV (propagazione
+  // Contents API in ritardo dopo la PUT, o scrittura GitHub fallita/timeout).
+  // Serviamo la copia PIÙ FRESCA delle due, non ciecamente GitHub.
+  if (kvSvg) {
+    const ghUid = extractSvgUid(svg);
+    if (ghUid != null && kvUid != null && ghUid < kvUid) {
+      logger.warn('github slot.svg older than kv copy, serving kv', {
+        ghUid,
+        svgUid: kvUid,
+      });
+      sendResponse(res, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'no-store',
+        },
+        body: kvSvg,
+      });
+      return;
+    }
+    if (ghUid != null && Number.isFinite(lastPull) && ghUid < lastPull) {
+      // Entrambi gli store sono più vecchi dell'ultimo spin: le scritture di
+      // QUESTO spin sono fallite del tutto. Logghiamo per visibilità.
+      logger.warn('both stores stale (kv + github older than last pull)', {
+        ghUid,
+        lastPull,
+      });
+    }
+  }
+
   sendResponse(res, {
     status: 200,
     headers: {

@@ -528,7 +528,8 @@ export default async function handler(req, res) {
             state,
             winningLang,
             repoMatch,
-            spinStart
+            spinStart,
+            OWNER
           );
           if (newReadme !== oldReadme) {
             const newSha = await ghPut(

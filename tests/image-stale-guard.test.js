@@ -30,9 +30,13 @@ vi.mock('../api/_lib/kv.js', () => ({
   kvSet: vi.fn(),
 }));
 
-vi.mock('../api/_lib/spin-cooldown.js', () => ({
-  checkSpinCooldown: async () => ({ allowed: true }),
+// ── Mock cooldown: teniamo un riferimento per asserire che image.js NON lo
+//    chiami più (bug t_a81cdf35: il check-and-set di checkSpinCooldown su un
+//    GET passivo registrava l'IP e faceva rifiutare lo spin successivo). ─────
+const cooldownMock = vi.hoisted(() => ({
+  checkSpinCooldown: vi.fn(async () => ({ allowed: true })),
 }));
+vi.mock('../api/_lib/spin-cooldown.js', () => cooldownMock);
 
 vi.mock('../../sentry.config.js', () => ({
   default: { captureMessage: vi.fn(), captureException: vi.fn() },
@@ -135,6 +139,21 @@ describe('/api/image — guard anti-stale (KV vs state.lastPullTimestamp)', () =
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("NON chiama checkSpinCooldown (bug t_a81cdf35: il check-and-set su un GET passivo registrava l'IP e faceva rifiutare lo spin successivo)", async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-1000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 5, lastPullTimestamp: 1000 });
+
+    const res = makeRes();
+    await handler(req, res);
+
+    // Se image.js chiamasse checkSpinCooldown, un GET dell'immagine
+    // registrerebbe l'IP e /api/spin entro 3s verrebbe 302-rifiutato in
+    // silenzio → l'utente rivede lo spin precedente.
+    expect(cooldownMock.checkSpinCooldown).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-1000</svg>');
+  });
+
   it('KV STALE (uid < lastPullTimestamp): ricade su GitHub (fresco) e logga', async () => {
     // La scrittura KV dello spin 2000 è fallita: KV ha ancora lo svg dello
     // spin 1000, ma lo stato dice che l'ultimo spin è il 2000.
@@ -151,6 +170,30 @@ describe('/api/image — guard anti-stale (KV vs state.lastPullTimestamp)', () =
     expect(logger.warn).toHaveBeenCalledWith(
       'kv slotSvg is stale (uid < lastPullTimestamp), falling back to github',
       expect.objectContaining({ svgUid: 1000, lastPull: 2000 })
+    );
+  });
+
+  it('GitHub fallback PIÙ VECCHIO della copia KV: serve la copia KV (la più fresca disponibile)', async () => {
+    // KV ha lo svg 1500 (stale vs lastPull 2000) ma GitHub è ANCHE più
+    // vecchio (1000, propagazione Contents API lenta / PUT fallita):
+    // serve KV, non ciecamente GitHub.
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-1500</svg>');
+    kvStore.set('gsm:state', { totalSpins: 6, lastPullTimestamp: 2000 });
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      ghResponse({
+        content: Buffer.from('<svg>slot-title-1000</svg>').toString('base64'),
+      })
+    );
+
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-1500</svg>');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'github slot.svg older than kv copy, serving kv',
+      expect.objectContaining({ ghUid: 1000, svgUid: 1500 })
     );
   });
 

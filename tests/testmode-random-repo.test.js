@@ -72,9 +72,14 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
     expect(out).toContain(`${START}\n${END}`);
   });
 
-  it('nessun doppio marker / nessun link quando repoMatch è null', () => {
-    const out = updateReadmeMarkers(baseReadme, {}, { name: 'Rust' }, null, 1700000000000);
-    expect(out).toContain(`${START}\n${END}`);
+  it('su vincita senza repoMatch scrive comunque il badge (fallback al profilo owner)', () => {
+    // FIX "contrario": una vincita reale senza repo trovato non deve finire
+    // senza pulsante — il badge punta al profilo owner come fallback.
+    const out = updateReadmeMarkers(baseReadme, {}, { name: 'Rust' }, null, 1700000000000, 'simrim96');
+    expect(out).toContain('check out this repo I wrote in Rust');
+    expect(out).toContain('<a href="https://github.com/simrim96">');
     expect(out).not.toContain('](');
+    // Il blocco NON è vuoto: contiene il badge di fallback
+    expect(out).not.toContain(`${START}\n${END}`);
   });
 });

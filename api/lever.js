@@ -21,7 +21,6 @@ import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { kvGet } from './_lib/kv.js';
 import { logger } from './_lib/logger.js';
-import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 
 const W = 52;
 const H = 150;
@@ -351,18 +350,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Rate-limit per-IP (ISSUE-C3): same cooldown as spin to prevent abuse.
-  const cooldown = await checkSpinCooldown(req);
-  if (!cooldown.allowed) {
-    sendResponse(res, {
-      status: 302,
-      headers: {
-        'Retry-After': String(cooldown.retryAfterSec),
-      },
-      redirect: `https://github.com/${OWNER}`,
-    });
-    return;
-  }
+  // ── NOTA: NESSUN cooldown per-IP qui (bug t_a81cdf35) ────────────────────
+  // Come /api/image: checkSpinCooldown è check-and-set, e un GET passivo che
+  // registra l'IP farebbe rifiutare (302 silenzioso) lo spin successivo dello
+  // stesso IP entro la finestra → l'utente rivede il risultato precedente.
+  // Il cooldown resta SOLO su /api/spin. La leva è un asset statico; il
+  // fallback raw GitHub ha già il suo timeout corto.
 
   // Verifica lo stato per determinare l'animazione.
   // getPullState(req) usa come fonte PRIMARIA il timestamp di spin nell'URL
