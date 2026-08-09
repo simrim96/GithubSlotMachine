@@ -130,17 +130,39 @@ describe('updateReadmeMarkers', () => {
     expect(out).toContain(`${START}\n${END}`);
   });
 
-  it('senza repoMatch il blocco resta vuoto (nessun link, nessun testo)', () => {
+  it('su vincita senza repoMatch scrive comunque il badge con link di fallback al profilo owner', () => {
+    // FIX "contrario" (vincita senza pulsante): il repo lookup può fallire
+    // (cache fredda, linguaggio <30%, nessun repo valido). Una vincita reale
+    // non deve mai finire senza pulsante: il badge viene scritto comunque,
+    // puntando al profilo dell'owner come fallback.
     const lang = { name: 'Rust' };
     const out = updateReadmeMarkers(
       baseReadme,
       { totalSpins: 9, totalWins: 1 },
       lang,
       null,
-      { en: 'safe by default' }
+      1700000000000,
+      'simrim96'
     );
-    expect(out).not.toContain('check my work in');
-    expect(out).not.toContain('[Rust]');
+    expect(out).toContain('check out this repo I wrote in Rust');
+    expect(out).toContain('<a href="https://github.com/simrim96">');
+    expect(out).toContain('/api/badge?');
+    expect(out).not.toContain('&amp;stars=');
+    expect(out).not.toContain('Total community spins');
+    expect(out).not.toContain('Last win:');
+    // Il blocco tra i marker NON è vuoto: contiene il badge di fallback
+    expect(out).not.toContain(`${START}\n${END}`);
+  });
+
+  it('senza repoMatch e senza vincita (lang null) il blocco resta vuoto', () => {
+    const out = updateReadmeMarkers(
+      baseReadme,
+      { totalSpins: 9, totalWins: 1 },
+      null,
+      null,
+      1700000000000
+    );
+    expect(out).not.toContain('check out this repo');
     expect(out).not.toContain('Total community spins');
     expect(out).not.toContain('Last win:');
     // Il blocco tra i marker è vuoto

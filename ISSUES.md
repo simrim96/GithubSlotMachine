@@ -77,10 +77,16 @@
 ### ISSUE-L2 — No rate limiting su `/api/image`
 - **File**: `api/image.js`
 - **Priorità**: P4
-- **Stato**: **APERTA**
-- **Descrizione**: `api/image.js` serve il file `slot.svg` generato. Anche se il file è statico, ogni richiesta carica il filesystem e la rete (se il file è su GitHub/R2). Non c'è cooldown per-IP.
-- **Mitigazione**: Il file è cacheato nel browser (GET diretto con nome fisso).
-- **Test mancante**: Nessun test per rate limiting su image.
+- **Stato**: **APERTA** (decisione deliberata, 2026-08-09)
+- **Descrizione**: `api/image.js` serve il file `slot.svg` generato. Non c'è
+  cooldown per-IP: il precedente tentativo (checkSpinCooldown, check-and-set)
+  registrava l'IP a ogni GET passivo e faceva rifiutare con 302 silenzioso lo
+  spin successivo dello stesso IP (bug t_a81cdf35, "rivedo lo spin precedente").
+  Il cooldown è stato RIMOSSO e resta solo su `/api/spin`.
+- **Mitigazione**: Il file è servito da KV (nessuna chiamata GitHub nel path
+  caldo); il fallback GitHub è contenuto dal circuit-breaker KV e dai rate
+  limit GitHub; header `Cache-Control: no-store`.
+- **Test mancante**: Nessun test per rate limiting su image (accettato).
 
 ### ISSUE-L3 — CORS allowlist hardcoded con un solo dominio
 - **File**: `api/_lib/cors.js` (linea ~10)
@@ -158,7 +164,16 @@
 **Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
 
 ### ISSUE-C3 — No rate limiting su `/api/lever`
-**Stato: RISOLTA** — `checkSpinCooldown` in `lever.js` (linee 354-365).
+**Stato: RISOLTA (2026-08-09) — cooldown RIMOSSO per bug t_a81cdf35.**
+- **Fix originale**: `checkSpinCooldown` in `lever.js` — ma `checkSpinCooldown` è
+  *check-and-set*: un GET passivo registrava l'IP del chiamante, quindi lo spin
+  successivo dello stesso IP entro la finestra veniva RIFIUTATO con un 302
+  silenzioso verso il profilo → nessuno spin eseguito e l'utente rivedeva il
+  risultato precedente ("come se l'svg non venisse aggiornato").
+- **Fix attuale**: il cooldown resta SOLO su `/api/spin` (l'unico endpoint che
+  esegue un'azione). `/api/lever` e `/api/image` sono GET passivi di asset
+  statici: nessun registro IP, nessun 302. L'abuso è già contenuto dal
+  circuit-breaker KV e dai rate limit GitHub (vedi ISSUE-L2).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
 **Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.
@@ -302,7 +317,16 @@
 **Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
 
 ### ISSUE-C3 — No rate limiting su `/api/lever`
-**Stato: RISOLTA** — `checkSpinCooldown` in `lever.js` (linee 354-365).
+**Stato: RISOLTA (2026-08-09) — cooldown RIMOSSO per bug t_a81cdf35.**
+- **Fix originale**: `checkSpinCooldown` in `lever.js` — ma `checkSpinCooldown` è
+  *check-and-set*: un GET passivo registrava l'IP del chiamante, quindi lo spin
+  successivo dello stesso IP entro la finestra veniva RIFIUTATO con un 302
+  silenzioso verso il profilo → nessuno spin eseguito e l'utente rivedeva il
+  risultato precedente ("come se l'svg non venisse aggiornato").
+- **Fix attuale**: il cooldown resta SOLO su `/api/spin` (l'unico endpoint che
+  esegue un'azione). `/api/lever` e `/api/image` sono GET passivi di asset
+  statici: nessun registro IP, nessun 302. L'abuso è già contenuto dal
+  circuit-breaker KV e dai rate limit GitHub (vedi ISSUE-L2).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
 **Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.

@@ -19,6 +19,7 @@ import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { logger } from './_lib/logger.js';
 import { badgeCooldown } from './_lib/badge-cooldown.js';
+import { kvGet, kvEnabled } from './_lib/kv.js';
 // escapeXml leggero per il testo dentro l'SVG (defense-in-depth).
 import { escapeXml } from './_lib/svg/utils.js';
 
@@ -26,6 +27,69 @@ import { escapeXml } from './_lib/svg/utils.js';
 const BADGE_DELAY_S = 6.5;
 // Durata (s) dell'animazione di entrata.
 const BADGE_ANIM_S = 0.9;
+
+// ─── Self-validation contro lo stato corrente ─────────────────────────────
+// FIX "pulsante su spin perdente": il badge vive nel README, ma il README
+// può essere STALE (GitHub cachea il render, la PUT asincrona può fallire).
+// Un badge vecchio — scritto da una vincita PRECEDENTE — resterebbe visibile
+// anche dopo uno spin perdente, simulando una vincita inesistente.
+// Qui l'endpoint si autovalida: serve il contenuto SOLO se l'ULTIMO spin è
+// stata una vincita che corrisponde alla richiesta (stesso spinStart ?v e
+// stesso linguaggio). Altrimenti serve un SVG VUOTO → niente pulsante
+// fantasma, anche se il README embeddato è ancora cacheato.
+const STATE_KEY = 'gsm:state';
+const OWNER =
+  process.env.PROFILE_REPO_OWNER ||
+  process.env.GITHUB_OWNER ||
+  'simrim96';
+const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
+
+// Legge lo stato corrente: KV prima (veloce), poi state.json pubblico come
+// fallback (stesso pattern di lever.js). Ritorna null se nessuna fonte
+// risponde — in tal caso il chiamante decide il comportamento.
+async function getCurrentState() {
+  if (kvEnabled) {
+    try {
+      const state = await kvGet(STATE_KEY);
+      if (state) return state;
+    } catch (e) {
+      logger.warn('badge: KV state read failed, fallback raw', { error: e?.message });
+    }
+  }
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 800);
+    const res = await fetch(
+      `https://raw.githubusercontent.com/${OWNER}/${SLOT_REPO}/main/state.json`,
+      { cache: 'no-store', signal: controller.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    logger.warn('badge: raw state read failed', { error: e?.message });
+    return null;
+  }
+}
+
+// Il badge è valido SOLO se l'ultimo spin è stata una vincita coerente con
+// la richiesta. lastPullTimestamp si aggiorna a OGNI spin; lastWin.ts solo
+// su vincita → se sono uguali, l'ultimo spin HA vinto. Il ?v della richiesta
+// deve combaciare con quello della vincita (un badge più vecchio, anche se
+// embeddato in un README cacheato, viene scartato).
+export function isBadgeValidForCurrentSpin(state, v, lang) {
+  if (!state || !state.lastWin) return false;
+  const lastPull = Number(state.lastPullTimestamp);
+  const lastWinTs = Number(state.lastWin.ts);
+  if (!Number.isFinite(lastPull) || !Number.isFinite(lastWinTs)) return false;
+  if (lastPull !== lastWinTs) return false; // ultimo spin NON vincente
+  const spinV = v == null || v === '' ? NaN : Number(v);
+  if (Number.isFinite(spinV) && spinV !== lastWinTs) return false;
+  const langName = state.lastWin.langName || state.lastWin.langId || '';
+  if (lang && langName && safeLang(langName) !== safeLang(String(lang)))
+    return false;
+  return true;
+}
 
 // Sanitizza il linguaggio proveniente dai query param (testo non fidato a
 // tutti gli effetti, anche se noi stessi lo scriviamo nel README). Toglie
@@ -52,6 +116,36 @@ export default async function handler(req, res) {
       status: 429,
       headers: { 'Retry-After': '1' },
       body: JSON.stringify({ error: 'Too Many Requests — badge cooldown' }),
+    });
+  }
+
+  // ── Self-validation contro lo stato corrente ────────────────────────────
+  // FIX "pulsante su spin perdente": se l'ULTIMO spin NON è stata una
+  // vincita coerente con questo badge (?v e lang), serve un SVG VUOTO così
+  // il pulsante non compare mai su spin perdenti — anche quando il README
+  // embeddato è ancora cacheato con un badge vecchio. Se lo stato non è
+  // leggibile (KV + GitHub giù) serve comunque il badge normale: meglio un
+  // falso positivo che spezzare la vincita reale in un'outage.
+  let badgeAllowed = true;
+  try {
+    const state = await getCurrentState();
+    if (state && !isBadgeValidForCurrentSpin(state, req.query?.v, req.query?.lang)) {
+      badgeAllowed = false;
+    }
+  } catch (e) {
+    logger.warn('badge: self-validation failed, serving badge anyway', { error: e?.message });
+  }
+  if (!badgeAllowed) {
+    // SVG vuoto con le stesse dimensioni del badge reale: il README mantiene
+    // il layout (width 340) ma non mostra alcun pulsante.
+    const emptySvg = `<?xml version="1.0" encoding="utf-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="340" height="84" viewBox="0 0 340 84" role="img" aria-label=""></svg>`;
+    return sendResponse(res, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'no-store',
+      },
+      body: emptySvg,
     });
   }
 

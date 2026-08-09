@@ -4,7 +4,9 @@
 // ore/giorni prima); quando kvSet falliva, KV conservava il vecchio svg e
 // image.js (KV first) serviva il risultato PRECEDENTE ignorando il GitHub
 // fresco. ORA:
-//   • kvSet OK   → aggiornamento GitHub fire-and-forget (fallback sempre fresco)
+//   • kvSet OK   → aggiornamento GitHub ATTESO con timeout (non più
+//                 fire-and-forget: su Vercel il job in background veniva
+//                 congelato e GitHub restava stale — bug t_a81cdf35)
 //   • kvSet KO   → invalidazione della copia stale in KV (kvDel) + ghPut
 //                 attendato (image.js ricade sul GitHub appena scritto)
 
@@ -82,20 +84,46 @@ describe('saveSlotSvg — coerenza KV ⇄ GitHub', () => {
     );
   });
 
-  it('kvSet OK: ritorna subito e aggiorna GitHub in fire-and-forget (fallback mai stale)', async () => {
+  it('kvSet OK: aggiorna GitHub in modo ATTESO (fallback mai stale) e NON invalida KV', async () => {
     kvMocks.kvSet.mockResolvedValue(true);
 
     await saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA);
-    await flushMicrotasks();
 
     // Nessuna invalidazione: la copia KV è fresca.
     expect(kvMocks.kvDel).not.toHaveBeenCalled();
-    // GitHub viene comunque aggiornato (best-effort, non bloccante).
+    // GitHub viene aggiornato PRIMA che saveSlotSvg risolva (await, non più
+    // fire-and-forget: su Vercel il background job veniva congelato e GitHub
+    // restava stale → image.js su KV-miss serviva lo spin precedente).
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       SLOT_URL,
       expect.objectContaining({ method: 'PUT' })
     );
+  });
+
+  it('kvSet OK: saveSlotSvg NON risolve finché la PUT GitHub non è completata (await reale)', async () => {
+    kvMocks.kvSet.mockResolvedValue(true);
+    let resolveFetch;
+    globalThis.fetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    let settled = false;
+    const p = saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA).then(() => {
+      settled = true;
+    });
+    await flushMicrotasks();
+
+    // La PUT GitHub è ancora in volo → saveSlotSvg NON deve aver risolto.
+    expect(settled).toBe(false);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    resolveFetch(okResponse());
+    await p;
+    expect(settled).toBe(true);
   });
 
   it('kvSet fallito (false): invalida la copia stale in KV e scrive GitHub in modo attendato', async () => {
@@ -123,14 +151,13 @@ describe('saveSlotSvg — coerenza KV ⇄ GitHub', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('kvSet OK ma GitHub fallisce in background: saveSlotSvg NON rigetta (best-effort)', async () => {
+  it('kvSet OK ma la PUT GitHub fallisce: saveSlotSvg NON rigetta (KV resta primario, best-effort)', async () => {
     kvMocks.kvSet.mockResolvedValue(true);
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('github down'));
 
     await expect(
       saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA)
     ).resolves.toBeUndefined();
-    await flushMicrotasks(); // lascia completare il .catch del fire-and-forget
   });
 
   it('kvSet fallito E GitHub fallisce: saveSlotSvg rigetta (come prima, il caller decide il redirect)', async () => {

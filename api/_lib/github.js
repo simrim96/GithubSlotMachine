@@ -70,6 +70,13 @@ export function auditToken(token, { enforce = false } = {}) {
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
 const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
 
+// Timeout per la PUT di backup di slot.svg su GitHub (bug t_a81cdf35).
+// La scrittura è ATTESA (non più fire-and-forget) ma con questo tetto un
+// GitHub lento non allunga lo spin oltre il cap del README (4s in spin.js).
+// Gira in parallelo alla PUT del README, quindi non aggiunge latenza percepita.
+const SLOT_SVG_GITHUB_TIMEOUT_MS =
+  parseInt(process.env.SLOT_SVG_GITHUB_TIMEOUT_MS, 10) || 1500;
+
 // Header standard per le chiamate GitHub API. Unica sorgente condivisa
 // (evita duplicazioni divergenti in repos.js / image.js / health.js — ISSUE-16).
 export function ghHeaders(token, opts = {}) {
@@ -276,9 +283,13 @@ export async function ghPut(
 // aggiornato: image.js (che legge KV per primo) serviva però il vecchio svg,
 // ignorando il GitHub fresco → l'utente rivedeva l'animazione/risultato
 // precedente. ORA:
-//   1. kvSet riuscito → aggiorniamo GitHub slot.svg in best-effort
-//      (fire-and-forget, non blocca il redirect) così il fallback GitHub non
-//      resta mai indietro di ore/giorni;
+//   1. kvSet riuscito → aggiorniamo GitHub slot.svg ATTESO (await, con
+//      timeout SLOT_SVG_GITHUB_TIMEOUT_MS) così il fallback GitHub non resta
+//      MAI indietro. Non è più fire-and-forget: su Vercel il job in background
+//      veniva congelato appena inviata la risposta, quindi GitHub restava
+//      stale e image.js (fallback su KV-miss) serviva lo spin precedente
+//      (bug t_a81cdf35). L'await è gratuito: gira in parallelo alla PUT del
+//      README (Promise.allSettled in spin.js), che domina la latenza.
 //   2. kvSet fallito → INVALIDIAMO la copia stale in KV (kvDel) così image.js
 //      NON serve il vecchio svg e ricade sul GitHub appena scritto.
 export async function saveSlotSvg(token, owner, repo, svg, sha) {
@@ -290,11 +301,28 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
       logger.warn('kv slotSvg save failed/timed out', { error: e.message });
     }
     if (kvOk) {
-      // (1) Mantieni fresco il fallback GitHub (best-effort): se un giorno KV
-      // è giù, image.js ricade su slot.svg e deve trovare l'ULTIMO risultato.
-      // Non attendiamo: il redirect non deve rallentare (e se Vercel uccide il
-      // background job, KV resta la fonte primaria — nessuna regressione).
-      ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot').catch(() => {});
+      // (1) Mantieni fresco il fallback GitHub (ATTESO, con timeout): se un
+      // giorno KV è giù, image.js ricade su slot.svg e deve trovare l'ULTIMO
+      // risultato. Timeout stretto così un GitHub lento non allunga lo spin
+      // oltre il cap del README (4s). Errore → log, KV resta la fonte
+      // primaria (nessuna regressione).
+      try {
+        await ghPut(
+          token,
+          owner,
+          repo,
+          'slot.svg',
+          svg,
+          sha,
+          '🎰 Update live slot',
+          false,
+          SLOT_SVG_GITHUB_TIMEOUT_MS
+        );
+      } catch (e) {
+        logger.warn('github slot.svg backup write failed (kv resta primario)', {
+          error: e.message,
+        });
+      }
       return;
     }
     // (2) kvSet fallito: KV contiene ancora il vecchio svg. Senza
@@ -338,8 +366,14 @@ export function clearReadmeMarkers(readme) {
 // Aggiorna SOLO il blocco tra i marker con il badge della vittoria.
 // Nessun contatore ("Total community spins"), nessun "Last win:", nessun
 // funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo vincente.
-// REGOLA: il badge compare SOLO quando c'è una vincita (lang presente) E un
-// repo vincente (repoMatch). Su spin perdenti il blocco resta vuoto.
+// REGOLA: il badge compare SOLO quando c'è una vincita (lang presente). Su
+// spin perdenti il blocco resta vuoto. Se la repo vincente non è stata
+// trovata (repoMatch null: cache fredda, linguaggio <30%, nessun repo
+// valido), il badge viene comunque scritto con un link di fallback al
+// profilo dell'owner — così una vincita reale non finisce mai SENZA
+// pulsante (bug "contrario": vincita ma nessun link). Il badge stesso è
+// self-validante (api/badge.js): su spin perdenti serve un SVG vuoto, quindi
+// un README cacheato non può mai mostrare un pulsante fantasma.
 //
 // Formato (valido sia per test che per produzione): un'immagine SVG embeddata
 // wrappata in un link verso la repo vincente, al posto del vecchio testo+link
@@ -350,32 +384,44 @@ export function clearReadmeMarkers(readme) {
 // fisso di 6.5s, poco sopra la durata max dei rulli = 6.2s).
 // `spinStart` (il timestamp dello spin) viene passato per forzare il refetch
 // dell'immagine a ogni spin (?v=...), così l'animazione parte da 0.
-export function updateReadmeMarkers(readme, state, lang, repoMatch, spinStart) {
+export function updateReadmeMarkers(
+  readme,
+  state,
+  lang,
+  repoMatch,
+  spinStart,
+  owner = 'simrim96'
+) {
   const START = '<!-- SLOT_LAST_WIN_START -->';
   const END = '<!-- SLOT_LAST_WIN_END -->';
   if (!readme.includes(START) || !readme.includes(END)) return readme;
 
   let block = `${START}\n`;
-  // Badge SOLO su vincita: serve sia `lang` (il linguaggio vinto) che
-  // `repoMatch` (il progetto da linkare). Senza vincita → blocco vuoto.
-  if (lang && repoMatch) {
+  // Badge SOLO su vincita: serve `lang` (il linguaggio vinto). Il link
+  // punta alla repo vincente, o al profilo owner se il repo non è stato
+  // trovato (fallback). Senza vincita → blocco vuoto.
+  if (lang) {
     const langName =
       lang.name || (lang.id != null ? String(lang.id) : '').trim();
     const v = spinStart != null ? `?v=${spinStart}` : '';
+    const fallbackUrl = `https://github.com/${owner}`;
     // Stelle della repo vincente (rep.stargazers_count), già valorizzato in
     // repoMatch da repos.js. Le passiamo al badge che le mostrerà accanto
     // alla stella decorativa — così la stella NON è più solo grafica ma
     // riferita al conteggio reale della repo. Sanitizziamo a intero ≥0.
-    const starsRaw = Number(repoMatch.stars);
-    const stars = Number.isFinite(starsRaw) && starsRaw > 0 ? Math.floor(starsRaw) : 0;
+    const starsRaw = Number(repoMatch?.stars);
+    const stars =
+      Number.isFinite(starsRaw) && starsRaw > 0 ? Math.floor(starsRaw) : 0;
     const badgeUrl = `https://github-slot-machine.vercel.app/api/badge${v}&amp;lang=${encodeURIComponent(
       langName
     )}${stars ? `&amp;stars=${stars}` : ''}`;
-    // <a> cliccabile verso la repo, <img> puntante al badge SVG animato.
-    // escapeXml su langName è ridondante (già pulito da encodeURIComponent +
-    // l'endpoint badge.js fa safeLang), ma lo teniamo per coerenza col README.
+    // <a> cliccabile verso la repo (o il profilo owner come fallback),
+    // <img> puntante al badge SVG animato. escapeXml su langName è ridondante
+    // (già pulito da encodeURIComponent + l'endpoint badge.js fa safeLang),
+    // ma lo teniamo per coerenza col README.
+    const linkUrl = repoMatch?.url || fallbackUrl;
     block +=
-      `<a href="${repoMatch.url}">` +
+      `<a href="${linkUrl}">` +
       `<img src="${badgeUrl}" alt="check out this repo I wrote in ${langName}" ` +
       `width="340" style="border:0;display:inline-block" />` +
       `</a>\n`;
