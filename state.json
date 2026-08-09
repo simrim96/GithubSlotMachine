@@ -1,20 +1,20 @@
 {
-  "totalSpins": 24,
-  "totalWins": 14,
+  "totalSpins": 26,
+  "totalWins": 15,
   "lastWin": {
     "langId": "python",
     "langName": "Python",
     "fact": {
-      "it": "Digitando `import this` in qualsiasi REPL Python compare lo Zen of Python: 19 aforismi che riassumono la filosofia del linguaggio",
-      "en": "Type `import this` in any Python REPL and the Zen of Python appears: 19 aphorisms that capture the language's philosophy."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786283638475
+    "ts": 1786283673547
   },
   "version": 2,
-  "lastPullTimestamp": 1786283662703,
+  "lastPullTimestamp": 1786283686413,
   "settings": {
     "theme": "auto",
     "sound": true
