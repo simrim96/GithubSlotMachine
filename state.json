@@ -1,20 +1,20 @@
 {
-  "totalSpins": 50,
-  "totalWins": 25,
+  "totalSpins": 51,
+  "totalWins": 26,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786308517495
+    "ts": 1786308547722
   },
   "version": 2,
-  "lastPullTimestamp": 1786308534221,
+  "lastPullTimestamp": 1786308547722,
   "settings": {
     "theme": "auto",
     "sound": true
