@@ -1,20 +1,20 @@
 {
-  "totalSpins": 61,
-  "totalWins": 31,
+  "totalSpins": 62,
+  "totalWins": 32,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "Il nome originale era \"Mocha\", poi \"LiveScript\" e infine \"JavaScript\" — una scelta di marketing per cavalcare l'hype di Java",
+      "en": "The original name was \"Mocha\", then \"LiveScript\" and finally \"JavaScript\" — a marketing move to ride the Java hype wave."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786311146794
+    "ts": 1786311165515
   },
   "version": 2,
-  "lastPullTimestamp": 1786311146794,
+  "lastPullTimestamp": 1786311165515,
   "settings": {
     "theme": "auto",
     "sound": true
