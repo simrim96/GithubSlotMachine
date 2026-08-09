@@ -1,20 +1,20 @@
 {
-  "totalSpins": 68,
-  "totalWins": 37,
+  "totalSpins": 69,
+  "totalWins": 38,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786312856057
+    "ts": 1786312864697
   },
   "version": 2,
-  "lastPullTimestamp": 1786312856057,
+  "lastPullTimestamp": 1786312864697,
   "settings": {
     "theme": "auto",
     "sound": true
