@@ -1,20 +1,20 @@
 {
-  "totalSpins": 17,
-  "totalWins": 11,
+  "totalSpins": 18,
+  "totalWins": 12,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Il principio \"zero-cost abstraction\" del C++ permette astrazioni di alto livello che non costano nulla a runtime: paghi solo ciò che usi.",
-      "en": "C++'s \"zero-cost abstraction\" principle lets you build high-level abstractions with no runtime overhead: you only pay for what you use."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786281456338
+    "ts": 1786281466709
   },
   "version": 2,
-  "lastPullTimestamp": 1786281456338,
+  "lastPullTimestamp": 1786281466709,
   "settings": {
     "theme": "auto",
     "sound": true
