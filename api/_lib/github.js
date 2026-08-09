@@ -1,7 +1,7 @@
 // ─── GitHub API + README markers (estratto da spin.js) ───────────────────────
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
-import { kvEnabled, kvGet, kvSet, kvDel } from './kv.js';
+import { kvEnabled, kvGet, kvSet, kvDel, kvMget } from './kv.js';
 import { logRateLimit } from './ratelimit-tracker.js';
 import { logger } from '../_lib/logger.js';
 
@@ -69,6 +69,13 @@ export function auditToken(token, { enforce = false } = {}) {
 // Gli SVG sono persistenti per definizione, ma vogliamo che scadeano dopo un periodo
 // ragionevole in caso di Redis reset, così non diventano permanentemente obsoleti
 const SLOT_SVG_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
+
+// Chiave KV che memoizza lo sha GitHub di slot.svg dopo l'ultima PUT di backup
+// riuscita. loadSlotSvg (percorso KV) la rilegge per passare lo sha a ghPut:
+// senza di essa la PUT di backup partiva senza sha → 422 garantito → GET+PUT
+// (tre round trip, >1.5s, che sforavano il timeout e lasciavano GitHub STALE).
+// Con lo sha memoizzato la PUT di backup è UNA sola chiamata (~0.5-1s).
+const SLOT_SVG_SHA_KEY = 'gsm:slotSvg:sha';
 
 // Timeout per la PUT di backup di slot.svg su GitHub (bug t_a81cdf35).
 // La scrittura è ATTESA (non più fire-and-forget) ma con questo tetto un
@@ -185,6 +192,36 @@ export async function ghPut(
   // così i chiamanti possono aggiornare le proprie cache con lo sha corretto.
   const RETRY_MAX = 1;
   const RETRYABLE_4XX = new Set([408, 429]); // retry su 408/429 (ma non su 409 che è handled diversamente)
+
+  // ── SHA mancante (percorso KV): GET-first invece di PUT(422)→GET→PUT ──────
+  // Quando il chiamante arriva dal percorso KV (loadSlotSvg/readState non
+  // propagano lo sha GitHub perché vivono in Redis), PRIMA ghPut partiva
+  // senza sha → GitHub rispondeva 422 "sha wasn't supplied" su un file già
+  // esistente → si rifetchava lo sha e si ritentava: TRE round trip
+  // (PUT+GET+PUT, ~1-1.5s) per una singola scrittura. Quella catena sforava
+  // il timeout di sicurezza di saveSlotSvg (SLOT_SVG_GITHUB_TIMEOUT_MS=1500)
+  // e lasciava il backup GitHub di slot.svg STALE (commit mancanti), oltre a
+  // essere il collo di bottiglia del percorso click→rotazione rulli.
+  // ORA: GET dello sha corrente (o 404 → file nuovo → PUT senza sha = create)
+  // e UNA SOLA PUT. Stesso numero di PUT finali, una round trip in meno.
+  if (!sha && !_retry) {
+    const fresh = await ghGetJson(token, owner, repo, path);
+    if (fresh?.sha) {
+      return ghPut(
+        token,
+        owner,
+        repo,
+        path,
+        content,
+        fresh.sha,
+        message,
+        true,
+        timeoutMs
+      );
+    }
+    // fresh null (404: file non esistente) → prosegui col PUT senza sha (crea).
+    // fresh senza sha (caso teorico) → prosegui: il 422 sotto fa da rete.
+  }
 
   for (let attempt = 0; attempt <= (_retry ? 0 : RETRY_MAX); attempt++) {
     const encoded = Buffer.from(content).toString('base64');
@@ -307,7 +344,7 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
       // oltre il cap del README (4s). Errore → log, KV resta la fonte
       // primaria (nessuna regressione).
       try {
-        await ghPut(
+        const newSha = await ghPut(
           token,
           owner,
           repo,
@@ -318,6 +355,14 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
           false,
           SLOT_SVG_GITHUB_TIMEOUT_MS
         );
+        // (1b) Memoizza lo sha POST-PUT in KV (fire-and-forget): il prossimo
+        // loadSlotSvg (percorso KV) può così fare la PUT di backup come UNA
+        // sola chiamata — niente GET-first né 422. Se la kvSet non atterra
+        // (Vercel congela il processo), lo spin successivo casca nel
+        // GET-first di ghPut: corretta, solo un po' più lenta.
+        if (newSha && kvEnabled) {
+          kvSet(SLOT_SVG_SHA_KEY, newSha, SLOT_SVG_TTL_SEC).catch(() => {});
+        }
       } catch (e) {
         logger.warn('github slot.svg backup write failed (kv resta primario)', {
           error: e.message,
@@ -337,8 +382,11 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
 // Carica lo slot.svg corrente per l'update incrementale (Redis, poi GitHub).
 export async function loadSlotSvg(token, owner, repo) {
   if (kvEnabled) {
-    const svg = await kvGet('gsm:slotSvg');
-    if (svg) return { content: svg, sha: null };
+    // MGET in una sola round trip: l'SVG + lo sha dell'ultima PUT di backup
+    // (memoizzato da saveSlotSvg). Con lo sha presente, la PUT di backup dello
+    // spin corrente è UNA sola chiamata (niente GET-first né 422).
+    const [svg, sha] = await kvMget('gsm:slotSvg', SLOT_SVG_SHA_KEY);
+    if (svg) return { content: svg, sha: sha || null };
   }
   const data = await ghGetJson(token, owner, repo, 'slot.svg');
   if (!data) return { content: null, sha: null };

@@ -19,6 +19,7 @@ const kvMocks = vi.hoisted(() => ({
   kvGet: vi.fn(),
   kvSet: vi.fn(),
   kvDel: vi.fn(),
+  kvMget: vi.fn(),
 }));
 
 vi.mock('../api/_lib/kv.js', () => kvMocks);
@@ -30,7 +31,7 @@ vi.mock('../../sentry.config.js', () => ({
   captureException: vi.fn(),
 }));
 
-const { saveSlotSvg } = await import('../api/_lib/github.js');
+const { saveSlotSvg, loadSlotSvg } = await import('../api/_lib/github.js');
 
 const TOKEN = 'github_pat_test';
 const OWNER = 'simrim96';
@@ -175,6 +176,102 @@ describe('saveSlotSvg — coerenza KV ⇄ GitHub', () => {
 
     await saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA);
 
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('memoizza lo sha POST-PUT in KV (gsm:slotSvg:sha) per la prossima PUT di backup', async () => {
+    // Velocizzazione percorso click→rotazione: lo sha memoizzato permette a
+    // loadSlotSvg di passarlo a ghPut → PUT di backup come UNA sola chiamata
+    // (niente GET-first né 422 garantito). Qui ghPut ritorna lo sha nuovo.
+    kvMocks.kvSet.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({ sha: 'newsha123' }),
+    });
+
+    await saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(kvMocks.kvSet).toHaveBeenCalledWith(
+      'gsm:slotSvg:sha',
+      'newsha123',
+      604800
+    );
+  });
+
+  it('se ghPut non ritorna sha (body senza sha), NON memoizza nulla', async () => {
+    kvMocks.kvSet.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({}),
+    });
+
+    await saveSlotSvg(TOKEN, OWNER, REPO, SVG, SHA);
+
+    expect(kvMocks.kvSet).not.toHaveBeenCalledWith(
+      'gsm:slotSvg:sha',
+      expect.anything(),
+      expect.anything()
+    );
+  });
+});
+
+describe('loadSlotSvg — percorso KV con sha memoizzato (velocizzazione)', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    kvMocks.kvEnabled = true;
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(okResponse());
+  });
+
+  afterEach(() => {
+    if (originalFetch) globalThis.fetch = originalFetch;
+  });
+
+  it('legge SVG + sha memoizzato in UNA kvMget (PUT di backup a chiamata singola)', async () => {
+    kvMocks.kvMget.mockResolvedValue([SVG, 'stored-sha']);
+
+    const res = await loadSlotSvg(TOKEN, OWNER, REPO);
+
+    expect(kvMocks.kvMget).toHaveBeenCalledWith(
+      'gsm:slotSvg',
+      'gsm:slotSvg:sha'
+    );
+    expect(res).toEqual({ content: SVG, sha: 'stored-sha' });
+    // Nessun fallback GitHub: la copia KV basta.
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('senza sha memoizzato (primo giro): sha null → ghPut farà GET-first', async () => {
+    kvMocks.kvMget.mockResolvedValue([SVG, null]);
+
+    const res = await loadSlotSvg(TOKEN, OWNER, REPO);
+
+    expect(res).toEqual({ content: SVG, sha: null });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('KV vuoto → fallback GitHub (GET con sha)', async () => {
+    kvMocks.kvMget.mockResolvedValue([null, null]);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        sha: 'gh-sha',
+        content: Buffer.from(SVG).toString('base64'),
+      }),
+    });
+
+    const res = await loadSlotSvg(TOKEN, OWNER, REPO);
+
+    expect(res).toEqual({ content: SVG, sha: 'gh-sha' });
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });

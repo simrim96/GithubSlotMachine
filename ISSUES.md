@@ -386,3 +386,30 @@
 - **Tier "lastgood" per la cache README**: scarteremmo la GET su spin a freddo, ma allargherebbe la finestra di sovrascrittura di edit manuali alla README (ora limitata a 60s di TTL). Non applicato per non cambiare il contratto P1.
 
 ---
+
+## CLICK → ROTAZIONE RULLI — VELOCIZZAZIONE (2026-08-09)
+
+> Task kanban t_1754398f: "verificare se possibile velocizzare il caricamento dal click sulla leva all'inizio della rotazione effettiva dei rulli, sia a caldo che a freddo". Misure LIVE su github-slot-machine.vercel.app + fix applicati.
+
+**Misure live (probe + commit GitHub correlati):**
+- `/api/spin` (server-side, 4 spin): **2.05-2.35s TTFB** costanti, su 4 istanze diverse (NON è cold start).
+- `/api/image` dopo lo spin: 110-190ms (KV serve bene).
+- `/api/lever`: 34ms a caldo.
+- Correlazione col timestamp dei commit GitHub: la PUT README sul profilo atterra ~1-1.4s dopo lo start; la PUT di backup di slot.svg atterra SOLO in 1 spin su 4 (gli altri sforano il cap di 1.5s e il backup GitHub resta STALE).
+- `buildSVG` misurato: ~2ms (il commento M10 "100-500ms" è obsoleto).
+
+**Causa radice del collo di bottiglia**: la PUT di backup di slot.svg su GitHub parte SENZA sha (il percorso KV di `loadSlotSvg` non propaga lo sha GitHub) → GitHub risponde 422 garantito "sha wasn't supplied" → `ghPut` rifetcha → riprova: **3 round trip (PUT+GET+PUT, ~1.2-1.5s)** che sforano `SLOT_SVG_GITHUB_TIMEOUT_MS` (1.5s) e diventano il polo del `Promise.allSettled` pre-redirect. La PUT README (~1s) è il secondo polo.
+
+**Fix applicati:**
+1. **`ghPut` GET-first quando sha manca** (api/_lib/github.js): prima PUT(422)→GET→PUT (3 round trip); ora GET dello sha (o 404 → file nuovo) → UNA PUT. Beneficia TUTTI i chiamanti senza sha (backup slot.svg, sync state.json). Niente più 422 garantito a ogni spin.
+2. **Sha di slot.svg memoizzato in KV** (`gsm:slotSvg:sha`, scritto da `saveSlotSvg` dopo la PUT di backup, letto da `loadSlotSvg` via `kvMget` in una sola round trip): sul percorso caldo la PUT di backup diventa UNA sola chiamata (~0.5-1s), sotto il polo della PUT README. Se la memoizzazione non atterra, si casca nel GET-first di ghPut (corretto, solo più lento).
+3. **`readmeGetPromise` parte PRIMA** (api/spin.js): la GET della README (cache KV → GitHub) ora si sovrappone ANCHE alla lettura di slot.svg+stato, non solo a repo lookup + build.
+
+**Impatto atteso**: spin server-side ~2.1-2.35s → ~1.2-1.5s a caldo (~35-40% in meno); spin a freddo ~1.5-1.7s. In più il backup GitHub di slot.svg atterra a OGNI spin (robustezza: prima 1 su 4).
+
+**Rimasto fuori (non applicato)**:
+- Il resto della latenza percepita (redirect → render README su GitHub → Camo → fetch immagine) è fuori dal nostro controllo server-side; la PUT README (~1s) resta il polo inevitabile perché il `?v=` deve stare nel profilo PRIMA che il browser lo renderizzi.
+- Cold start Vercel (~300-600ms per richiesta su istanza nuova): infrastruttura, mitigabile solo con Minimum Instances (piano Pro).
+- Cooldown KV in 2 round trip (B2): -10ms, non toccato per non cambiare la semantica check-and-set.
+
+---

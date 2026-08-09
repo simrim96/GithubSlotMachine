@@ -233,31 +233,26 @@ describe('clearReadmeMarkers', () => {
   });
 });
 
-describe('ghPut: recovery 422 sha mancante (percorso KV)', () => {
+describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it('rifetcha lo sha e ritenta quando PUT fallisce con 422 "sha wasn\'t supplied"', async () => {
-    // Il percorso KV (readState da Redis) non propaga lo sha GitHub → ghPut
-    // parte senza sha → GitHub risponde 422 per un file già esistente.
-    // ghPut deve rifetchare lo sha corrente e ritentare una volta.
+  it('pre-fetcha lo sha con una GET e poi fa UNA PUT (niente 422 garantito)', async () => {
+    // Il percorso KV (loadSlotSvg/readState da Redis) non propaga lo sha
+    // GitHub → ghPut parte senza sha. PRIMA partiva PUT senza sha → 422
+    // garantito su file esistente → GET → PUT (tre round trip). ORA:
+    // GET dello sha → UNA PUT. Stesso risultato, una round trip in meno.
     const fetchMock = vi.fn()
-      // 1ª chiamata: PUT senza sha → 422
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 422,
-        headers: { get: () => null },
-      })
-      // 2ª chiamata: ghGetJson per recuperare lo sha
+      // 1ª chiamata: GET (ghGetJson) per recuperare lo sha corrente
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => null },
         json: async () => ({ sha: 'abc123', content: Buffer.from('{}').toString('base64') }),
       })
-      // 3ª chiamata: PUT con sha → ok
+      // 2ª chiamata: PUT con lo sha → ok
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -269,20 +264,106 @@ describe('ghPut: recovery 422 sha mancante (percorso KV)', () => {
     const { ghPut } = await import('../api/_lib/github.js');
     await ghPut('token', 'owner', 'repo', 'state.json', '{}', null, '🎰 Update slot stats');
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    // La 3ª chiamata (retry) deve includere lo sha recuperato
-    const retryBody = JSON.parse(fetchMock.mock.calls[2][1].body);
-    expect(retryBody.sha).toBe('abc123');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // La prima chiamata è una GET (niente PUT 422 inutile)
+    expect(fetchMock.mock.calls[0][1].method).toBeUndefined(); // GET di default
+    // La PUT (2ª) deve includere lo sha recuperato
+    const putBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(putBody.sha).toBe('abc123');
   });
 
-  it('se lo sha non è recuperabile nemmeno col rifetch, lancia', async () => {
+  it('se il file non esiste (GET 404), PUT senza sha lo crea', async () => {
     const fetchMock = vi.fn()
+      // 1ª: GET → 404 (file nuovo, nessuno sha da recuperare)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({ message: 'Not Found' }),
+      })
+      // 2ª: PUT senza sha → crea il file → ok
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        headers: { get: () => null },
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { ghPut } = await import('../api/_lib/github.js');
+    await ghPut(
+      'token',
+      'owner',
+      'repo',
+      'slot.svg',
+      '<svg/>',
+      null,
+      '🎰 Update live slot'
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const putBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(putBody.sha).toBeUndefined();
+  });
+
+  it('PUT con sha stale (409) → rifetcha lo sha e ritenta', async () => {
+    // Con lo sha memoizzato in KV (gsm:slotSvg:sha), la PUT di backup parte
+    // con sha: se GitHub è stato modificato esternamente → 409 → GET + retry.
+    const fetchMock = vi.fn()
+      // 1ª: PUT con sha stale → 409
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: { get: () => null },
+      })
+      // 2ª: GET per lo sha fresco
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ sha: 'fresh123', content: Buffer.from('{}').toString('base64') }),
+      })
+      // 3ª: PUT con sha fresco → ok
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { ghPut } = await import('../api/_lib/github.js');
+    await ghPut(
+      'token',
+      'owner',
+      'repo',
+      'state.json',
+      '{}',
+      'stale-sha',
+      '🎰 Update slot stats'
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const retryBody = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(retryBody.sha).toBe('fresh123');
+  });
+
+  it('se lo sha non è recuperabile (GET 404 nel recovery 422), lancia', async () => {
+    const fetchMock = vi.fn()
+      // 1ª: GET pre-fetch → 404 (sha non recuperabile in partenza)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({ message: 'Not Found' }),
+      })
+      // 2ª: PUT senza sha su file esistente → 422
       .mockResolvedValueOnce({
         ok: false,
         status: 422,
         headers: { get: () => null },
       })
-      // ghGetJson fallisce (rete/404) → null
+      // 3ª: GET nel recovery 422 → fallisce di nuovo (404) → throw
       .mockResolvedValueOnce({
         ok: false,
         status: 404,
