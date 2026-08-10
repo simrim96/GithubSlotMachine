@@ -1,20 +1,20 @@
 {
-  "totalSpins": 73,
-  "totalWins": 39,
+  "totalSpins": 74,
+  "totalWins": 40,
   "lastWin": {
-    "langId": "typescript",
-    "langName": "TypeScript",
+    "langId": "javascript",
+    "langName": "JavaScript",
     "fact": {
-      "it": "TypeScript è un superset di JavaScript: ogni file `.js` valido è anche un `.ts` valido. La type-safety è completamente opt-in e cancellata a runtime",
-      "en": "TypeScript is a superset of JavaScript: every valid `.js` file is also a valid `.ts` file. Type-safety is fully opt-in and entirely erased at runtime."
+      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
+      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786357152244
+    "ts": 1786368595432
   },
   "version": 2,
-  "lastPullTimestamp": 1786368584023,
+  "lastPullTimestamp": 1786368595432,
   "settings": {
     "theme": "auto",
     "sound": true
