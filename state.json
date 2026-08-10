@@ -1,20 +1,20 @@
 {
-  "totalSpins": 75,
-  "totalWins": 40,
+  "totalSpins": 76,
+  "totalWins": 41,
   "lastWin": {
-    "langId": "javascript",
-    "langName": "JavaScript",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "ECMAScript è lo standard ufficiale dietro JavaScript, mantenuto dal TC39: un comitato che rilascia una nuova edizione del linguaggio ogni anno",
-      "en": "ECMAScript is the official standard behind JavaScript, maintained by TC39: a committee that ships a new edition of the language every year."
+      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
+      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786368595432
+    "ts": 1786368616686
   },
   "version": 2,
-  "lastPullTimestamp": 1786368606031,
+  "lastPullTimestamp": 1786368616686,
   "settings": {
     "theme": "auto",
     "sound": true
