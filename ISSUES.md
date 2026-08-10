@@ -270,6 +270,11 @@ resta ed è stato aggiunto il cron.
   autenticato con JWT (require-auth).
 - **File toccati**: `api/cache-refresh.js`, `vercel.json`, `.env.example`,
   `AGENTS.md`, `README.md`, `tests/cors-all-endpoints.test.js`.
+- **Aggiornamento (2026-08-10)**: il cron è stato ridotto a una volta al
+  giorno (`0 1 * * *`) perché il piano Hobby di Vercel ammette solo cron con
+  frequenza massima giornaliera — `*/30 * * * *` farebbe fallire il deploy.
+  `/api/health` (già giornaliero) resta invariato; entrambi i cron sono ora
+  entro i limiti Hobby.
 
 ### ISSUE-N10 — `ratelimit-status.js`: limite hardcoded 5000 (anonimo = 60)
 

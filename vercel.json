@@ -9,7 +9,7 @@
     },
     {
       "path": "/api/cache-refresh",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 1 * * *"
     }
   ]
 }

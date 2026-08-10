@@ -31,7 +31,7 @@ The project generates an animated SVG slot machine (your GitHub profile README) 
 - Format: `npm run format:check` (Prettier: single quotes, semicolons, 80ch, no tabs)
 - E2E: `npm run test:e2e` (Playwright)
 - All files are ES modules (`"type": "module"` in package.json)
-- Vercel config: `vercel.json` sets region `fra1`, cron on `/api/health` daily and `/api/cache-refresh` every 30 min (`CRON_SECRET` env required for the latter)
+- Vercel config: `vercel.json` sets region `fra1`, cron on `/api/health` and `/api/cache-refresh` both daily (Vercel Hobby allows at most one run per day per cron; `CRON_SECRET` env required for the cache-refresh cron)
 - Prettier ignores: `.prettierignore` (default patterns)
 - ESLint: `.eslintrc.json` with `eslint:recommended` + `import` plugin, globals for vitest in tests/
 

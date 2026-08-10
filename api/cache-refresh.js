@@ -1,7 +1,7 @@
 // ─── Cache Refresh Endpoint ────────────────────────────────────────────────────
 // Endpoint per popolare proattivamente la cache lingua→repo.
-// Chiamato da un cron Vercel ogni 30 minuti (GET + CRON_SECRET) per evitare il
-// "primo spin freddo", oppure manualmente (POST + JWT admin).
+// Chiamato da un cron Vercel una volta al giorno (GET + CRON_SECRET) per
+// evitare il "primo spin freddo", oppure manualmente (POST + JWT admin).
 //
 // Flusso:
 //   1. Recupera le lingue da languages.js
@@ -20,7 +20,9 @@
 //            Nessun default: le richieste senza token valido ricevono 401
 //            prima ancora di leggere GITHUB_PAT.
 //
-// vercel.json: cron `GET /api/cache-refresh` ogni 30 minuti (`*/30 * * * *`).
+// vercel.json: cron `GET /api/cache-refresh` giornaliero (`0 1 * * *`). I
+// piani Hobby di Vercel ammettono solo cron con frequenza massima giornaliera
+// (espressioni più frequenti farebbero fallire il deploy).
 
 import { getLanguages } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';

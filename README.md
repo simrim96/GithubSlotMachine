@@ -425,11 +425,11 @@ instance. This is the **ISSUE-28** behaviour.
   to link to; if the network is slow or down, an `AbortController` enforces the
   800 ms cap and the call returns immediately rather than hanging.
 - **Proactive warm-up (cron, ISSUE-N6).** `vercel.json` schedules
-  `GET /api/cache-refresh` every 30 minutes (`*/30 * * * *`), so the
-  language→repo cache is populated even before the first spin — the first spin
-  after a cold boot pays no GitHub scan at all. The cron authenticates with the
-  `CRON_SECRET` env var: Vercel sends it automatically as
-  `Authorization: Bearer <CRON_SECRET>` on cron requests (an `x-cron-secret`
+  `GET /api/cache-refresh` once per day (`0 1 * * *`), so the language→repo
+  cache is kept populated across cold boots. The daily cadence is the maximum
+  Vercel's Hobby plan allows (cron jobs limited to one run per day). The cron
+  authenticates with the `CRON_SECRET` env var: Vercel sends it automatically
+  as `Authorization: Bearer <CRON_SECRET>` on cron requests (an `x-cron-secret`
   header is also accepted; comparison is timing-safe). Without `CRON_SECRET`
   the endpoint answers 401 (fail-closed). Manual refresh for admins:
   `POST /api/cache-refresh` with a valid JWT.
