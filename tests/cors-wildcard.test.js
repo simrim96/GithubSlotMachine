@@ -18,7 +18,9 @@ const leverHandler = (await import('../api/lever.js')).default;
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({}) })
+    vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 404, json: async () => ({}) })
   );
 });
 afterEach(() => {
@@ -56,7 +58,10 @@ const ARBITRARY_ORIGIN = 'https://some-fork.example.net';
 describe('CORS wildcard su /api/image (ISSUE-25)', () => {
   it('OPTIONS emette ACAO:* anche con origine github.com', async () => {
     const res = makeRes();
-    await imageHandler({ method: 'OPTIONS', headers: { origin: GH_ORIGIN } }, res);
+    await imageHandler(
+      { method: 'OPTIONS', headers: { origin: GH_ORIGIN } },
+      res
+    );
     expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
     expect(res.statusCode).toBe(204);
   });
@@ -96,10 +101,7 @@ describe('CORS wildcard su /api/lever (ISSUE-25)', () => {
 
   it('GET emette ACAO:* per qualsiasi origine (anche non allowlisted)', () => {
     const res = makeRes();
-    leverHandler(
-      { method: 'GET', headers: { origin: ARBITRARY_ORIGIN } },
-      res
-    );
+    leverHandler({ method: 'GET', headers: { origin: ARBITRARY_ORIGIN } }, res);
     expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
   });
 

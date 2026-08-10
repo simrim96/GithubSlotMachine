@@ -39,9 +39,7 @@ const BADGE_ANIM_S = 0.9;
 // fantasma, anche se il README embeddato è ancora cacheato.
 const STATE_KEY = 'gsm:state';
 const OWNER =
-  process.env.PROFILE_REPO_OWNER ||
-  process.env.GITHUB_OWNER ||
-  'simrim96';
+  process.env.PROFILE_REPO_OWNER || process.env.GITHUB_OWNER || 'simrim96';
 const SLOT_REPO = process.env.SLOT_REPO || 'GithubSlotMachine';
 
 // Legge lo stato corrente: KV prima (veloce), poi state.json pubblico come
@@ -53,7 +51,9 @@ async function getCurrentState() {
       const state = await kvGet(STATE_KEY);
       if (state) return state;
     } catch (e) {
-      logger.warn('badge: KV state read failed, fallback raw', { error: e?.message });
+      logger.warn('badge: KV state read failed, fallback raw', {
+        error: e?.message,
+      });
     }
   }
   try {
@@ -129,11 +129,16 @@ export default async function handler(req, res) {
   let badgeAllowed = true;
   try {
     const state = await getCurrentState();
-    if (state && !isBadgeValidForCurrentSpin(state, req.query?.v, req.query?.lang)) {
+    if (
+      state &&
+      !isBadgeValidForCurrentSpin(state, req.query?.v, req.query?.lang)
+    ) {
       badgeAllowed = false;
     }
   } catch (e) {
-    logger.warn('badge: self-validation failed, serving badge anyway', { error: e?.message });
+    logger.warn('badge: self-validation failed, serving badge anyway', {
+      error: e?.message,
+    });
   }
   if (!badgeAllowed) {
     // SVG vuoto con le stesse dimensioni del badge reale: il README mantiene
@@ -154,9 +159,7 @@ export default async function handler(req, res) {
   // Sanitizzate a intero ≥0, clamp a 6 cifre (evita width assurde).
   const starsRaw = parseInt(req.query?.stars, 10);
   const stars =
-    Number.isFinite(starsRaw) && starsRaw > 0
-      ? Math.min(starsRaw, 999999)
-      : 0;
+    Number.isFinite(starsRaw) && starsRaw > 0 ? Math.min(starsRaw, 999999) : 0;
   // La stella NON è più solo decorativa: riflette le stelle reali della repo.
   const prefix = stars > 0 ? `★ ${stars} · ` : '';
   const message = `${prefix}check out this repo I wrote in ${lang}`;
@@ -208,7 +211,7 @@ export default async function handler(req, res) {
     <!-- Stella d'accento a sinistra del testo (dentro il margine M) -->
     <path d="M${M + 22} ${H / 2 - 9} l2.6 5.3 5.9 0.9 -4.3 4.1 1 5.8 -5.2 -2.7 -5.2 2.7 1 -5.8 -4.3 -4.1 5.9 -0.9 z" fill="#ffd166" stroke="#ffe9a8" stroke-width="0.8"/>
     <!-- Testo del badge, centrato nel resto della pill -->
-    <text x="${(W / 2) + 14}" y="${H / 2 + 6}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="#f3f1ff">${escapeXml(message)}</text>
+    <text x="${W / 2 + 14}" y="${H / 2 + 6}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="#f3f1ff">${escapeXml(message)}</text>
   </g>
 </svg>`;
 

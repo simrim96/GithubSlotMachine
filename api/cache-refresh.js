@@ -1,46 +1,117 @@
 // ─── Cache Refresh Endpoint ────────────────────────────────────────────────────
 // Endpoint per popolare proattivamente la cache lingua→repo.
-// Chiamato da un cron job ogni 30 minuti per evitare il "primo spin freddo".
+// Chiamato da un cron Vercel ogni 30 minuti (GET + CRON_SECRET) per evitare il
+// "primo spin freddo", oppure manualmente (POST + JWT admin).
 //
 // Flusso:
 //   1. Recupera le lingue da languages.js
-//   2. Chama refreshCache da repos.js per popolare la cache in-memory e KV
+//   2. Chiama refreshCache da repos.js per popolare la cache in-memory e KV
 //   3. Restituisce lo stato della cache aggiornata
 //
-// Sicurezza: richiede il token GITHUB_PAT per evitare abuso dell'endpoint.
-// Da quando esiste l'auth JWT, l'endpoint è protetto anche da require-auth
-// (Authorization: Bearer <token>) — le richieste senza token valido ricevono
-// 401 prima ancora di leggere GITHUB_PAT.
+// Sicurezza (due vie, decise in ISSUE-N6 — prima il cron non esisteva e il
+// commento prometteva un warm-up mai schedulato):
+//   - GET  → riservato al cron Vercel. Se la env CRON_SECRET è impostata nel
+//            progetto, Vercel aggiunge automaticamente l'header
+//            `Authorization: Bearer <CRON_SECRET>` alle richieste dei cron job
+//            (vedi https://vercel.com/docs/cron-jobs). In alternativa viene
+//            accettato l'header `x-cron-secret`. Confronto timing-safe.
+//            Senza secret valido → 401 (fail-closed).
+//   - POST → solo admin autenticato con JWT (require-auth, Bearer token).
+//            Nessun default: le richieste senza token valido ricevono 401
+//            prima ancora di leggere GITHUB_PAT.
+//
+// vercel.json: cron `GET /api/cache-refresh` ogni 30 minuti (`*/30 * * * *`).
 
 import { getLanguages } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { logger } from './_lib/logger.js';
 import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
-import { requireAuth } from './_lib/require-auth.js';
+import {
+  requireAuth,
+  extractBearerToken,
+  sendUnauthorized,
+} from './_lib/require-auth.js';
+
+// Codice macchina-leggibile per il 401 della via cron (GET senza CRON_SECRET).
+const CRON_AUTH_CODE = 'CRON_AUTH_FAILED';
+
+// Confronto timing-safe via digest SHA-256 (WebCrypto: funziona sia su Vercel
+// Edge sia su Node 18+). Nessun early-exit sulla lunghezza: si confrontano
+// solo digest a lunghezza fissa, quindi la lunghezza del secret non è
+// osservabile.
+async function safeEqual(a, b) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return false; // fail-closed: senza WebCrypto il cron non passa
+  const encoder = new TextEncoder();
+  const [da, db] = await Promise.all([
+    subtle.digest('SHA-256', encoder.encode(String(a))),
+    subtle.digest('SHA-256', encoder.encode(String(b))),
+  ]);
+  const va = new Uint8Array(da);
+  const vb = new Uint8Array(db);
+  let diff = 0;
+  for (let i = 0; i < va.length; i += 1) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
+
+// Legge un header dal req supportando sia il formato Node (oggetto chiave/
+// valore, case-insensitive) sia il formato Web/Edge (headers.get).
+function getHeader(req, name) {
+  const headers = req?.headers ?? {};
+  const lower = name.toLowerCase();
+  if (typeof headers.get === 'function') {
+    return headers.get(name) ?? headers.get(lower) ?? null;
+  }
+  return (
+    headers[lower] ??
+    headers[name] ??
+    headers[name.charAt(0).toUpperCase() + name.slice(1)] ??
+    null
+  );
+}
+
+// GET (cron Vercel): il secret deve combaciare con la env CRON_SECRET.
+// Fonti accettate: `Authorization: Bearer <secret>` (quella che Vercel
+// inietta automaticamente sui cron job) oppure l'header `x-cron-secret`.
+async function isCronAuthorized(req, env = process.env) {
+  const secret = env.CRON_SECRET;
+  if (!secret) return false; // CRON_SECRET non configurato → fail-closed
+  const candidates = [
+    extractBearerToken(req),
+    getHeader(req, 'x-cron-secret'),
+  ].filter((v) => typeof v === 'string' && v.length > 0);
+  for (const candidate of candidates) {
+    if (await safeEqual(secret, candidate)) return true;
+  }
+  return false;
+}
 
 async function handler(req, res) {
   // ── CORS + preflight ──
-  // Endpoint AUTHENTICATED (POST + Authorization: Bearer): policy esplicita
-  // con allowlist (applyCors), NON il wildcard `*` riservato ai soli
-  // contenuti pubblici embeddati (image/lever) — vedi NOTA SEC-2 in cors.js.
-  // Methods: POST, OPTIONS (un POST non passerebbe il preflight con il
-  // default GET, OPTIONS). Headers: Content-Type + Authorization (il Bearer
-  // verrebbe bloccato dal preflight se non dichiarato).
-  applyCors(req, res, 'POST, OPTIONS', 'Content-Type, Authorization');
+  // Endpoint AUTHENTICATED: la policy è esplicita con allowlist (applyCors),
+  // NON il wildcard `*` riservato ai soli contenuti pubblici embeddati
+  // (image/lever) — vedi NOTA SEC-2 in cors.js.
+  // Methods: GET (cron Vercel), POST (admin JWT), OPTIONS (il POST non
+  // passerebbe il preflight con il default GET, OPTIONS). Headers:
+  // Content-Type + Authorization (il Bearer verrebbe bloccato dal preflight
+  // se non dichiarato).
+  applyCors(req, res, 'GET, POST, OPTIONS', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     sendResponse(res, { status: 204 });
     return;
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     sendResponse(res, {
       status: 405,
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',
       },
-      body: JSON.stringify({ error: 'Method not allowed. Use POST.' }),
+      body: JSON.stringify({
+        error: 'Method not allowed. Use GET (cron) or POST.',
+      }),
     });
     return;
   }
@@ -135,6 +206,30 @@ async function handler(req, res) {
   }
 }
 
-// Rotte protette: ogni richiesta DEVE presentare un JWT valido
-// (Authorization: Bearer <token>), verificato da require-auth.
-export default requireAuth(handler);
+// Rotte protette, due vie (ISSUE-N6):
+//   - OPTIONS → preflight CORS, passa senza credenziali (come require-auth);
+//   - GET     → riservato al cron Vercel, autenticato con CRON_SECRET
+//               (Authorization: Bearer <secret> o header x-cron-secret);
+//   - POST    → JWT admin via require-auth (401 senza token valido; il 405
+//               per i metodi non ammessi arriva dall'handler sottostante).
+export default async function protectedHandler(req, res) {
+  if (req?.method === 'OPTIONS') {
+    return handler(req, res);
+  }
+
+  if (req.method === 'GET') {
+    if (await isCronAuthorized(req)) {
+      return handler(req, res);
+    }
+    return sendUnauthorized(
+      res,
+      CRON_AUTH_CODE,
+      'Accesso negato: GET /api/cache-refresh è riservato al cron Vercel ' +
+        '(richiede la env CRON_SECRET via "Authorization: Bearer <secret>" ' +
+        'oppure header "x-cron-secret").'
+    );
+  }
+
+  // POST e altri metodi: JWT (require-auth risponde 401 senza token valido).
+  return requireAuth(handler)(req, res);
+}

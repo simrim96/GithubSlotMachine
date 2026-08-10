@@ -101,7 +101,9 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       /* Sentry already handled by logger */
-      logger.warn('kv image read failed, falling back to github', { error: e.message });
+      logger.warn('kv image read failed, falling back to github', {
+        error: e.message,
+      });
     }
   }
 
@@ -117,7 +119,9 @@ export default async function handler(req, res) {
     // l'embed resta valido invece di rompersi su un 404 in chiaro.
     const status = r.status;
     /* logger already handles Sentry */
-    logger.warn('github image fetch failed, serving degradation SVG', { status });
+    logger.warn('github image fetch failed, serving degradation SVG', {
+      status,
+    });
     sendResponse(res, {
       status: 200,
       headers: {

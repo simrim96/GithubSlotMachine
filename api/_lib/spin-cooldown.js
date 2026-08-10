@@ -29,17 +29,39 @@
 export const SPIN_COOLDOWN_MS =
   parseInt(process.env.SPIN_COOLDOWN_MS, 10) || 3000;
 
-// Anti-spoofing: gerarchia di header fidati come in ratelimit-tracker.js.
+// Anti-spoofing (N12, ISSUES.md): gerarchia di header fidati.
+// L'ordine conta: x-vercel-ip è impostato dal proxy Vercel (non spoofabile),
+// x-real-ip dal proxy upstream, e di X-Forwarded-For è affidabile SOLO
+// l'ultimo elemento (quello aggiunto dal proxy finale — il client può
+// forgiare i primi, quindi NON usarli mai come identità).
+function readHeader(req, name) {
+  const headers = req?.headers;
+  if (!headers) return null;
+  if (typeof headers.get === 'function') {
+    const v = headers.get(name);
+    if (v) return v;
+  }
+  const direct = headers[name];
+  if (typeof direct === 'string' && direct) return direct;
+  return null;
+}
+
 function clientIp(req) {
-  const xff = req?.headers?.['x-forwarded-for'];
-  const raw = typeof xff === 'string' ? xff : req?.headers?.get?.('x-forwarded-for');
-  if (raw) return raw.split(',')[0].trim();
-  const xri = req?.headers?.['x-real-ip'];
-  const raw2 = typeof xri === 'string' ? xri : req?.headers?.get?.('x-real-ip');
-  if (raw2) return raw2.trim();
-  // Vercel edge: req.headers.get('x-vercel-ip')
-  const xv = req?.headers?.get?.('x-vercel-ip');
-  if (xv) return xv.trim();
+  // 1. Vercel edge: header affidabile, impossibile da spoofare
+  const vercelIp = readHeader(req, 'x-vercel-ip');
+  if (vercelIp) return vercelIp.trim();
+  // 2. Proxy: x-real-ip
+  const realIp = readHeader(req, 'x-real-ip');
+  if (realIp) return realIp.trim();
+  // 3. XFF: SOLO l'ultimo elemento (quello aggiunto dal proxy finale)
+  const xff = readHeader(req, 'x-forwarded-for');
+  if (xff) {
+    const parts = xff
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
   return 'unknown';
 }
 

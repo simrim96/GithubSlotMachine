@@ -118,7 +118,11 @@ describe('S2 client: click durante rotazione NON ricarica', () => {
     const ls2 = makeLocalStorage();
     ls2.setItem(LS_KEY, String(Date.now() - 99999));
     // getCooldownState legge window.localStorage: aggiorniamo quello.
-    vi.stubGlobal('window', { localStorage: ls2, location: { assign: () => {} }, Date });
+    vi.stubGlobal('window', {
+      localStorage: ls2,
+      location: { assign: () => {} },
+      Date,
+    });
     expect(getCooldownState(Date.now()).inCooldown).toBe(false);
   });
 

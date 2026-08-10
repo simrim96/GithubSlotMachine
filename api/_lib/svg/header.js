@@ -16,8 +16,8 @@ const SPINS_VALUE_X = 50 + SPINS_LABEL_W / 2; // 98.5 = centro etichetta SINISTR
 const WINS_VALUE_X = SVG_W - 50 - WINS_LABEL_W / 2; // 537 = centro etichetta DESTRA
 
 export function generateHeader(uid, state, result, winningLang) {
-  const total = (state.totalSpins || 0).toLocaleString('en-US');
-  const wonTotal = (state.totalWins || 0).toLocaleString('en-US');
+  const total = (state?.totalSpins || 0).toLocaleString('en-US');
+  const wonTotal = (state?.totalWins || 0).toLocaleString('en-US');
 
   // Counter WINS ritardato: spin.js incrementa state.totalWins PRIMA di
   // buildSVG, quindi il valore "nuovo" è già in `state`. Per non far

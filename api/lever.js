@@ -34,6 +34,7 @@
 // L'intera geometria della leva è traslata di Y_OFFSET px verso il basso per
 // fare spazio al testo in alto.
 
+import { createHash } from 'node:crypto';
 import { applyCorsWildcard } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { kvGet } from './_lib/kv.js';
@@ -508,7 +509,7 @@ export default async function handler(req, res) {
       'Content-Type': 'image/svg+xml',
       'Cache-Control':
         'public, max-age=5, s-maxage=5, stale-while-revalidate=30',
-      ETag: `"lever-${Date.now()}"`,
+      ETag: `"lever-${createHash('md5').update(svg).digest('hex')}"`,
       Expires: new Date(Date.now() + 5000).toUTCString(),
     },
     body: svg,

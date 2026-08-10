@@ -40,7 +40,8 @@ vi.mock('../api/_lib/cors.js', () => ({
 
 vi.mock('../api/_lib/spin-cooldown.js', () => ({
   checkSpinCooldown: async () => ({ allowed: true }),
-  clientIp: (req) => req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || '127.0.0.1',
+  clientIp: (req) =>
+    req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || '127.0.0.1',
 }));
 
 let captured = null;

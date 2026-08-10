@@ -3,6 +3,7 @@ import {
   validateLanguageSchema,
   mergeLanguages,
   validateLanguagesSchema,
+  validateEnv,
 } from '../api/_lib/config-loader.js';
 
 // Mock del filesystem con named exports
@@ -394,6 +395,44 @@ describe('config-loader', () => {
 
       const result = await loadExternalLanguages();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('validateEnv (ISSUE-N13: prefissi classic coerenti con github.js)', () => {
+    afterEach(() => {
+      delete process.env.GITHUB_PAT;
+      delete process.env.GITHUB_PAT_REQUIRE_FINEGRAINED;
+    });
+
+    test('segnala PAT classic con OGNI prefisso noto quando REQUIRE_FINEGRAINED=true', () => {
+      process.env.GITHUB_PAT_REQUIRE_FINEGRAINED = 'true';
+      // ghp_/gho_ funzionavano già; ghu_/ghs_/ghr_ erano il buco (ISSUE-N13)
+      for (const prefix of ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_']) {
+        process.env.GITHUB_PAT = `${prefix}${'a'.repeat(30)}`;
+        const { valid, warnings } = validateEnv();
+        expect(
+          warnings.some((w) => w.includes('PAT rilevato come classic'))
+        ).toBe(true);
+        expect(valid).toBe(false);
+      }
+    });
+
+    test('non segnala un PAT fine-grained quando REQUIRE_FINEGRAINED=true', () => {
+      process.env.GITHUB_PAT = `github_pat_${'a'.repeat(60)}`;
+      process.env.GITHUB_PAT_REQUIRE_FINEGRAINED = 'true';
+      const { warnings } = validateEnv();
+      expect(
+        warnings.some((w) => w.includes('PAT rilevato come classic'))
+      ).toBe(false);
+    });
+
+    test('non segnala PAT classic quando REQUIRE_FINEGRAINED non è true', () => {
+      process.env.GITHUB_PAT = `ghp_${'a'.repeat(30)}`;
+      process.env.GITHUB_PAT_REQUIRE_FINEGRAINED = 'false';
+      const { warnings } = validateEnv();
+      expect(
+        warnings.some((w) => w.includes('PAT rilevato come classic'))
+      ).toBe(false);
     });
   });
 });

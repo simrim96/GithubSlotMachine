@@ -11,12 +11,14 @@ Questa guida documenta tutte le dipendenze del progetto e il loro scopo.
 **Scopo:** Implementazione cache Redis per stato e repository.
 
 **Utilizzo:**
+
 - Persistenza `slot.svg` live image
 - Contatori community (`totalSpins` / `totalWins`)
 - Cache linguaggio → repository (language→repo lookup cache)
 - Fallback rapido rispetto alle GitHub API (10-20ms vs 300-1500ms)
 
 **Configurazione:**
+
 ```bash
 UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-token
@@ -31,11 +33,13 @@ UPSTASH_REDIS_REST_TOKEN=your-token
 **Scopo:** Monitoraggio errori lato Node.js.
 
 **Utilizzo:**
+
 - Logging errori in produzione
 - Debug di race condition e timeout
 - Alert su errori critici (state sync failure)
 
 **Configurazione:**
+
 ```bash
 SENTRY_DSN=https://your-dsn@o0.ingest.sentry.io/0
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -51,6 +55,7 @@ SENTRY_PROFILES_SAMPLE_RATE=0.1
 **Scopo:** Monitoraggio errori per funzioni Vercel Edge.
 
 **Utilizzo:**
+
 - Tracing delle funzioni serverless
 - Monitoraggio performance edge functions
 - Errori di rate limiting e timeout
@@ -64,6 +69,7 @@ SENTRY_PROFILES_SAMPLE_RATE=0.1
 **Scopo:** Funzioni e utilità specifiche per Vercel.
 
 **Utilizzo:**
+
 - `getServerSideIP()` per rate limiting basato su IP
 - Utilità per edge functions
 - Integrazione con Vercel KV e altre feature
@@ -75,15 +81,19 @@ SENTRY_PROFILES_SAMPLE_RATE=0.1
 **Scopo:** Validazione dati in tempo di runtime.
 
 **Utilizzo:**
+
 - Validazione parametri query (`user`, `redirect`)
 - Validazione configurazione linguaggi
 - Prevenzione input malevoli (security S1)
 
 **Implementazione:**
+
 ```javascript
-import {validate} from 'jsonschema';
+import { validate } from 'jsonschema';
 const result = validate(value, schema);
-if (result.errors.length > 0) { /* reject */ }
+if (result.errors.length > 0) {
+  /* reject */
+}
 ```
 
 ---
@@ -95,11 +105,13 @@ if (result.errors.length > 0) { /* reject */ }
 **Scopo:** Linting e quality guard per il codice.
 
 **Utilizzo:**
+
 - Rilevamento errori di sintassi
 - Enforcement dello stile di codice
 - Security linting (regole custom)
 
 **Comandi:**
+
 ```bash
 npm run lint          # verifica linting
 npm run lint:fix      # applica fix automatici
@@ -114,6 +126,7 @@ npm run lint:fix      # applica fix automatici
 **Scopo:** Linting per import ES modules.
 
 **Utilizzo:**
+
 - Validazione percorsi di import
 - Rilevamento import duplicati
 - Enforcement di `type: module` in `package.json`
@@ -125,18 +138,20 @@ npm run lint:fix      # applica fix automatici
 **Scopo:** Testing unitario e E2E.
 
 **Utilizzo:**
+
 - Test di unità per ogni modulo
 - Test di integrazione per gli endpoint
 - Test di edge cases e error handling
 
 **Comandi:**
+
 ```bash
 npm test              # esegue tutti i test (vitest run)
 npm run test:watch    # modalità watch
 npm run test:e2e      # test E2E con Playwright
 ```
 
-**Coverage:** 100% (301/301 test passed).
+**Test:** 519 test su 51 file (verificato 2026-08-10). Coverage non misurata: provider `@vitest/coverage-v8` non installato.
 
 ---
 
@@ -145,6 +160,7 @@ npm run test:e2e      # test E2E con Playwright
 **Scopo:** Testing E2E end-to-end.
 
 **Utilizzo:**
+
 - Simulazione interazioni utente reali
 - Verifica flussi completi (spin → redirect)
 - Test browser compatibilità
@@ -158,11 +174,13 @@ npm run test:e2e      # test E2E con Playwright
 **Scopo:** Code formatting automatico.
 
 **Utilizzo:**
+
 - Formattazione consistente del codice
 - Prevenzione discussioni sullo stile
 - Salvatempo su formattazione manuale
 
 **Comandi:**
+
 ```bash
 npm run format:check  # verifica formattazione
 npm run format:fix    # applica formattazione
@@ -177,6 +195,7 @@ npm run prettier:fix  # alias per format:fix
 **Scopo:** CLI ufficiale Vercel per deploy e sviluppo locale.
 
 **Utilizzo:**
+
 ```bash
 npm start             # avvio server locale
 vercel deploy         # deploy in produzione
@@ -189,13 +208,13 @@ vercel logs           # visualizzazione log produzione
 
 ## 🎯 Dipendenze Critiche (Priorità Alta)
 
-| Dipendenza | Scopo | Criticità |
-|------------|-------|-----------|
-| `@upstash/redis` | Cache state e repo | 🔴 CRITICO - Performance spin |
-| `@sentry/vercel-edge` | Error monitoring | 🟡 IMPORTANTE - Debug production |
-| `jsonschema` | Validazione input | 🟡 IMPORTANTE - Security S1 |
-| `eslint` | Quality guard | 🟢 STANDARD - Code quality |
-| `vitest` | Testing | 🟢 STANDARD - Reliability |
+| Dipendenza            | Scopo              | Criticità                        |
+| --------------------- | ------------------ | -------------------------------- |
+| `@upstash/redis`      | Cache state e repo | 🔴 CRITICO - Performance spin    |
+| `@sentry/vercel-edge` | Error monitoring   | 🟡 IMPORTANTE - Debug production |
+| `jsonschema`          | Validazione input  | 🟡 IMPORTANTE - Security S1      |
+| `eslint`              | Quality guard      | 🟢 STANDARD - Code quality       |
+| `vitest`              | Testing            | 🟢 STANDARD - Reliability        |
 
 ---
 
@@ -227,4 +246,4 @@ Il progetto utilizza `tar@7.5.20` (override forzato via `overrides` in `package.
 
 ---
 
-*Ultima modifica: 2026-07-21 - Implementazione M8: Documentazione delle dipendenze NPM*
+_Ultima modifica: 2026-07-21 - Implementazione M8: Documentazione delle dipendenze NPM_

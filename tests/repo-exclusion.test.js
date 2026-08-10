@@ -33,7 +33,9 @@ describe('Repo exclusion (redirect-never-points-inside-slot)', () => {
 
   it('NON esclude un repo progetto legittimo', () => {
     expect(isRepoExcluded('BetterSpin', OWNER, SLOT_REPO)).toBe(false);
-    expect(isRepoExcluded('some-cool-ml-project', OWNER, SLOT_REPO)).toBe(false);
+    expect(isRepoExcluded('some-cool-ml-project', OWNER, SLOT_REPO)).toBe(
+      false
+    );
   });
 
   it('la difesa finale in getRepoForLanguage tratta i repo esclusi come null', async () => {

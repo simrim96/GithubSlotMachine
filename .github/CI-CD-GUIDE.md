@@ -15,6 +15,7 @@ eseguito su una matrix di Node `18 / 20 / 22`.
 Trigger: push e pull_request su `main` / `master`.
 
 Step del job `test`:
+
 1. **Checkout** (`actions/checkout@v4`)
 2. **Setup Node** (`actions/setup-node@v4`, cache npm)
 3. **Install dependencies** → `npm ci`
@@ -25,6 +26,7 @@ Step del job `test`:
    merge; i warning restano visibili ma non bloccano.
 
 ### Cosa NON c'è (e perché)
+
 - **Nessun deploy automatico.** Il deploy su Vercel è gestito dalla **Vercel Git
   Integration** (push su `main`/`master` → build Vercel automatica) oppure in
   manuale con `vercel deploy`. Non c'è alcun step di deploy nel workflow.
@@ -69,6 +71,7 @@ npm run format:check
 ```
 
 Per simulare l'intero workflow con `act`:
+
 ```bash
 act push -j test
 ```

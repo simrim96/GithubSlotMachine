@@ -20,14 +20,14 @@ async function loadHandlers() {
   } catch (e) {
     console.error('Errore caricamento spin handler:', e.message);
   }
-  
+
   try {
     const leverModule = await import('../api/lever.js');
     leverHandler = leverModule.default;
   } catch (e) {
     console.error('Errore caricamento lever handler:', e.message);
   }
-  
+
   try {
     const imageModule = await import('../api/image.js');
     imageHandler = imageModule.default;
@@ -54,9 +54,9 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const pathname = url.pathname;
-    
+
     console.log(`[DEV] ${req.method} ${pathname}`);
-    
+
     // Handler API
     if (pathname === '/api/spin') {
       if (spinHandler) {
@@ -64,14 +64,18 @@ const server = createServer(async (req, res) => {
         const mockReq = {
           method: req.method,
           query: Object.fromEntries(url.searchParams),
-          headers: req.headers
+          headers: req.headers,
         };
         const mockRes = {
           _headers: {},
           _status: 200,
           _body: '',
-          setHeader(key, value) { this._headers[key] = value; },
-          setStatus(code) { this._status = code; },
+          setHeader(key, value) {
+            this._headers[key] = value;
+          },
+          setStatus(code) {
+            this._status = code;
+          },
           end(body) {
             this._body = body || '';
             res.writeHead(this._status, this._headers);
@@ -80,9 +84,9 @@ const server = createServer(async (req, res) => {
           json(data) {
             this.setHeader('Content-Type', 'application/json');
             this.end(JSON.stringify(data));
-          }
+          },
         };
-        
+
         // Gestione redirect
         const redirectHandler = async () => {
           return new Promise((resolve) => {
@@ -90,7 +94,9 @@ const server = createServer(async (req, res) => {
               _headers: {},
               _status: 200,
               _redirect: null,
-              setHeader(key, value) { this._headers[key] = value; },
+              setHeader(key, value) {
+                this._headers[key] = value;
+              },
               status(code) {
                 this._status = code;
                 return this;
@@ -115,25 +121,27 @@ const server = createServer(async (req, res) => {
                 this._body = body || '';
                 res.writeHead(this._status, this._headers);
                 res.end(this._body);
-              }
+              },
             };
-            
-            spinHandler(mockReq, redirectRes).then(() => {
-              if (redirectRes._redirect) {
-                res.writeHead(302, { Location: redirectRes._redirect });
-                res.end();
-              } else {
-                res.writeHead(redirectRes._status, redirectRes._headers);
-                res.end(redirectRes._body);
-              }
-            }).catch(err => {
-              console.error('Spin handler error:', err);
-              res.writeHead(500, { 'Content-Type': 'text/plain' });
-              res.end('Error: ' + err.message);
-            });
+
+            spinHandler(mockReq, redirectRes)
+              .then(() => {
+                if (redirectRes._redirect) {
+                  res.writeHead(302, { Location: redirectRes._redirect });
+                  res.end();
+                } else {
+                  res.writeHead(redirectRes._status, redirectRes._headers);
+                  res.end(redirectRes._body);
+                }
+              })
+              .catch((err) => {
+                console.error('Spin handler error:', err);
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Error: ' + err.message);
+              });
           });
         };
-        
+
         await redirectHandler();
         return;
       } else {
@@ -142,18 +150,20 @@ const server = createServer(async (req, res) => {
         return;
       }
     }
-    
+
     if (pathname === '/api/lever') {
       if (leverHandler) {
         const mockReq = {
           method: req.method,
-          headers: req.headers
+          headers: req.headers,
         };
         const mockRes = {
           _headers: {},
           _status: 200,
           _body: '',
-          setHeader(key, value) { this._headers[key] = value; },
+          setHeader(key, value) {
+            this._headers[key] = value;
+          },
           status(code) {
             this._status = code;
             return this;
@@ -167,7 +177,9 @@ const server = createServer(async (req, res) => {
           sendResponse(response) {
             if (response.status) this.status(response.status);
             if (response.headers) {
-              Object.entries(response.headers).forEach(([k, v]) => this.setHeader(k, v));
+              Object.entries(response.headers).forEach(([k, v]) =>
+                this.setHeader(k, v)
+              );
             }
             if (response.body) this._body = response.body;
             this.end(); // Chiamare end() automaticamente
@@ -178,9 +190,9 @@ const server = createServer(async (req, res) => {
               res.writeHead(this._status, this._headers);
               res.end(this._body);
             }
-          }
+          },
         };
-        
+
         try {
           await leverHandler(mockReq, mockRes);
           if (!res.headersSent) {
@@ -201,26 +213,28 @@ const server = createServer(async (req, res) => {
         return;
       }
     }
-    
+
     if (pathname === '/api/image') {
       if (imageHandler) {
         const mockReq = {
           method: req.method,
           query: Object.fromEntries(url.searchParams),
-          headers: req.headers
+          headers: req.headers,
         };
         const mockRes = {
           _headers: {},
           _status: 200,
           _body: '',
-          setHeader(key, value) { this._headers[key] = value; },
+          setHeader(key, value) {
+            this._headers[key] = value;
+          },
           end(body) {
             this._body = body || '';
             res.writeHead(this._status, this._headers);
             res.end(this._body);
-          }
+          },
         };
-        
+
         await imageHandler(mockReq, mockRes);
         res.writeHead(mockRes._status, mockRes._headers);
         res.end(mockRes._body);
@@ -231,21 +245,25 @@ const server = createServer(async (req, res) => {
         return;
       }
     }
-    
+
     // Servizi file statici
-    let filePath = join(ROOT, 'public', pathname === '/' ? 'index.html' : pathname);
-    
+    let filePath = join(
+      ROOT,
+      'public',
+      pathname === '/' ? 'index.html' : pathname
+    );
+
     // Prevenire directory traversal
     if (!filePath.startsWith(ROOT)) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('Forbidden');
       return;
     }
-    
+
     try {
       const ext = extname(filePath);
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-      
+
       const data = await readFile(filePath);
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(data);
@@ -272,9 +290,13 @@ server.listen(PORT, () => {
   console.log(`\n🎰 Dev server avviato su http://localhost:${PORT}`);
   console.log(`\nEndpoints disponibili:`);
   console.log(`  - http://localhost:${PORT}/                    (index.html)`);
-  console.log(`  - http://localhost:${PORT}/api/spin            (spin handler)`);
+  console.log(
+    `  - http://localhost:${PORT}/api/spin            (spin handler)`
+  );
   console.log(`  - http://localhost:${PORT}/api/image           (slot SVG)`);
   console.log(`  - http://localhost:${PORT}/api/lever           (lever SVG)`);
-  console.log(`  - http://localhost:${PORT}/api/ratelimit-status (rate limit status)`);
+  console.log(
+    `  - http://localhost:${PORT}/api/ratelimit-status (rate limit status)`
+  );
   console.log(`\nPremi Ctrl+C per fermare il server\n`);
 });

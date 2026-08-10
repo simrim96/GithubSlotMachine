@@ -28,7 +28,8 @@ const LEVELS = ['debug', 'info', 'warn', 'error'];
 // Legge LOG_LEVEL da环境变量, default 'info'
 const LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase().trim();
 const MIN_LEVEL_IDX = LEVELS.indexOf(LOG_LEVEL);
-const ENABLED = MIN_LEVEL_IDX >= 0 ? LEVELS.slice(MIN_LEVEL_IDX) : ['info', 'warn', 'error'];
+const ENABLED =
+  MIN_LEVEL_IDX >= 0 ? LEVELS.slice(MIN_LEVEL_IDX) : ['info', 'warn', 'error'];
 
 function isEnabled(level) {
   return ENABLED.includes(level);
@@ -53,7 +54,8 @@ function formatLog(level, msg, meta = {}) {
 }
 
 function writeOutput(level, formatted, { useError = false } = {}) {
-  const stream = useError || level === 'error' ? process.stderr : process.stdout;
+  const stream =
+    useError || level === 'error' ? process.stderr : process.stdout;
   stream.write(formatted + '\n');
 }
 
@@ -72,9 +74,12 @@ function _ensureSentry() {
     _sentryMod = require('@sentry/node');
     _sentryMod.init({
       dsn,
-      tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0') || 0,
-      profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '0') || 0,
-      defaultEventSampleRate: parseFloat(process.env.SENTRY_ERROR_SAMPLE_RATE || '0.1') || 0.1,
+      tracesSampleRate:
+        parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0') || 0,
+      profilesSampleRate:
+        parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '0') || 0,
+      defaultEventSampleRate:
+        parseFloat(process.env.SENTRY_ERROR_SAMPLE_RATE || '0.1') || 0.1,
       debug: process.env.SENTRY_DEBUG === 'true',
     });
     return _sentryMod;
@@ -145,20 +150,23 @@ const logger = {
     reportToSentry('error', msg, meta);
   },
 
-  // Utility: crea un logger pre-configurato con contesto aggiuntivo fisso
+  // Utility: crea un logger pre-configurato con contesto aggiuntivo fisso.
+  // FIX ISSUE-N3: i metodi chiudono sul logger padre (`logger`) invece di
+  // usare `this` — dentro l'object literal `this` è il child stesso e
+  // chiamare `this.debug(...)` causava ricorsione infinita (RangeError).
   child(context) {
     return {
       debug(msg, meta) {
-        this.debug(msg, { ...context, ...meta });
+        logger.debug(msg, { ...context, ...meta });
       },
       info(msg, meta) {
-        this.info(msg, { ...context, ...meta });
+        logger.info(msg, { ...context, ...meta });
       },
       warn(msg, meta) {
-        this.warn(msg, { ...context, ...meta });
+        logger.warn(msg, { ...context, ...meta });
       },
       error(msg, meta) {
-        this.error(msg, { ...context, ...meta });
+        logger.error(msg, { ...context, ...meta });
       },
     };
   },

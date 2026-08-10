@@ -22,7 +22,7 @@ import {
   wrap,
 } from './_lib/game.js';
 import { buildSVG, errorSVG, errorSVGString } from './_lib/svg-builder.js';
-import { buildAccessibleSVG, buildAccessibleSVGWithTimeout } from './_lib/svg-builder-accessible.js';
+import { buildAccessibleSVG } from './_lib/svg-builder-accessible.js';
 import {
   ghGetJson,
   ghPut,
@@ -40,7 +40,6 @@ import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
 import { getRandomRepo } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
-import { isValidUser } from './_lib/ratelimit.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 import { logger } from './_lib/logger.js';
 // Graceful shutdown per M4: gestione segnali SIGTERM/SIGINT
@@ -116,8 +115,7 @@ function isValidRedirectUrl(urlString) {
     const isLocal =
       url.hostname === 'localhost' || url.hostname === '127.0.0.1';
     const transportOk =
-      url.protocol === 'https:' ||
-      (isLocal && url.protocol === 'http:');
+      url.protocol === 'https:' || (isLocal && url.protocol === 'http:');
     if (!transportOk) {
       return false;
     }
@@ -141,13 +139,14 @@ function isValidRedirectUrl(urlString) {
 // (dominio consentito, protocollo sicuro), lo usa; altrimenti cade sul
 // `defaultUrl` (sempre stesso-origin o il profilo dell'owner).
 function resolveRedirectUrl(rawRedirect, defaultUrl) {
-  const r = rawRedirect && typeof rawRedirect === 'string' ? rawRedirect.trim() : '';
+  const r =
+    rawRedirect && typeof rawRedirect === 'string' ? rawRedirect.trim() : '';
   if (r && isValidRedirectUrl(r)) {
-  logger.debug('Security: Allowed validated redirect to:', { url: r });
-  return r;
+    logger.debug('Security: Allowed validated redirect to:', { url: r });
+    return r;
   }
   if (r && !isValidRedirectUrl(r)) {
-  logger.warn('[Security] Blocked open redirect attempt to:', { url: r });
+    logger.warn('[Security] Blocked open redirect attempt to:', { url: r });
   }
   return defaultUrl;
 }
@@ -200,7 +199,7 @@ gracefulShutdown();
 export default async function handler(req, res) {
   // M4: Traccia lo spin come operazione in-flight per graceful shutdown
   const spinOp = trackOperation('spin');
-  
+
   // S4 hardening: rileva/rifiuta PAT classici (ISSUES.md §2).
   // Default: solo warning. Imposta GITHUB_PAT_REQUIRE_FINEGRAINED=true per
   // fallire in modo "closed" (salta i write GitHub, modalità read-only) quando
@@ -218,7 +217,7 @@ export default async function handler(req, res) {
       token = null;
     }
   }
-  
+
   try {
     // ── CORS + preflight ─────────────────────────────────────────────────────
     applyCors(req, res);
@@ -232,6 +231,12 @@ export default async function handler(req, res) {
     // rifiutato con un redirect GRACEFUL verso il profilo owner (302, ZERO
     // chiamate a GitHub) invece di una pagina di errore: l'utente reale lo vede
     // come il normale ritorno al profilo, e l'attaccante non consuma budget.
+    // NOTA (comportamento voluto, documentato nel README § "API Reference"):
+    // durante il cooldown un ?redirect= valido NON viene applicato — il 302 è
+    // fisso sul profilo owner. Il check del cooldown gira PRIMA della
+    // risoluzione del redirect e il gate S2 deve restare indistinguibile da un
+    // normale ritorno al profilo; su ogni ALTRO path il ?redirect= validato
+    // viene onorato (vedi resolveRedirectUrl più sotto).
     const cooldown = await checkSpinCooldown(req);
     if (!cooldown.allowed) {
       sendResponse(res, {
@@ -244,7 +249,6 @@ export default async function handler(req, res) {
       });
       return;
     }
-    
 
     const spinStart = Date.now();
     // Se manca il token di GitHub, NON rispondere con un 500 nudo (che
@@ -252,7 +256,9 @@ export default async function handler(req, res) {
     // dell'owner così l'utente non vede mai una pagina rotta. Lo spin non
     // persistito non è critico (il contatore si aggiorna al giro dopo).
     if (!token) {
-      logger.error('spin handler: GITHUB_PAT non configurato — redirect graceful');
+      logger.error(
+        'spin handler: GITHUB_PAT non configurato — redirect graceful'
+      );
       const redirectUrl = resolveRedirectUrl(
         req.query?.redirect ? String(req.query.redirect).trim() : '',
         `https://github.com/${OWNER}`
@@ -310,14 +316,20 @@ export default async function handler(req, res) {
             }
           }
         } catch (e) {
-          logger.warn('[readme-update] cache read failed, fallback GET:', { error: e.message });
+          logger.warn('[readme-update] cache read failed, fallback GET:', {
+            error: e.message,
+          });
         }
       }
 
       let lastGetError = null;
       for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
         try {
-          logger.info('[readme-update] ghGetJson', { owner: PROFILE_REPO, repo: PROFILE_REPO, attempt: attempt + 1 });
+          logger.info('[readme-update] ghGetJson', {
+            owner: PROFILE_REPO,
+            repo: PROFILE_REPO,
+            attempt: attempt + 1,
+          });
           const rf = await ghGetJson(
             token,
             PROFILE_REPO,
@@ -326,7 +338,9 @@ export default async function handler(req, res) {
             README_GET_TIMEOUT_MS
           );
           if (!rf) {
-            logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
+            logger.info(
+              '[readme-update] ghGetJson returned null (README assente/illegibile)'
+            );
             return null;
           }
           if (kvEnabled) {
@@ -338,19 +352,27 @@ export default async function handler(req, res) {
               );
               logger.info('[readme-update] cache populated from GitHub GET');
             } catch (e) {
-              logger.warn('[readme-update] cache set failed:', { error: e.message });
+              logger.warn('[readme-update] cache set failed:', {
+                error: e.message,
+              });
             }
           }
           return rf;
         } catch (e) {
           lastGetError = e;
-          logger.warn('README GET attempt failed', { attempt: attempt + 1, error: e.message });
+          logger.warn('README GET attempt failed', {
+            attempt: attempt + 1,
+            error: e.message,
+          });
           if (attempt < README_MAX_RETRIES - 1) {
             await new Promise((r) => setTimeout(r, README_RETRY_DELAY_MS));
           }
         }
       }
-      logger.warn('README GET failed', { max_retries: README_MAX_RETRIES, last_error: lastGetError?.message });
+      logger.warn('README GET failed', {
+        max_retries: README_MAX_RETRIES,
+        last_error: lastGetError?.message,
+      });
       return null;
     })();
 
@@ -430,9 +452,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // M3: Build SVG con timeout di sicurezza (3s default)
-    // Se il timeout scade, viene servito un SVG di degrado invece di bloccare.
-    const svg = await buildAccessibleSVGWithTimeout({
+    // Build SVG: sincrona e veloce (~2ms). Il wrapper con timeout (M3) è stato
+    // rimosso (ISSUE-N4): una build sincrona non può essere interrotta da un
+    // abort signal, quindi il vecchio buildAccessibleSVGWithTimeout era un no-op.
+    const svg = buildAccessibleSVG({
       grid,
       uid: spinStart,
       state,
@@ -443,9 +466,6 @@ export default async function handler(req, res) {
     });
 
     // Calcola la destinazione del redirect PRIMA di scrivere qualsiasi cosa.
-    // ?user= è validato con isValidUser(): solo login GitHub [A-Za-z0-9-]{1,39}.
-    // Qualsiasi valore non valido (path, slash, caratteri strani) cade sul
-    // proprietario di default → chiude l'open-redirect verso altri host/percorsi.
     //
     // NOTA (comportamento voluto): NON reindirizziamo più verso la repo
     // vincente. La leva riporta sempre al profilo dell'owner, dove il marker
@@ -454,13 +474,10 @@ export default async function handler(req, res) {
     // Nei README di GitHub lo slot è servito come <img>, quindi i link
     // dentro l'SVG non sarebbero cliccabili: il link cliccabile vive quindi
     // nel marker del README, non nel redirect.
-    const rawUser = req.query?.user ? String(req.query.user).trim() : '';
-    const targetOwner = rawUser && isValidUser(rawUser) ? rawUser : OWNER;
-    let dest;
     // (RIMOSSO) Il redirect "jackpot → tutte le repo del linguaggio" è stato
     // disattivato: la vincita è ora sempre "normale" e non si distingue per
     // il target del redirect. Tutto resta sul profilo owner.
-    dest = `https://github.com/${OWNER}`;
+    const dest = `https://github.com/${OWNER}`;
 
     // ── Scritture ────────────────────────────────────────────────────────────
     // Eseguite IN PARALLELO nel flusso principale (rete VIVA), PRIMA del
@@ -490,10 +507,14 @@ export default async function handler(req, res) {
       logger.info('[readme-update] START', { spin: spinStart });
       const rf = await readmeGetPromise;
       if (!rf) {
-        logger.info('[readme-update] ghGetJson returned null (README assente/illegibile)');
+        logger.info(
+          '[readme-update] ghGetJson returned null (README assente/illegibile)'
+        );
         return;
       }
-      logger.info('[readme-update] ghGetJson OK', { sha_present: Boolean(rf.sha) });
+      logger.info('[readme-update] ghGetJson OK', {
+        sha_present: Boolean(rf.sha),
+      });
 
       let lastError = null;
       for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
@@ -555,7 +576,9 @@ export default async function handler(req, res) {
                 );
                 logger.info('[readme-update] cache refreshed after PUT');
               } catch (e) {
-                logger.warn('[readme-update] cache refresh failed:', { error: e.message });
+                logger.warn('[readme-update] cache refresh failed:', {
+                  error: e.message,
+                });
               }
             }
           } else {
@@ -564,13 +587,19 @@ export default async function handler(req, res) {
           return; // Successo
         } catch (e) {
           lastError = e;
-          logger.warn('README update attempt failed', { attempt: attempt + 1, error: e.message });
+          logger.warn('README update attempt failed', {
+            attempt: attempt + 1,
+            error: e.message,
+          });
           if (attempt < README_MAX_RETRIES - 1) {
             await new Promise((r) => setTimeout(r, README_RETRY_DELAY_MS));
           }
         }
       }
-      logger.error('README update failed', { max_retries: README_MAX_RETRIES, last_error: lastError?.message });
+      logger.error('README update failed', {
+        max_retries: README_MAX_RETRIES,
+        last_error: lastError?.message,
+      });
     })();
 
     // slot.svg + state + README girano in parallelo. Se la README supera il
@@ -584,7 +613,9 @@ export default async function handler(req, res) {
       readmePromise,
       new Promise((res) => {
         readmeTimeoutId = setTimeout(() => {
-          logger.warn('[readme] timeout di sicurezza, skip per non bloccare redirect');
+          logger.warn(
+            '[readme] timeout di sicurezza, skip per non bloccare redirect'
+          );
           res();
         }, README_TIMEOUT_MS);
       }),
@@ -599,7 +630,9 @@ export default async function handler(req, res) {
     ]);
 
     if (slotResult.status === 'rejected') {
-      logger.warn('slot.svg write failed (redirect anyway)', { reason: slotResult.reason?.message });
+      logger.warn('slot.svg write failed (redirect anyway)', {
+        reason: slotResult.reason?.message,
+      });
       // Redirect anche se slot.svg fallisce (l'utente vede il risultato
       // precedente una volta, ma lo slot non esplode con un 500).
       const rawRedirect = req.query?.redirect
@@ -608,9 +641,13 @@ export default async function handler(req, res) {
       let redirectUrl = dest;
       if (rawRedirect && isValidRedirectUrl(rawRedirect)) {
         redirectUrl = rawRedirect;
-        logger.debug('Security: Allowed validated redirect to:', { url: redirectUrl });
+        logger.debug('Security: Allowed validated redirect to:', {
+          url: redirectUrl,
+        });
       } else if (rawRedirect && !isValidRedirectUrl(rawRedirect)) {
-        logger.warn('[Security] Blocked open redirect attempt to:', { url: rawRedirect });
+        logger.warn('[Security] Blocked open redirect attempt to:', {
+          url: rawRedirect,
+        });
       }
       sendResponse(res, { status: 302, redirect: redirectUrl });
       return;
@@ -664,7 +701,12 @@ export default async function handler(req, res) {
         body: fallbackSvg,
       });
     }
-    // M4: Termina traccia operazione spin (sempre, anche in caso di errore)
+  } finally {
+    // M4: Termina traccia operazione spin (sempre, su OGNI percorso: happy
+    // path, cooldown 302, token mancante, OPTIONS, errore). Fix N2
+    // (ISSUES.md): prima era chiamato SOLO nel catch → i return anticipati
+    // (redirect 302, 204 preflight) lasciavano _inFlightCount a +1 per
+    // sempre → leak in-flight e graceful shutdown sempre in timeout.
     spinOp.end();
   }
 }

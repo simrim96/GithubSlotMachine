@@ -14,6 +14,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { kvSet } from '../api/_lib/kv.js';
+import { getInFlightCount, resetShutdownState } from '../api/_lib/shutdown.js';
+import { checkSpinCooldown } from '../api/_lib/spin-cooldown.js';
 
 // ── Sentry: nessuna init reale in test ──────────────────────────────────────
 vi.mock('../sentry.config.js', () => ({
@@ -63,8 +65,7 @@ vi.mock('../api/_lib/github.js', async () => {
     updateReadmeMarkers: vi.fn((r) => r),
     auditToken: vi.fn(),
     clearReadmeMarkers: vi.fn(clearReadmeMarkers),
-    GH_CONTENTS_TIMEOUT_MS:
-      (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
+    GH_CONTENTS_TIMEOUT_MS: (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
   };
 });
 
@@ -72,11 +73,6 @@ vi.mock('../api/_lib/github.js', async () => {
 const getRepoForLanguage = vi.fn().mockResolvedValue(null);
 vi.mock('../api/_lib/repos.js', () => ({
   getRepoForLanguage,
-}));
-
-// ── Rate-limit / validazione user ─────────────────────────────────────────
-vi.mock('../api/_lib/ratelimit.js', () => ({
-  isValidUser: vi.fn(() => true),
 }));
 
 // ── Cooldown: sempre consentito (isoliamo il comportamento dello spin) ─────
@@ -163,6 +159,9 @@ function req(overrides = {}) {
 describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Contatore in-flight di shutdown.js a zero a ogni test (nessun leak
+    // trasversale fra i test del file).
+    resetShutdownState();
     kvStore.clear();
     process.env.GITHUB_PAT = 'test-token-12345';
     // Default: nessuna vincita.
@@ -200,7 +199,13 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
   it('su vincita NON reindirizza alla repo (link cliccabile nel README), ma scrive su GitHub/KV', async () => {
     // Forza una vincita (count=3, NON jackpot) sul linguaggio 'javascript'.
     checkWins.mockReturnValue([
-      { payline: 0, count: 3, symbol: 'javascript', positions: [], color: '#ffd700' },
+      {
+        payline: 0,
+        count: 3,
+        symbol: 'javascript',
+        positions: [],
+        color: '#ffd700',
+      },
     ]);
     winningLangId.mockReturnValue('javascript');
     getRepoForLanguage.mockResolvedValue({
@@ -277,7 +282,8 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     const saved = process.env.GITHUB_PAT;
     delete process.env.GITHUB_PAT;
 
-    const allowed = 'https://github.com/simrim96?tab=repositories&language=python';
+    const allowed =
+      'https://github.com/simrim96?tab=repositories&language=python';
     const res = makeRes();
     await handler(req({ query: { redirect: allowed } }), res);
 
@@ -285,5 +291,68 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(res.headers.Location).toBe(allowed);
 
     process.env.GITHUB_PAT = saved;
+  });
+
+  // ── M4/N2 — spinOp.end() azzera il contatore in-flight (fix N2) ──────────
+  // Gap di copertura (ISSUES.md §5): nessun test verificava che `spinOp.end()`
+  // venisse chiamato sul percorso di SUCCESSO di /api/spin — il bug N2 è
+  // passato inosservato. Prima del fix lo `spinOp.end()` viveva SOLO in coda
+  // al catch, quindi i return anticipati (redirect 302 happy path, cooldown
+  // 302, 204 OPTIONS, token mancante) lasciavano _inFlightCount a +1 per
+  // sempre → leak in-flight e graceful shutdown sempre in timeout. Ora è in
+  // un blocco `finally` che avvolge l'intero handler: qui invochiamo il VERO
+  // handler (stesso mocking degli altri test) e verifichiamo che il contatore
+  // torni a zero dopo ogni percorso.
+  describe('M4/N2 — spinOp.end() riporta a 0 il contatore in-flight su ogni percorso', () => {
+    it('percorso di successo (redirect finale 302): contatore 0 → 1 → 0', async () => {
+      expect(getInFlightCount()).toBe(0);
+
+      // Il vero handler: trackOperation('spin') incrementa in modo sincrono
+      // all'ingresso; il resto dello spin è async (await su cooldown, letture
+      // stato/slot, scritture in parallelo), quindi qui il contatore è a 1.
+      const res = makeRes();
+      const pending = handler(req(), res);
+
+      expect(getInFlightCount()).toBe(1);
+
+      // Al completamento del redirect finale il finally ha chiamato end().
+      await pending;
+      expect(res.statusCode).toBe(302);
+      expect(getInFlightCount()).toBe(0);
+    }, 30000);
+
+    it('percorso cooldown (302 con Retry-After): contatore 0 → 1 → 0', async () => {
+      // Override del mock di default (allowed: true): primo spin in cooldown.
+      checkSpinCooldown.mockResolvedValueOnce({
+        allowed: false,
+        retryAfterSec: 30,
+      });
+
+      const res = makeRes();
+      expect(getInFlightCount()).toBe(0);
+
+      const pending = handler(req(), res);
+      expect(getInFlightCount()).toBe(1);
+
+      await pending;
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.Location).toBe('https://github.com/simrim96');
+      expect(res.headers['Retry-After']).toBe('30');
+      expect(res.headers['X-Spin-Cooldown']).toBe('1');
+      // Il 302 di cooldown NON lascia il contatore a +1.
+      expect(getInFlightCount()).toBe(0);
+    }, 30000);
+
+    it('preflight OPTIONS (204): contatore torna a 0', async () => {
+      // Percorso interamente sincrono: al ritorno della chiamata il finally
+      // ha già eseguito end() — verifichiamo il saldo finale.
+      const res = makeRes();
+      expect(getInFlightCount()).toBe(0);
+
+      await handler(req({ method: 'OPTIONS' }), res);
+
+      expect(res.statusCode).toBe(204);
+      expect(getInFlightCount()).toBe(0);
+    }, 30000);
   });
 });

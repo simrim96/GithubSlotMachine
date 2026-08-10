@@ -3,132 +3,26 @@
 // Architettura modulare con funzioni separate per ogni sezione SVG.
 
 import { escapeXml } from './svg/utils.js';
-import { LANGUAGES } from './languages.js';
-import { logger } from './logger.js';
 
 // Re-export escapeXml for backward compatibility
-export { escapeXml, LANGUAGES };
+export { escapeXml };
 
-// ─── M10: SVG Build Cache L1 (LRU con dimensione massima) ────────────────────
-// Cache in-memory per ottimizzare il cold start e ridurre il tempo di costruzione
-// SVG (originariamente 100-500ms). La cache usa una key basata su hash JSON dello
-// stato, con eviction LRU quando la dimensione massima è raggiunta.
-//
-// Configurazione:
-// - SVG_BUILD_CACHE_SIZE: dimensione massima (default: 50)
-// - SVG_BUILD_CACHE_TTL_MS: TTL per entry (default: 60s)
-//
-// La cache è disabilitata automaticamente se la memoria disponibile è bassa.
-const MAX_CACHE_SIZE = parseInt(process.env.SVG_BUILD_CACHE_SIZE) || 50;
-const CACHE_TTL_MS = parseInt(process.env.SVG_BUILD_CACHE_TTL_MS) || 60000;
-const svgCache = new Map();
-let cacheHits = 0;
-let cacheMisses = 0;
+// ─── Nota: build sincrona (ex M3 timeout) ───────────────────────────────────
+// buildSVG è sincrona e veloce (~2ms): nessun timeout serve. Il vecchio wrapper
+// buildSvgWithTimeout (AbortController + setTimeout, M3) era un no-op: una
+// funzione sincrona non può essere interrotta da un abort signal, perché
+// l'event loop non può eseguire il callback del timer durante l'esecuzione
+// sincrona. Rimosso (ISSUE-N4). Non reintrodurre un wrapper "con timeout".
 
-// ─── M3: SVG Build Timeout ──────────────────────────────────────────────────
-// Timeout per prevenire stalli durante la generazione SVG in caso di dipendenze lente.
-// Configurazione:
-// - SVG_BUILD_TIMEOUT_MS: timeout in ms (default: 3000 = 3 secondi)
-// Quando scade il timeout, viene servito un SVG di degrado invece di bloccare.
-export const SVG_BUILD_TIMEOUT_MS = parseInt(process.env.SVG_BUILD_TIMEOUT_MS) || 3000;
-
-function computeStateHash(state, languages, grid, uid) {
-  // Crea una stringa deterministica per lo stato corrente
-  const uidStr = String(uid ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
-  const gridStr = Array.isArray(grid) ? JSON.stringify(grid) : '[]';
-  const stateStr = JSON.stringify({
-    totalSpins: state?.totalSpins || 0,
-    totalWins: state?.totalWins || 0,
-    lastWin: state?.lastWin ? {
-      langId: state.lastWin.langId,
-      langName: state.lastWin.langName,
-      repoName: state.lastWin.repoName,
-    } : null,
-  });
-  
-  const langsStr = Array.isArray(languages) 
-    ? languages.map(l => l.id).sort().join(',') 
-    : '';
-  
-  return `${uidStr}|${gridStr}|${stateStr}|${langsStr}`;
-}
-
-export function getCachedSvg(state, languages, grid, uid) {
-  const hash = computeStateHash(state, languages, grid, uid);
-  const now = Date.now();
-  
-  // Rimuovi entry scadute (maintenance periodica)
-  if (svgCache.size > 0 && svgCache.size % 10 === 0) {
-    for (const [key, entry] of svgCache.entries()) {
-      if (now - entry.ts > CACHE_TTL_MS) {
-        svgCache.delete(key);
-      }
-    }
-  }
-  
-  const cached = svgCache.get(hash);
-  if (cached && now - cached.ts < CACHE_TTL_MS) {
-    cacheHits++;
-    return cached.svg;
-  }
-  
-  cacheMisses++;
-  
-  // Evict LRU se cache full
-  if (svgCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = svgCache.keys().next().value;
-    svgCache.delete(firstKey);
-  }
-  
-  return null; // Cache miss, procedere con la build
-}
-
-export function setCachedSvg(state, languages, grid, svg) {
-  const hash = computeStateHash(state, languages, grid);
-  svgCache.set(hash, { svg, ts: Date.now() });
-}
-
-export function getCacheStats() {
-  return {
-    size: svgCache.size,
-    hits: cacheHits,
-    misses: cacheMisses,
-    hitRate: cacheHits + cacheMisses > 0 ? (cacheHits / (cacheHits + cacheMisses)).toFixed(4) : 0,
-    maxSize: MAX_CACHE_SIZE,
-    ttlMs: CACHE_TTL_MS,
-  };
-}
-
-// Clear cache (per test o reset)
-export function clearCache() {
-  svgCache.clear();
-  cacheHits = 0;
-  cacheMisses = 0;
-}
-
-// ─── M3: SVG Build with Timeout ─────────────────────────────────────────────
-// Wrapper che applica un timeout alla build SVG. Se il timeout scade, serve
-// un SVG di degrado invece di bloccare l'operazione.
-export async function buildSvgWithTimeout(options) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SVG_BUILD_TIMEOUT_MS);
-  
-  try {
-    const svg = await buildSVG(options);
-    clearTimeout(timeoutId);
-    return svg;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      logger.warn('M3: SVG build timeout, serving degradation SVG');
-      return errorSVGString({ 
-        owner: options.owner || 'simrim96', 
-        message: 'Timeout build SVG - riprova!' 
-      });
-    }
-    throw err;
-  }
-}
+// ─── Nota: cache SVG M10 RIMOSSA (ISSUE-N1) ────────────────────────────────
+// La cache LRU a 2 livelli (getCachedSvg/setCachedSvg) era inattiva al 100%:
+// getCachedSvg calcolava l'hash CON uid, setCachedSvg SENZA uid → le chiavi
+// non coincidevano mai (verifica reale: {hits: 0, misses: 2, hitRate: "0.0000"}).
+// Anche allineando le signature la cache non avrebbe servito nessuno spin
+// diverso: con uid nel key ogni spin ha una chiave diversa, e spin ripetuti
+// con lo stesso uid non esistono in produzione. Rimossa del tutto (scelta (b)
+// di ISSUE-N1): buildSVG è pura e veloce (~2ms), la cache era costo senza
+// beneficio. Non reintrodurre. Test: tests/svg.test.js (senza dipendenze cache).
 
 // ─── SVG Sanitization (hardening difensivo, ISSUE-25 / S3) ────────────────────
 // Oggi l'SVG è generato internamente (nessun input utente) quindi il rischio è
@@ -147,7 +41,10 @@ export function sanitizeSvg(svg) {
   // 3) Rimuovi attributi di evento on* (onload, onclick, onerror, ...)
   out = out.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   // 4) Rimuovi URI javascript: negli href/xlink:href
-  out = out.replace(/(?:xlink:href|href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
+  out = out.replace(
+    /(?:xlink:href|href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi,
+    ''
+  );
   return out;
 }
 
@@ -167,7 +64,7 @@ import { generatePaytable } from './svg/paytable.js';
 // Constants e coordinate
 import { SVG_W, SVG_H } from './svg/constants.js';
 
-// ─── Main Build Function (con cache M10) ──────────────────────────────────────────────────────────
+// ─── Main Build Function ──────────────────────────────────────────────────────
 export function buildSVG({
   grid,
   uid,
@@ -176,14 +73,6 @@ export function buildSVG({
   fact,
   owner = 'simrim96',
 }) {
-  // M10: Controllo cache L1
-  // Nota: languages non viene passato qui, quindi usiamo una fallback key
-  // La cache vera e propria è in buildAccessibleSVG che ha accesso a languages
-  const cached = getCachedSvg(state, [], grid, uid);
-  if (cached) {
-    return cached;
-  }
-  
   // Analyze result
   const result = analyzeResult(grid, state, winningLang);
 
@@ -222,16 +111,13 @@ export function buildSVG({
 
   // Minimizza l'SVG rimuovendo spazi bianchi ridondanti (Bug 3 - Payload optimization)
   const minimizedSvg = rawSvg
-    .replace(/>\s+</g, '><')        // Rimuove newline/spazi tra tag
-    .replace(/\s+/g, ' ');           // Normalizza spazi multipli
+    .replace(/>\s+</g, '><') // Rimuove newline/spazi tra tag
+    .replace(/\s+/g, ' '); // Normalizza spazi multipli
 
   // Sanitizzazione in uscita (ISSUE-25 / S3): l'SVG è servito con CORS
   // wildcard `*` su /api/image e /api/lever in contesti cross-origin.
   const resultSvg = sanitizeSvg(minimizedSvg);
-  
-  // M10: Salva nella cache
-  setCachedSvg(state, [], grid, resultSvg);
-  
+
   return resultSvg;
 }
 
@@ -244,7 +130,10 @@ export function buildSVG({
 // ISSUE-29: questa è l'unica fonte canonica di errorSVG/errorSVGString.
 // svg-builder-accessible.js e i test devono importare da qui (evita la
 // dipendenza circolare svg-builder ↔ svg-builder-accessible).
-function errorSvgMarkup({ owner = 'simrim96', message = 'Ops, riprova un attimo!' }) {
+function errorSvgMarkup({
+  owner = 'simrim96',
+  message = 'Ops, riprova un attimo!',
+}) {
   const SVG_W = 600;
   const SVG_H = 624;
 

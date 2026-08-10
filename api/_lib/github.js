@@ -1,7 +1,7 @@
 // ─── GitHub API + README markers (estratto da spin.js) ───────────────────────
 // Tutte le funzioni qui prendono `owner` come parametro esplicito (prima era
 // una const globale OWNER) così sono testabili e riusabili senza stato globale.
-import { kvEnabled, kvGet, kvSet, kvDel, kvMget } from './kv.js';
+import { kvEnabled, kvSet, kvDel, kvMget } from './kv.js';
 import { logRateLimit } from './ratelimit-tracker.js';
 import { logger } from '../_lib/logger.js';
 
@@ -25,7 +25,10 @@ export const GH_CONTENTS_TIMEOUT_MS =
 // la lista repo funziona). Questi helper permettono all'app di rilevare una
 // configurazione insicura e avvisare rumorosamente — e opzionalmente di
 // rifiutarsi di operare con un PAT classico (fail-closed).
-const CLASSIC_PAT_PREFIXES = ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_'];
+// Esportato: sorgente unica per i prefissi classic, riusato da
+// config-loader.js (validateEnv, ISSUE-N13) per non far divergere il
+// rilevamento fra i moduli.
+export const CLASSIC_PAT_PREFIXES = ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_'];
 
 export function detectTokenType(token) {
   if (!token || typeof token !== 'string' || token.length === 0) {
@@ -100,22 +103,24 @@ export function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|\\[\]]/g, '\\$&');
 }
 
-export function escapeMarkdown(s) {
-  return String(s).replace(/[*_`\[\]]/g, '\\$&');
-}
-
 // ghGetJson: GET /repos/{owner}/{repo}/contents/{path} -> json o null (anche su 404)
 // Chiamata diretta con timeout (AbortController): niente coda di rate limiting. Per una slot
 // personale il limite di 5000 req/h non è mai un vincolo reale, e la coda
 // aggiungeva solo latenza e log fuorvianti sugli AbortError di timeout.
-// `timeoutMs` è opzionale: default GITHUB_API_TIMEOUT_MS (5s). Nel percorso
+// `timeoutMs` è opzionale: default GITHUB_API_TIMEOUT_MS (2s). Nel percorso
 // critico dello spin usa ghGetContentsJson() che passa il timeout stretto di 800ms.
 // Ritorna l'oggetto JSON della Contents API (con campo `content` in base64) o null.
 //
 // FIX ISSUE-M3: retry su errori transienti (5xx, 408, 429).
 // Non retry su 404, 401, 403 (errori permanenti).
 // I timeout di rete/AbortError NON vengono retry: propagati al caller.
-export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API_TIMEOUT_MS) {
+export async function ghGetJson(
+  token,
+  owner,
+  repo,
+  path,
+  timeoutMs = GITHUB_API_TIMEOUT_MS
+) {
   const RETRY_MAX = 1;
 
   for (let attempt = 0; attempt <= RETRY_MAX; attempt++) {
@@ -140,15 +145,25 @@ export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API
 
       // 429 rate limit: log e fallisci subito (no retry).
       if (response.status === 429) {
-        logger.warn('GitHub rate limit hit (429), failing fast', { owner, repo, path });
+        logger.warn('GitHub rate limit hit (429), failing fast', {
+          owner,
+          repo,
+          path,
+        });
         return null;
       }
 
       // 5xx o 408: errori transienti, ritenta (se possibile)
       if (response.status >= 500 || response.status === 408) {
-        logger.debug('[ghGetJson] retrying on transient error', { attempt, status: response.status, owner, repo, path });
+        logger.debug('[ghGetJson] retrying on transient error', {
+          attempt,
+          status: response.status,
+          owner,
+          repo,
+          path,
+        });
         if (attempt < RETRY_MAX) {
-          await new Promise(r => setTimeout(r, 1000)); // breve backoff
+          await new Promise((r) => setTimeout(r, 1000)); // breve backoff
           continue;
         }
         return null;
@@ -158,7 +173,12 @@ export async function ghGetJson(token, owner, repo, path, timeoutMs = GITHUB_API
     } catch (err) {
       // Timeout di rete o AbortError: NON retry — propaghi al caller
       // che sa decidere il fallback (es. readState usa default).
-      logger.warn('[ghGetJson] network error', { error: err?.message, owner, repo, path });
+      logger.warn('[ghGetJson] network error', {
+        error: err?.message,
+        owner,
+        repo,
+        path,
+      });
       throw err;
     }
   }
@@ -191,7 +211,6 @@ export async function ghPut(
   // Ritorna lo SHA del file dopo la PUT riuscita (o null se non estraibile),
   // così i chiamanti possono aggiornare le proprie cache con lo sha corretto.
   const RETRY_MAX = 1;
-  const RETRYABLE_4XX = new Set([408, 429]); // retry su 408/429 (ma non su 409 che è handled diversamente)
 
   // ── SHA mancante (percorso KV): GET-first invece di PUT(422)→GET→PUT ──────
   // Quando il chiamante arriva dal percorso KV (loadSlotSvg/readState non
@@ -251,8 +270,15 @@ export async function ghPut(
     logRateLimit(response);
 
     // 429 rate limit: log e fallisci subito (stessa logica di ghGetJson).
+    // Niente retry qui: scelta DELIBERATA per Edge (H3 nello storico
+    // ISSUES.md §6) — un 429 indica che il rate limit è già esaurito, un
+    // retry immediato non farebbe altro che consumare la finestra rimasta.
     if (response.status === 429) {
-      logger.warn('GitHub rate limit hit on PUT (429), failing fast', { owner, repo, path });
+      logger.warn('GitHub rate limit hit on PUT (429), failing fast', {
+        owner,
+        repo,
+        path,
+      });
       throw new Error(`PUT ${owner}/${repo}/${path}: 429 rate limited`);
     }
 
@@ -278,15 +304,39 @@ export async function ghPut(
     if (response.status === 422 && !_retry) {
       const fresh = await ghGetJson(token, owner, repo, path);
       if (fresh?.sha) {
-        return ghPut(token, owner, repo, path, content, fresh.sha, message, true);
+        return ghPut(
+          token,
+          owner,
+          repo,
+          path,
+          content,
+          fresh.sha,
+          message,
+          true
+        );
       }
-      throw new Error(`PUT ${owner}/${repo}/${path}: 422 e sha non recuperabile`);
+      throw new Error(
+        `PUT ${owner}/${repo}/${path}: 422 e sha non recuperabile`
+      );
     }
 
-    // 5xx o 408: errori transienti, ritenta (se non siamo già in retry)
-    if (!response.ok && response.status >= 500 && !_retry && attempt < RETRY_MAX) {
-      logger.debug('[ghPut] retrying on transient error', { attempt, status: response.status, owner, repo, path });
-      await new Promise(r => setTimeout(r, 1000));
+    // 5xx: errori transienti, ritenta (se non siamo già in retry).
+    // NB: il 408 NON è ritentato qui (a differenza di ghGetJson): casca nel
+    // throw generico sotto — fail-fast coerente col 429.
+    if (
+      !response.ok &&
+      response.status >= 500 &&
+      !_retry &&
+      attempt < RETRY_MAX
+    ) {
+      logger.debug('[ghPut] retrying on transient error', {
+        attempt,
+        status: response.status,
+        owner,
+        repo,
+        path,
+      });
+      await new Promise((r) => setTimeout(r, 1000));
       continue;
     }
 
@@ -373,7 +423,9 @@ export async function saveSlotSvg(token, owner, repo, svg, sha) {
     // (2) kvSet fallito: KV contiene ancora il vecchio svg. Senza
     // invalidazione, image.js (KV first) servirebbe il risultato PRECEDENTE
     // ignorando il GitHub appena aggiornato → bug "risultato precedente".
-    logger.warn('kv slotSvg write failed — invalidating stale KV copy, falling back to GitHub');
+    logger.warn(
+      'kv slotSvg write failed — invalidating stale KV copy, falling back to GitHub'
+    );
     await kvDel('gsm:slotSvg').catch(() => {});
   }
   await ghPut(token, owner, repo, 'slot.svg', svg, sha, '🎰 Update live slot');

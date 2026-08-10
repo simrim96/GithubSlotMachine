@@ -1,11 +1,10 @@
 // Test su api/_lib/github.js — solo le parti PURE (no rete):
-//   • escapeRegex / escapeMarkdown (anti-injection nei marker README)
+//   • escapeRegex (anti-injection nei marker README)
 //   • updateReadmeMarkers (il parsing/riscrittura dei marker nel profilo)
 // ghGetJson/ghPut/saveSlotSvg/loadSlotSvg non sono testati qui (richiedono fetch/GitHub).
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   escapeRegex,
-  escapeMarkdown,
   updateReadmeMarkers,
   clearReadmeMarkers,
 } from '../api/_lib/github.js';
@@ -21,20 +20,6 @@ describe('escapeRegex', () => {
   });
   it('non rompe stringhe normali', () => {
     expect(escapeRegex('hello world')).toBe('hello world');
-  });
-});
-
-describe('escapeMarkdown', () => {
-  it('escapa * _ ` [ ]', () => {
-    expect(escapeMarkdown('a*b_c`d[e]f')).toBe('a\\*b\\_c\\`d\\[e\\]f');
-  });
-  it('non rompe testo senza markdown', () => {
-    expect(escapeMarkdown('Python è figo')).toBe('Python è figo');
-  });
-  it('protegge da injection nel blockquote del README', () => {
-    const evil = '*_test_`[x]';
-    const out = escapeMarkdown(evil);
-    expect(out).toBe('\\*\\_test\\_\\`\\[x\\]');
   });
 });
 
@@ -62,7 +47,11 @@ describe('updateReadmeMarkers', () => {
 
   it('scrive SOLO il badge cliccabile (img wrapper in <a>) verso la repo vincente, con le stelle', () => {
     const lang = { name: 'Python', githubLang: 'python' };
-    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo', stars: 42 };
+    const repoMatch = {
+      name: 'myrepo',
+      url: 'https://github.com/x/myrepo',
+      stars: 42,
+    };
     const out = updateReadmeMarkers(
       baseReadme,
       { totalSpins: 50, totalWins: 3 },
@@ -104,7 +93,11 @@ describe('updateReadmeMarkers', () => {
 
   it('stelle non numeriche vengono ignorate (badge senza contatore)', () => {
     const lang = { name: 'Python', githubLang: 'python' };
-    const repoMatch = { name: 'myrepo', url: 'https://github.com/x/myrepo', stars: 'abc' };
+    const repoMatch = {
+      name: 'myrepo',
+      url: 'https://github.com/x/myrepo',
+      stars: 'abc',
+    };
     const out = updateReadmeMarkers(
       baseReadme,
       { totalSpins: 50, totalWins: 3 },
@@ -244,13 +237,17 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
     // GitHub → ghPut parte senza sha. PRIMA partiva PUT senza sha → 422
     // garantito su file esistente → GET → PUT (tre round trip). ORA:
     // GET dello sha → UNA PUT. Stesso risultato, una round trip in meno.
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       // 1ª chiamata: GET (ghGetJson) per recuperare lo sha corrente
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => null },
-        json: async () => ({ sha: 'abc123', content: Buffer.from('{}').toString('base64') }),
+        json: async () => ({
+          sha: 'abc123',
+          content: Buffer.from('{}').toString('base64'),
+        }),
       })
       // 2ª chiamata: PUT con lo sha → ok
       .mockResolvedValueOnce({
@@ -262,7 +259,15 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const { ghPut } = await import('../api/_lib/github.js');
-    await ghPut('token', 'owner', 'repo', 'state.json', '{}', null, '🎰 Update slot stats');
+    await ghPut(
+      'token',
+      'owner',
+      'repo',
+      'state.json',
+      '{}',
+      null,
+      '🎰 Update slot stats'
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     // La prima chiamata è una GET (niente PUT 422 inutile)
@@ -273,7 +278,8 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
   });
 
   it('se il file non esiste (GET 404), PUT senza sha lo crea', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       // 1ª: GET → 404 (file nuovo, nessuno sha da recuperare)
       .mockResolvedValueOnce({
         ok: false,
@@ -309,7 +315,8 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
   it('PUT con sha stale (409) → rifetcha lo sha e ritenta', async () => {
     // Con lo sha memoizzato in KV (gsm:slotSvg:sha), la PUT di backup parte
     // con sha: se GitHub è stato modificato esternamente → 409 → GET + retry.
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       // 1ª: PUT con sha stale → 409
       .mockResolvedValueOnce({
         ok: false,
@@ -321,7 +328,10 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
         ok: true,
         status: 200,
         headers: { get: () => null },
-        json: async () => ({ sha: 'fresh123', content: Buffer.from('{}').toString('base64') }),
+        json: async () => ({
+          sha: 'fresh123',
+          content: Buffer.from('{}').toString('base64'),
+        }),
       })
       // 3ª: PUT con sha fresco → ok
       .mockResolvedValueOnce({
@@ -349,7 +359,8 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
   });
 
   it('se lo sha non è recuperabile (GET 404 nel recovery 422), lancia', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       // 1ª: GET pre-fetch → 404 (sha non recuperabile in partenza)
       .mockResolvedValueOnce({
         ok: false,
@@ -375,7 +386,15 @@ describe('ghPut: sha mancante (percorso KV) — GET-first', () => {
 
     const { ghPut } = await import('../api/_lib/github.js');
     await expect(
-      ghPut('token', 'owner', 'repo', 'state.json', '{}', null, '🎰 Update slot stats')
+      ghPut(
+        'token',
+        'owner',
+        'repo',
+        'state.json',
+        '{}',
+        null,
+        '🎰 Update slot stats'
+      )
     ).rejects.toThrow(/422/);
   });
 });

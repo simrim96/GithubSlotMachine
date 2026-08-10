@@ -17,8 +17,12 @@ vi.mock('../../sentry.config.js', () => ({
 }));
 
 const github = await import('../api/_lib/github.js');
-const { ghGetJson, ghGetContentsJson, GH_CONTENTS_TIMEOUT_MS, GITHUB_API_TIMEOUT_MS } =
-  github;
+const {
+  ghGetJson,
+  ghGetContentsJson,
+  GH_CONTENTS_TIMEOUT_MS,
+  GITHUB_API_TIMEOUT_MS,
+} = github;
 
 // fetch stub che NON risolve mai ma rispetta l'AbortSignal: quando il codice
 // chiama controller.abort() (scaduto il timeout), la promise viene rifiutata
@@ -41,7 +45,7 @@ function makeSignalAwareFetch() {
   });
 }
 
-describe('R4: ghGetContentsJson ha un timeout stretto e non si appoggia all\'infinito', () => {
+describe("R4: ghGetContentsJson ha un timeout stretto e non si appoggia all'infinito", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', makeSignalAwareFetch());
@@ -100,7 +104,7 @@ describe('R4: ghGetContentsJson ha un timeout stretto e non si appoggia all\'inf
     expect(defaultRes).toBe('err-default');
   });
 
-  it('readState con KV disabilitato e GitHub lento propaga l\'errore entro ~800ms (il caller fa fallback)', async () => {
+  it("readState con KV disabilitato e GitHub lento propaga l'errore entro ~800ms (il caller fa fallback)", async () => {
     const stateMod = await import('../api/_lib/state.js');
     // Nessuna env Upstash → kvEnabled=false; token presente → readStateGitHub
     // usa ghGetContentsJson (800ms). fetch hang + abort → readState lancia.

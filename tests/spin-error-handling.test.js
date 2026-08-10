@@ -37,8 +37,7 @@ vi.mock('../api/_lib/github.js', async () => {
     saveSlotSvg: vi.fn().mockResolvedValue({}),
     loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: null }),
     updateReadmeMarkers: vi.fn((r) => r),
-    GH_CONTENTS_TIMEOUT_MS:
-      (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
+    GH_CONTENTS_TIMEOUT_MS: (actual && actual.GH_CONTENTS_TIMEOUT_MS) || 800,
   };
 });
 
@@ -57,10 +56,6 @@ vi.mock('../api/_lib/svg-builder-accessible.js', async () => {
 
 vi.mock('../api/_lib/repos.js', () => ({
   getRepoForLanguage: vi.fn().mockResolvedValue(null),
-}));
-
-vi.mock('../api/_lib/ratelimit.js', () => ({
-  isValidUser: vi.fn(() => true),
 }));
 
 import handler from '../api/spin.js';

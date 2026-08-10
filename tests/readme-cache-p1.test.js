@@ -69,9 +69,6 @@ vi.mock('../api/_lib/github.js', () => ({
 vi.mock('../api/_lib/repos.js', () => ({
   getRepoForLanguage: vi.fn().mockResolvedValue(null),
 }));
-vi.mock('../api/_lib/ratelimit.js', () => ({
-  isValidUser: vi.fn(() => true),
-}));
 vi.mock('../api/_lib/spin-cooldown.js', () => ({
   checkSpinCooldown: vi.fn().mockResolvedValue({ allowed: true }),
 }));

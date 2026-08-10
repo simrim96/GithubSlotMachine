@@ -223,14 +223,15 @@ describe('Policy CORS wildcard (*) su /api/image, /api/lever', () => {
 });
 
 // ── Policy esplicita su /api/cache-refresh (endpoint autenticato) ───────────
-// Follow-up t_8e9d78bc: cache-refresh è un POST autenticato (Authorization:
-// Bearer) protetto da require-auth — NON deve usare il wildcard `*` (riservato
-// ai contenuti pubblici embeddati, NOTA SEC-2 in cors.js) ma la policy
-// esplicita con allowlist, con metodi POST,OPTIONS e l'header Authorization
-// dichiarato nel preflight (altrimenti il browser bloccherebbe sia il metodo
-// sia l'header Bearer).
-describe('Policy CORS esplicita su /api/cache-refresh (POST autenticato)', () => {
-  it('OPTIONS con origin consentito: 204, ACAO riflesso, metodi POST,OPTIONS e Authorization ammesso', async () => {
+// Follow-up t_8e9d78bc + ISSUE-N6: cache-refresh accetta GET (cron Vercel,
+// autenticato con CRON_SECRET) e POST (admin, JWT Bearer) — entrambi protetti
+// da auth — quindi NON deve usare il wildcard `*` (riservato ai contenuti
+// pubblici embeddati, NOTA SEC-2 in cors.js) ma la policy esplicita con
+// allowlist, con metodi GET,POST,OPTIONS e l'header Authorization dichiarato
+// nel preflight (altrimenti il browser bloccherebbe sia il metodo sia
+// l'header Bearer).
+describe('Policy CORS esplicita su /api/cache-refresh (GET cron + POST autenticato)', () => {
+  it('OPTIONS con origin consentito: 204, ACAO riflesso, metodi GET,POST,OPTIONS e Authorization ammesso', async () => {
     const res = makeRes();
     await cacheRefreshHandler(
       { method: 'OPTIONS', headers: { origin: ALLOWED } },
@@ -238,7 +239,9 @@ describe('Policy CORS esplicita su /api/cache-refresh (POST autenticato)', () =>
     );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBe(ALLOWED);
-    expect(res.headers['Access-Control-Allow-Methods']).toBe('POST, OPTIONS');
+    expect(res.headers['Access-Control-Allow-Methods']).toBe(
+      'GET, POST, OPTIONS'
+    );
     expect(res.headers['Access-Control-Allow-Headers']).toBe(
       'Content-Type, Authorization'
     );
@@ -255,7 +258,9 @@ describe('Policy CORS esplicita su /api/cache-refresh (POST autenticato)', () =>
     );
     expect(res.statusCode).toBe(204);
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
-    expect(res.headers['Access-Control-Allow-Methods']).toBe('POST, OPTIONS');
+    expect(res.headers['Access-Control-Allow-Methods']).toBe(
+      'GET, POST, OPTIONS'
+    );
   });
 
   it('NON emette MAI il wildcard * (nemmeno per origin non consentito)', async () => {

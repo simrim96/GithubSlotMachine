@@ -55,7 +55,9 @@ function installGithubFetchSpy() {
       const h = opts.headers || {};
       const auth =
         h.Authorization ??
-        (h.get && typeof h.get === 'function' ? h.get('Authorization') : undefined);
+        (h.get && typeof h.get === 'function'
+          ? h.get('Authorization')
+          : undefined);
       calls.push({ url: String(url), method: opts.method || 'GET', auth });
     }
     // Risposta generica valida per qualsiasi endpoint GitHub.
@@ -73,7 +75,8 @@ function installGithubFetchSpy() {
           html_url: 'https://github.com/owner/pythonrepo',
           fork: false,
           archived: false,
-          languages_url: 'https://api.github.com/repos/owner/pythonrepo/languages',
+          languages_url:
+            'https://api.github.com/repos/owner/pythonrepo/languages',
           topics: [],
         },
       ]);
@@ -163,9 +166,15 @@ describe('Contract test header — ogni fetch a api.github.com usa Bearer', () =
   it('ghPut invia Authorization: Bearer', async () => {
     const { ghPut } = await import('../api/_lib/github.js');
     const { calls } = installGithubFetchSpy();
-    await ghPut('tok-456', 'owner', 'repo', 'slot.svg', '<svg/>', null, 'msg').catch(
-      () => {}
-    );
+    await ghPut(
+      'tok-456',
+      'owner',
+      'repo',
+      'slot.svg',
+      '<svg/>',
+      null,
+      'msg'
+    ).catch(() => {});
     const ghCalls = calls.filter((c) => c.url.includes('api.github.com'));
     expect(ghCalls.length).toBeGreaterThan(0);
     ghCalls.forEach((c) => assertValidBearer(c.auth, `ghPut ${c.url}`));
@@ -225,7 +234,9 @@ describe('Contract test header — ogni fetch a api.github.com usa Bearer', () =
     expect(res.status).toBe(200);
     const ghCalls = calls.filter((c) => c.url.includes('api.github.com'));
     expect(ghCalls.length).toBeGreaterThan(0);
-    ghCalls.forEach((c) => assertValidBearer(c.auth, `ratelimit-status.js ${c.url}`));
+    ghCalls.forEach((c) =>
+      assertValidBearer(c.auth, `ratelimit-status.js ${c.url}`)
+    );
   });
 });
 

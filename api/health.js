@@ -42,7 +42,10 @@ export default async function handler(req, res) {
       // mentre in produzione le scritture fallivano (endpoint REST sbagliati
       // in kv.js: /db e /key/ invece di /set/ e /get/). Ora kvOk richiede
       // che kvSet ritorni TRUE e che kvGet rilegga il valore scritto.
-      kvWriteOk = await kvSet(probe, '1');
+      // FIX (ISSUE-N9): TTL 60s sulla probe — senza TTL ogni GET /api/health
+      // lasciava una chiave gsm:__health__<ts> in Redis per sempre (leak
+      // lento: ~365 chiavi/anno dal solo cron giornaliero).
+      kvWriteOk = await kvSet(probe, '1', 60);
       const readBack = await kvGet(probe);
       kvOk = kvWriteOk && readBack === '1';
     } catch (e) {
@@ -76,7 +79,8 @@ export default async function handler(req, res) {
       const slowMsg = `health: cross-region Upstash detected; kv_roundtrip_ms=${steps.kv_roundtrip_ms} > 60ms`;
       logger.warn(slowMsg);
       steps.kv_severity = 'warning';
-      steps.kv_note = 'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.';
+      steps.kv_note =
+        'LENTO: Upstash probabilmente è in una region diversa da Vercel. Spostalo nella stessa region.';
     }
   } else {
     steps.kv_enabled = false;

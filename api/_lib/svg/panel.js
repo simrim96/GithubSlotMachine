@@ -25,11 +25,9 @@ export function generateResultPanel(
     const linesEn = wrap(factEn, 86).slice(0, 2);
     const linesIt = wrap(factIt, 86).slice(0, 2);
     const headLine = result.isBigWin
-        ? `💰 BIG WIN — ${winningLang.name}!`
-        : `🎉 ${winningLang.name} WIN!`;
-    const headColor = result.isBigWin
-        ? '#ffb84d'
-        : '#4ade80';
+      ? `💰 BIG WIN — ${winningLang.name}!`
+      : `🎉 ${winningLang.name} WIN!`;
+    const headColor = result.isBigWin ? '#ffb84d' : '#4ade80';
 
     panelSvg += `<rect x="20" y="${PY}" width="${SVG_W - 40}" height="${PH}" rx="12" fill="#0e0d24" stroke="${headColor}" stroke-width="1.5" opacity="0.95" style="animation:fi${uid} .5s ${ED}s forwards;opacity:0"/>`;
     panelSvg += `<text x="${SVG_W / 2}" y="${PY + 24}" text-anchor="middle" font-family="'Segoe UI','Helvetica Neue',sans-serif" font-size="17" font-weight="700" fill="${headColor}" style="animation:fi${uid} .5s ${ED + 0.1}s forwards;opacity:0">${escapeXml(headLine)}</text>`;

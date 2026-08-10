@@ -17,6 +17,10 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logger } from './logger.js';
 import { validate } from 'jsonschema';
+// Sorgente unica dei prefissi PAT classic (ISSUE-N13): la stessa lista usata
+// da detectTokenType() in github.js — qui NON va duplicata, o il rilevamento
+// all'avvio divergerebbe da quello runtime.
+import { CLASSIC_PAT_PREFIXES } from './github.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..', '..');
@@ -25,9 +29,20 @@ const PROJECT_ROOT = join(__dirname, '..', '..');
 // Campi obbligatori: il loro valore vuoto significa che la funzione fallirà
 // comunque (API 401, Redis disconnesso), ma almeno non passa silenziosamente.
 const REQUIRED_VARS = [
-  { key: 'GITHUB_PAT', warnMsg: 'GITHUB_PAT non impostato: le chiamate GitHub falliranno (401/404)' },
-  { key: 'SLOT_OWNER', warnMsg: 'SLOT_OWNER non impostato: valore default "simrim96" usato' },
-  { key: 'SLOT_REPO', warnMsg: 'SLOT_REPO non impostato: valore default "GithubSlotMachine" usato' },
+  {
+    key: 'GITHUB_PAT',
+    warnMsg:
+      'GITHUB_PAT non impostato: le chiamate GitHub falliranno (401/404)',
+  },
+  {
+    key: 'SLOT_OWNER',
+    warnMsg: 'SLOT_OWNER non impostato: valore default "simrim96" usato',
+  },
+  {
+    key: 'SLOT_REPO',
+    warnMsg:
+      'SLOT_REPO non impostato: valore default "GithubSlotMachine" usato',
+  },
   // PROFILE_REPO ha default = SLOT_OWNER, quindi non è strettamente richiesto.
   // KV_REST_API_URL + KV_REST_API_TOKEN sono opzionali (fallback su GitHub API).
 ];
@@ -43,20 +58,34 @@ export function validateEnv() {
   for (const { key, warnMsg } of REQUIRED_VARS) {
     const val = process.env[key];
     if (!val || val.trim() === '') {
-      logger.warn('ConfigLoader missing required env var', { key, fallback: warnMsg });
+      logger.warn('ConfigLoader missing required env var', {
+        key,
+        fallback: warnMsg,
+      });
       warnings.push(`${key}= (not set) — ${warnMsg}`);
     }
   }
 
-  // Avvisa se sia GITHUB_PAT_REQUIRE_FINEGRAINED=true ma il PAT non è fine-grained
+  // Avvisa se sia GITHUB_PAT_REQUIRE_FINEGRAINED=true ma il PAT non è fine-grained.
+  // Usa la stessa lista prefissi classic di detectTokenType() (github.js,
+  // ISSUE-N13): un ghs_/ghr_/ghu_ deve essere segnalato all'avvio esattamente
+  // come lo è a runtime da auditToken — niente sorprese a metà spin.
   const pat = process.env.GITHUB_PAT ?? '';
   const enforceFine = process.env.GITHUB_PAT_REQUIRE_FINEGRAINED ?? '';
-  if (enforceFine === 'true' && (pat.startsWith('ghp_') || pat.startsWith('gho_'))) {
-    logger.warn('ConfigLoader GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT è classic', {
-      key: 'GITHUB_PAT',
-      prefix: pat.slice(0, 5) + '...',
-    });
-    warnings.push('GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT rilevato come classic (ghp_/gho_)');
+  if (
+    enforceFine === 'true' &&
+    CLASSIC_PAT_PREFIXES.some((p) => pat.startsWith(p))
+  ) {
+    logger.warn(
+      'ConfigLoader GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT è classic',
+      {
+        key: 'GITHUB_PAT',
+        prefix: pat.slice(0, 5) + '...',
+      }
+    );
+    warnings.push(
+      `GITHUB_PAT_REQUIRE_FINEGRAINED=true ma PAT rilevato come classic (${CLASSIC_PAT_PREFIXES.join(', ')})`
+    );
   }
 
   return { valid: warnings.length === 0, warnings };
@@ -97,7 +126,15 @@ const LANGUAGE_SCHEMA = {
             },
           },
         },
-        required: ['id', 'name', 'short', 'color', 'accent', 'text', 'githubLang'],
+        required: [
+          'id',
+          'name',
+          'short',
+          'color',
+          'accent',
+          'text',
+          'githubLang',
+        ],
       },
     },
   },
@@ -137,7 +174,10 @@ function loadJSON(filePath) {
     const content = readFileSync(filePath, 'utf-8');
     return JSON.parse(content);
   } catch (err) {
-    logger.warn('ConfigLoader JSON parse error', { path: filePath, error: err.message });
+    logger.warn('ConfigLoader JSON parse error', {
+      path: filePath,
+      error: err.message,
+    });
     return null;
   }
 }
@@ -257,7 +297,9 @@ export function mergeLanguages(hardcodedLanguages, externalLanguages) {
   const externalValid = externalLanguages.filter((lang) => {
     if (!validateLanguageSchema(lang)) return false;
     if (idSet.has(lang.id)) {
-      logger.warn('ConfigLoader duplicate language ignored', { langId: lang.id });
+      logger.warn('ConfigLoader duplicate language ignored', {
+        langId: lang.id,
+      });
       return false;
     }
     return true;

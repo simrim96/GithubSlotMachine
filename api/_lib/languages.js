@@ -351,7 +351,10 @@ async function loadExternalLanguagesInternal() {
       mergedLanguages = mergeLanguages(LANGUAGES_BASE, external);
 
       if (external.length > 0) {
-        logger.info('Languages loaded external', { count: external.length, total: mergedLanguages.length });
+        logger.info('Languages loaded external', {
+          count: external.length,
+          total: mergedLanguages.length,
+        });
       } else {
         mergedLanguages = LANGUAGES_BASE;
         logger.info('Languages no external found, using hardcoded base');
