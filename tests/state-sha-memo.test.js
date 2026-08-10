@@ -42,6 +42,20 @@ vi.mock('../api/_lib/github.js', () => ({
 const stateMod = await import('../api/_lib/state.js');
 const { readState, writeState, syncStateToGitHub } = stateMod;
 
+// Attende finché `predicate()` ritorna true (poll breve) o scade il timeout.
+// Necessario perché il sync GitHub di writeState è fire-and-forget: prima di
+// arrivare a ghPut la catena passa da I/O reale (fsp.access in loadStaleFlag),
+// quindi un singolo setTimeout(0) può scattare PRIMA che la PUT parta quando
+// la suite gira sotto carico (flake CI: "Number of calls: 0").
+async function waitFor(predicate, { timeoutMs = 2000, intervalMs = 5 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return predicate();
+}
+
 const TOKEN = 'github_pat_test';
 const OWNER = 'simrim96';
 const REPO = 'GithubSlotMachine';
@@ -199,9 +213,11 @@ describe('writeState — il sync fire-and-forget riceve lo sha da readState', ()
   it('passa lo sha memoizzato al sync GitHub (catena readState → writeState)', async () => {
     ghPut.mockResolvedValue('sha-after-put');
 
-    // writeState ritorna subito (fire-and-forget): diamo tempo al sync.
+    // writeState ritorna subito (fire-and-forget): attendiamo che il sync
+    // arrivi effettivamente a ghPut (poll, non un singolo tick — la catena
+    // passa da I/O reale in loadStaleFlag prima della PUT).
     await writeState(TOKEN, OWNER, REPO, STATE, 'memoized-sha');
-    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => ghPut.mock.calls.length > 0);
 
     // ghPut chiamato con lo sha memoizzato (UNA PUT, niente GET-first).
     expect(ghPut).toHaveBeenCalledWith(
