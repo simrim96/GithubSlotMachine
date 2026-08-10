@@ -1,20 +1,20 @@
 {
-  "totalSpins": 76,
-  "totalWins": 41,
+  "totalSpins": 77,
+  "totalWins": 42,
   "lastWin": {
-    "langId": "react",
-    "langName": "React",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Il Virtual DOM non è \"veloce di per sé\": è un trade-off intelligente che evita reflow inutili confrontando alberi virtuali invece del DOM reale",
-      "en": "The Virtual DOM isn't \"inherently fast\": it's a smart trade-off that avoids needless reflows by diffing virtual trees instead of the real DOM."
+      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
+      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786368616686
+    "ts": 1786368628359
   },
   "version": 2,
-  "lastPullTimestamp": 1786368616686,
+  "lastPullTimestamp": 1786368628359,
   "settings": {
     "theme": "auto",
     "sound": true
