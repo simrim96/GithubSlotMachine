@@ -53,7 +53,6 @@ api/
     github.js             # GitHub Contents API client + README marker update + PAT audit (S4)
     kv.js                 # Upstash / Vercel-KV REST client (read/write with timeout + read-only token fallback)
     cors.js               # centralized CORS policy (ACAO allowlist) + applyCors()
-    ratelimit.js          # per-IP spin rate-limit gate (isValidUser)
     ratelimit-tracker.js  # GitHub API rate-limit tracker (remaining/limit/reset)
     spin-cooldown.js      # per-IP time-based spin cooldown (mirrored client-side)
     config-loader.js      # loads languages-external.json (extra languages)
@@ -80,9 +79,9 @@ already in the repo (`vercel.json` + `package.json` declare the runtime).
 
 1. **Import the repo** into Vercel (New Project → Git → `simrim96/GithubSlotMachine`).
 2. **Set the environment variable** `GITHUB_PAT`. **Security (S4): use a
-   *fine-grained* PAT, not a classic one.**
+   _fine-grained_ PAT, not a classic one.**
    - Go to GitHub → Settings → Developer settings → **Fine-grained PATs** →
-     *Generate new token*.
+     _Generate new token_.
    - **Repository access:** "Only select repositories" → select **both**:
      - your slot repo (`GithubSlotMachine`)
      - your profile repo (`<your-user>/<your-user>`)
@@ -130,39 +129,48 @@ This section is the **authoritative contract** for the five serverless
 endpoints. The single most important thing to understand: **`/api/spin` never
 returns an SVG body** — it performs the spin (updates `slot.svg`, the community
 counters and your profile README) and then responds with a **`302` redirect**
-to a `Location`. The animated slot image you see is a *separate* resource served
+to a `Location`. The animated slot image you see is a _separate_ resource served
 by `/api/image`, which the README embed references directly (see _Embedding the
 slot_ below).
 
-| Endpoint | Method | Status | Body? | CORS |
-| --- | --- | --- | --- | --- |
-| `GET /api/spin` | GET | `302` | no (empty) | allowlist (`ALLOWED_CORS_ORIGINS`) |
-| `GET /api/image` | GET | `200` `image/svg+xml` | yes (SVG) | wildcard `*` |
-| `GET /api/lever` | GET | `200` `image/svg+xml` | yes (SVG) | wildcard `*` |
-| `GET /api/health` | GET | `200` `application/json` | yes (JSON) | allowlist |
-| `GET /api/ratelimit-status` | GET | `200` `application/json` | yes (JSON) | allowlist |
+| Endpoint                    | Method | Status                   | Body?      | CORS                               |
+| --------------------------- | ------ | ------------------------ | ---------- | ---------------------------------- |
+| `GET /api/spin`             | GET    | `302`                    | no (empty) | allowlist (`ALLOWED_CORS_ORIGINS`) |
+| `GET /api/image`            | GET    | `200` `image/svg+xml`    | yes (SVG)  | wildcard `*`                       |
+| `GET /api/lever`            | GET    | `200` `image/svg+xml`    | yes (SVG)  | wildcard `*`                       |
+| `GET /api/health`           | GET    | `200` `application/json` | yes (JSON) | allowlist                          |
+| `GET /api/ratelimit-status` | GET    | `200` `application/json` | yes (JSON) | allowlist                          |
 
 ### `GET /api/spin` — the spin orchestrator
 
-**Request.** Accepts two optional query parameters:
+**Request.** Accepts one optional query parameter:
 
-| Param | Type | Validation | Effect |
-| --- | --- | --- | --- |
-| `user` | `string` | must match `^[A-Za-z0-9-]{1,39}$` (`isValidUser`). Invalid → falls back to `SLOT_OWNER`. | Overrides the owner used in the win repo match CTA (`?tab=repositories&language=…`). Handy for demos. |
-| `redirect` | `string` (URL) | must pass `isValidRedirectUrl` (https-only, host on `SLOT_ALLOWED_HOSTS`). Invalid → ignored, falls back to computed destination. | Custom post-spin landing URL (open-redirect protected, S1). |
+| Param      | Type           | Validation                                                                                                                                                        | Effect                                                      |
+| ---------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `redirect` | `string` (URL) | must pass `isValidRedirectUrl` (https-only, host on `SLOT_ALLOWED_HOSTS`, see _Redirect allowlist_ below). Invalid → ignored, falls back to computed destination. | Custom post-spin landing URL (open-redirect protected, S1). |
 
 **Response.** Always a `302` with an empty body and a `Location` header. The
-destination is computed *before* any slow write, so the redirect is fast:
+destination is computed _before_ any slow write, so the redirect is fast:
 
-| Outcome | `Location` |
-| --- | --- |
-| No `GITHUB_PAT` set | `https://github.com/<OWNER>` (graceful, no repo write) |
-| No win | `https://github.com/<OWNER>` |
-| Win, repo found (≥30% of language) | `<repoMatch.url>` (e.g. `https://github.com/<OWNER>/<repo>`) |
-| Win, no qualifying repo | `https://github.com/<OWNER>` (fallback) |
-| Jackpot (5-in-a-row) | `https://github.com/<targetOwner>?tab=repositories&language=<githubLang>` |
-| Spin cooldown active (S2) | `https://github.com/<OWNER>` + `Retry-After` and `X-Spin-Cooldown: 1` headers |
-| Any internal error | `https://github.com/<OWNER>` (or validated `redirect`) — **never a `500`** |
+| Outcome                            | `Location`                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| No `GITHUB_PAT` set                | `https://github.com/<OWNER>` (graceful, no repo write)                                                                  |
+| No win                             | `https://github.com/<OWNER>`                                                                                            |
+| Win, repo found (≥30% of language) | `<repoMatch.url>` (e.g. `https://github.com/<OWNER>/<repo>`)                                                            |
+| Win, no qualifying repo            | `https://github.com/<OWNER>` (fallback)                                                                                 |
+| Spin cooldown active (S2)          | `https://github.com/<OWNER>` (a valid `?redirect=` is **not** applied) + `Retry-After` and `X-Spin-Cooldown: 1` headers |
+| Any internal error                 | `https://github.com/<OWNER>` (or validated `redirect`) — **never a `500`**                                              |
+
+> **Cooldown ignores `?redirect=` (documented behavior).** The cooldown 302 is
+> the one case where a valid `?redirect` parameter is deliberately **not**
+> honored: the cooldown check runs _before_ the redirect URL is resolved, and
+> the response always points to the owner profile
+> (`https://github.com/<OWNER>`, graceful). This is intentional — the cooldown
+> is a hard per-IP gate (S2) that must be indistinguishable from a normal
+> return to the profile, and honoring a caller-chosen destination there would
+> let a client that already spun pick the landing URL. On every _other_ path
+> (normal spin, no PAT, internal error) a validated `?redirect=` **is**
+> applied.
 
 **Side effects (performed before the redirect, in parallel):** the new
 `slot.svg` is written (KV first, GitHub Contents fallback), the community
@@ -182,11 +190,6 @@ location: https://github.com/simrim96
 $ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin"
 HTTP/2 302
 location: https://github.com/simrim96/my-cool-ml-project
-
-# Jackpot → filtered repo list for the language
-$ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin?user=demo"
-HTTP/2 302
-location: https://github.com/demo
 
 # Custom landing (only allowlisted hosts pass; everything else falls back)
 $ curl -i "https://YOUR-VERCEL-APP.vercel.app/api/spin?redirect=https://github-slot-machine.vercel.app/thanks"
@@ -254,31 +257,31 @@ only needs `GITHUB_PAT` to actually run).
 
 #### Environment Variables
 
-| Env var | Default | Purpose |
-| --- | --- | --- |
-| `GITHUB_PAT` | _(required for writes)_ | Fine-grained PAT used for reads **and** writes (see Deploy § for scoping). |
-| `GITHUB_PAT_REQUIRE_FINEGRAINED` | `false` | Set `true` to **refuse writes** (fail-closed, read-only) when the PAT is NOT fine-grained. Default = warn only (S4). |
-| `SLOT_OWNER` | `simrim96` | Owner of the slot repo **and** whose repos are scanned. |
-| `SLOT_REPO` | `GithubSlotMachine` | Repo that hosts `slot.svg` / `state.json`. |
-| `PROFILE_REPO` | `= SLOT_OWNER` | Profile README repo (`<user>/<user>`). |
-| `GITHUB_API_TIMEOUT_MS` | `5000` | Timeout for generic GitHub API calls. |
-| `GH_CONTENTS_TIMEOUT_MS` | `800` | Strict timeout for the README read on the spin hot path. |
-| `UPSTASH_REDIS_REST_URL` | _(empty)_ | Standalone Upstash Redis REST URL (enables Redis if set with the token). |
-| `UPSTASH_REDIS_REST_TOKEN` | _(empty)_ | Standalone Upstash Redis REST token. |
-| `KV_REST_API_URL` | _(empty)_ | Vercel KV REST URL (auto-set by the Vercel KV integration). |
-| `KV_REST_API_TOKEN` | _(empty)_ | Vercel KV REST token. |
-| `KV_REST_API_READ_ONLY_TOKEN` | _(empty, optional)_ | Read-only Upstash token used as a fallback for the read path when the write token is absent. |
-| `KV_TIMEOUT_MS` | `500` | KV network timeout before falling back to GitHub. |
-| `ALLOWED_CORS_ORIGINS` | `https://github-slot-machine.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173` | CSV allowlist of origins that receive an `Access-Control-Allow-Origin` echo (cross-origin embed). |
-| `SLOT_ALLOWED_HOSTS` | `github-slot-machine.vercel.app,github.com` (+ `localhost`,`127.0.0.1`) | CSV allowlist of hosts the `/api/spin` redirect target may point to (open-redirect protection, S1). |
-| `SPIN_COOLDOWN_MS` | `3000` | Per-IP cooldown after a spin (mirrored client-side in `public/_spin-cooldown.js`). |
-| `STATE_SYNC_FAILURE_ALERT_THRESHOLD` | `5` | Consecutive state-sync failures before an alert is raised. |
-| `STATE_SYNC_MAX_RETRIES` | `3` | Retries for a failed state write, with exponential backoff. |
-| `STATE_SYNC_BACKOFF_BASE_MS` | `200` | Base delay (`× 2^n`) for the state-sync backoff. |
-| `SENTRY_DSN` | _(empty)_ | Sentry DSN for error monitoring. |
-| `SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Tracing sample rate (0 = off). |
-| `SENTRY_PROFILES_SAMPLE_RATE` | `0.0` | Profiling sample rate (0 = off). |
-| `SENTRY_DEBUG` | `false` | Set `true` to enable Sentry debug logging. |
+| Env var                              | Default                                                                                                                          | Purpose                                                                                                                                                                                                            |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GITHUB_PAT`                         | _(required for writes)_                                                                                                          | Fine-grained PAT used for reads **and** writes (see Deploy § for scoping).                                                                                                                                         |
+| `GITHUB_PAT_REQUIRE_FINEGRAINED`     | `false`                                                                                                                          | Set `true` to **refuse writes** (fail-closed, read-only) when the PAT is NOT fine-grained. Default = warn only (S4).                                                                                               |
+| `SLOT_OWNER`                         | `simrim96`                                                                                                                       | Owner of the slot repo **and** whose repos are scanned.                                                                                                                                                            |
+| `SLOT_REPO`                          | `GithubSlotMachine`                                                                                                              | Repo that hosts `slot.svg` / `state.json`.                                                                                                                                                                         |
+| `PROFILE_REPO`                       | `= SLOT_OWNER`                                                                                                                   | Profile README repo (`<user>/<user>`).                                                                                                                                                                             |
+| `GITHUB_API_TIMEOUT_MS`              | `2000`                                                                                                                           | Timeout for generic GitHub API calls.                                                                                                                                                                              |
+| `GH_CONTENTS_TIMEOUT_MS`             | `800`                                                                                                                            | Strict timeout for the README read on the spin hot path.                                                                                                                                                           |
+| `UPSTASH_REDIS_REST_URL`             | _(empty)_                                                                                                                        | Standalone Upstash Redis REST URL (enables Redis if set with the token).                                                                                                                                           |
+| `UPSTASH_REDIS_REST_TOKEN`           | _(empty)_                                                                                                                        | Standalone Upstash Redis REST token.                                                                                                                                                                               |
+| `KV_REST_API_URL`                    | _(empty)_                                                                                                                        | Vercel KV REST URL (auto-set by the Vercel KV integration).                                                                                                                                                        |
+| `KV_REST_API_TOKEN`                  | _(empty)_                                                                                                                        | Vercel KV REST token.                                                                                                                                                                                              |
+| `KV_REST_API_READ_ONLY_TOKEN`        | _(empty, optional)_                                                                                                              | Read-only Upstash token used as a fallback for the read path when the write token is absent.                                                                                                                       |
+| `KV_TIMEOUT_MS`                      | `500`                                                                                                                            | KV network timeout before falling back to GitHub.                                                                                                                                                                  |
+| `ALLOWED_CORS_ORIGINS`               | `https://github-slot-machine.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173` | CSV allowlist of origins that receive an `Access-Control-Allow-Origin` echo (cross-origin embed).                                                                                                                  |
+| `SLOT_ALLOWED_HOSTS`                 | `github-slot-machine.vercel.app,github.com` (+ `localhost`,`127.0.0.1`)                                                          | CSV allowlist of hosts the `/api/spin` redirect target may point to (open-redirect protection, S1). Setting it **replaces** the default — forks on other domains must add theirs (see _Redirect allowlist_ below). |
+| `SPIN_COOLDOWN_MS`                   | `3000`                                                                                                                           | Per-IP cooldown after a spin (mirrored client-side in `public/_spin-cooldown.js`).                                                                                                                                 |
+| `STATE_SYNC_FAILURE_ALERT_THRESHOLD` | `5`                                                                                                                              | Consecutive state-sync failures before an alert is raised.                                                                                                                                                         |
+| `STATE_SYNC_MAX_RETRIES`             | `3`                                                                                                                              | Retries for a failed state write, with exponential backoff.                                                                                                                                                        |
+| `STATE_SYNC_BACKOFF_BASE_MS`         | `200`                                                                                                                            | Base delay (`× 2^n`) for the state-sync backoff.                                                                                                                                                                   |
+| `SENTRY_DSN`                         | _(empty)_                                                                                                                        | Sentry DSN for error monitoring.                                                                                                                                                                                   |
+| `SENTRY_TRACES_SAMPLE_RATE`          | `0.0`                                                                                                                            | Tracing sample rate (0 = off).                                                                                                                                                                                     |
+| `SENTRY_PROFILES_SAMPLE_RATE`        | `0.0`                                                                                                                            | Profiling sample rate (0 = off).                                                                                                                                                                                   |
+| `SENTRY_DEBUG`                       | `false`                                                                                                                          | Set `true` to enable Sentry debug logging.                                                                                                                                                                         |
 
 > **Note on `LOG_LEVEL` / `VERCEL_ENV` / `NODE_ENV`:** these are referenced by
 > third-party tooling (Sentry, Vercel) but are **not** read by the slot's own code,
@@ -288,6 +291,55 @@ only needs `GITHUB_PAT` to actually run).
 > **Tuning the odds:** the win-engineering probability (`FORCED_WIN_PROB = 0.35`)
 > is a **code constant** in
 > `api/_lib/game.js`, not an env var — edit that file (and redeploy) to change it.
+
+#### 🔐 Redirect allowlist (`SLOT_ALLOWED_HOSTS`)
+
+`/api/spin` accepts an optional `?redirect=<url>` query param (custom post-spin
+landing page). Because an unvalidated `redirect` is the classic **open-redirect**
+attack (S1), the target is checked by `isValidRedirectUrl` (in `api/spin.js`)
+against an **allowlist of hosts** — a host not on the list is **always**
+rejected, and the spin silently falls back to the computed destination
+(profile / matched repo). This is fail-closed by design: nothing arbitrary
+passes unless explicitly listed.
+
+Validation rules:
+
+- **Relative URLs** (e.g. `/thanks`) are always allowed (same-origin). A
+  protocol-relative URL (`//evil.com`) is rejected, and so is a full URL whose
+  path starts with `//` (host smuggling, e.g. `https://github.com//evil.com`).
+- **Full URLs** must be `https://`; `http://` is accepted **only** for
+  `localhost` / `127.0.0.1` (local dev).
+- Dangerous schemes (`javascript:`, `data:`, `vbscript:`) are rejected.
+- The hostname must **exactly match** an entry in the allowlist
+  (case-insensitive, trimmed). The port is **not** part of the match — any
+  port on an allowlisted host passes (the check runs on `url.hostname`, which
+  excludes the port).
+
+**Default** (when `SLOT_ALLOWED_HOSTS` is unset):
+
+```
+github-slot-machine.vercel.app, github.com, localhost, 127.0.0.1
+```
+
+- `github-slot-machine.vercel.app` — the Vercel deploy domain (the canonical
+  destination of the `redirect` examples in the API reference);
+- `github.com` — the owner profile / repo fallback targets;
+- `localhost` / `127.0.0.1` — local dev.
+
+**⚠️ Forks on other domains must extend it — and setting the var _replaces_ the
+default, it does not append.** `getAllowedHosts()` uses the env var verbatim
+(CSV, whitespace-trimmed): if `SLOT_ALLOWED_HOSTS` is set, only the listed hosts
+are allowed. A fork deployed at `https://my-slot.example.com` must therefore set
+the var to include **its own domain** plus everything else it still needs:
+
+```bash
+# .env / Vercel env vars — include YOUR domain + the defaults you rely on
+SLOT_ALLOWED_HOSTS=my-slot.example.com,github.com,localhost,127.0.0.1
+```
+
+Without that, `?redirect=https://my-slot.example.com/thanks` is rejected as an
+open-redirect attempt (logged as `[Security] Blocked open redirect attempt to:
+…`), and the spin redirects to the computed destination instead.
 
 ### ⚡ Upstash Redis (optional but recommended)
 
@@ -309,13 +361,13 @@ To make the slot **instant** (the screen shows the reels in ~10ms instead of
 standalone `UPSTASH_REDIS_REST_*` pair **or** the Vercel KV `KV_REST_API_*`
 pair — both enable Redis):
 
-| Env var | Purpose |
-| --- | --- |
-| `UPSTASH_REDIS_REST_URL` | REST URL of your Upstash Redis DB |
-| `UPSTASH_REDIS_REST_TOKEN` | REST token of your Upstash Redis DB |
-| `KV_REST_API_URL` | Vercel KV REST URL (alternative to the pair above) |
-| `KV_REST_API_TOKEN` | Vercel KV REST token |
-| `KV_REST_API_READ_ONLY_TOKEN` | Optional read-only token (read-path fallback) |
+| Env var                       | Purpose                                            |
+| ----------------------------- | -------------------------------------------------- |
+| `UPSTASH_REDIS_REST_URL`      | REST URL of your Upstash Redis DB                  |
+| `UPSTASH_REDIS_REST_TOKEN`    | REST token of your Upstash Redis DB                |
+| `KV_REST_API_URL`             | Vercel KV REST URL (alternative to the pair above) |
+| `KV_REST_API_TOKEN`           | Vercel KV REST token                               |
+| `KV_REST_API_READ_ONLY_TOKEN` | Optional read-only token (read-path fallback)      |
 
 When enabled, the following move to Redis (free tier: 10k commands/day is
 plenty for a profile widget):
@@ -352,9 +404,6 @@ changes needed to toggle between the two.
 > `fra1` region** → copy the `UPSTASH_REDIS_REST_URL` and
 > `UPSTASH_REDIS_REST_TOKEN` into Vercel's env vars.
 
-You can also override the redirect target per-request with
-`/api/spin?user=OTHERNAME` (handy for demos).
-
 ---
 
 ## 🗄️ Repo cache (language → repo lookup)
@@ -375,6 +424,15 @@ instance. This is the **ISSUE-28** behaviour.
   at most **800 ms**. If GitHub answers in time, the first spin already has a repo
   to link to; if the network is slow or down, an `AbortController` enforces the
   800 ms cap and the call returns immediately rather than hanging.
+- **Proactive warm-up (cron, ISSUE-N6).** `vercel.json` schedules
+  `GET /api/cache-refresh` once per day (`0 1 * * *`), so the language→repo
+  cache is kept populated across cold boots. The daily cadence is the maximum
+  Vercel's Hobby plan allows (cron jobs limited to one run per day). The cron
+  authenticates with the `CRON_SECRET` env var: Vercel sends it automatically
+  as `Authorization: Bearer <CRON_SECRET>` on cron requests (an `x-cron-secret`
+  header is also accepted; comparison is timing-safe). Without `CRON_SECRET`
+  the endpoint answers 401 (fail-closed). Manual refresh for admins:
+  `POST /api/cache-refresh` with a valid JWT.
 - **First spin can point to the profile.** Because of that 800 ms cap, when GitHub
   is slow or unreachable on a cold start the lookup returns `null` and the
   win/redirect falls back to your **GitHub profile** instead of a specific repo
@@ -448,8 +506,6 @@ shows everything inline).
 - **No win** → redirect to your GitHub profile.
 - **Win** → redirect to the matching repo (≥ 30% of the winning language).
   Falls back to the profile if no repo qualifies.
-- **Jackpot** (5 in a row) → redirect to the filtered repo list for that
-  language (`?tab=repositories&language=…`).
 
 ---
 

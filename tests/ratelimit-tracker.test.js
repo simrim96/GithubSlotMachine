@@ -20,7 +20,9 @@ describe('safeGetHeader', () => {
   });
 
   it('legge da oggetto plain (case-insensitive)', () => {
-    expect(safeGetHeader({ 'x-ratelimit-remaining': '10' }, 'X-RateLimit-Remaining')).toBe('10');
+    expect(
+      safeGetHeader({ 'x-ratelimit-remaining': '10' }, 'X-RateLimit-Remaining')
+    ).toBe('10');
   });
 
   it('ritorna null su headers undefined', () => {
@@ -73,7 +75,9 @@ describe('logRateLimit', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('stampa warning su stderr quando remaining <= threshold', () => {
-    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const spy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
     const h = makeHeaders(
       new Map([
         ['X-RateLimit-Remaining', String(GITHUB_RATE_LIMIT_WARNING_THRESHOLD)],
@@ -81,19 +85,17 @@ describe('logRateLimit', () => {
       ])
     );
     logRateLimit({ headers: h });
-    expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining('"level":"warn"')
-    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('"level":"warn"'));
     expect(spy).toHaveBeenCalledWith(
       expect.stringContaining('"msg":"GitHub Rate Limit status"')
     );
-    expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining('"remaining":10')
-    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('"remaining":10'));
   });
 
   it('NON stampa warning quando remaining > threshold', () => {
-    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const spy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
     const h = makeHeaders(
       new Map([
         ['X-RateLimit-Remaining', '4999'],
@@ -105,7 +107,9 @@ describe('logRateLimit', () => {
   });
 
   it('gestisce reset non numerico senza crash', () => {
-    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const spy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
     const h = makeHeaders(
       new Map([
         ['X-RateLimit-Remaining', '5'],
@@ -117,7 +121,9 @@ describe('logRateLimit', () => {
   });
 
   it('ignora header mancanti senza crash né log', () => {
-    const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const spy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
     logRateLimit({ headers: makeHeaders(new Map()) });
     expect(spy).not.toHaveBeenCalled();
   });

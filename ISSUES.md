@@ -9,6 +9,7 @@
 ## ALTO
 
 ### ISSUE-H1 — mapBatch in sequenza invece che in parallelo
+
 - **File**: `api/_lib/repos.js` (linee 104-116)
 - **Priorità**: P2
 - **Stato**: **RISOLTA**
@@ -16,12 +17,14 @@
 - **Fix**: Pool concorrente di `size` worker.
 
 ### ISSUE-H2 — Fire-and-forget state sync a GitHub
+
 - **File**: `api/_lib/state.js` (linee 438-450)
 - **Priorità**: P2
 - **Stato**: **RISOLTA**
 - **Fix**: Dirty flag in KV (`gsm:stateDirty`). Sync blocking al prossimo spin.
 
 ### ISSUE-H3 — Retry su rate limit GitHub (HTTP 429)
+
 - **File**: `api/_lib/github.js`
 - **Priorità**: P2
 - **Stato**: **Strategia cambiata**
@@ -32,30 +35,35 @@
 ## MEDIO
 
 ### ISSUE-M1 — Silent failure su Redis timeout
+
 - **File**: `api/_lib/kv.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
 - **Fix**: Circuit-breaker temporale dopo N fallimenti consecutivi.
 
 ### ISSUE-M2 — Memory leak nel cooldown in-memory
+
 - **File**: `api/_lib/spin-cooldown.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
 - **Fix**: Cleanup TTL-based su accesso.
 
 ### ISSUE-M3 — No retry su error GitHub API (non-429)
+
 - **File**: `api/_lib/github.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
 - **Fix**: `ghGetJson` ritenta 1 volta su 5xx/408.
 
 ### ISSUE-M4 — Config-loader validation
+
 - **File**: `api/_lib/config-loader.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
 - **Fix**: `validateEnv()` all'import del modulo.
 
 ### ISSUE-M5 — Async state sync può fallire dopo response send
+
 - **File**: `api/_lib/state.js`
 - **Priorità**: P3
 - **Stato**: **RISOLTA**
@@ -66,6 +74,7 @@
 ## BASSO — PROBLEMI ANCORA APERTI
 
 ### ISSUE-L1 — No rate limiting su `/api/badge`
+
 - **File**: `api/badge.js`
 - **Priorità**: P4
 - **Stato**: **RISOLTA**
@@ -75,6 +84,7 @@
 - **Test**: `tests/badge-cooldown.test.js` (6 test).
 
 ### ISSUE-L2 — No rate limiting su `/api/image`
+
 - **File**: `api/image.js`
 - **Priorità**: P4
 - **Stato**: **APERTA** (decisione deliberata, 2026-08-09)
@@ -89,6 +99,7 @@
 - **Test mancante**: Nessun test per rate limiting su image (accettato).
 
 ### ISSUE-L3 — CORS allowlist hardcoded con un solo dominio
+
 - **File**: `api/_lib/cors.js` (linea ~10)
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -97,6 +108,7 @@
 - **Fix suggerito**: Leggere la allowlist da variabile d'ambiente `CORS_ALLOWED_ORIGINS` (comma-separated, default `https://github.com`).
 
 ### ISSUE-L4 — SVG components non testati
+
 - **File**: `api/_lib/svg/*.js`
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -111,6 +123,7 @@
 - **Rischio**: Modifiche ai componenti SVG non sono protette da test unitari, aumentando il rischio di regressioni visive.
 
 ### ISSUE-L5 — `api/_lib/languages.js` non testato
+
 - **File**: `api/_lib/languages.js`
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -119,6 +132,7 @@
 - **Rischio**: Cambiamenti alla struttura dei dati linguistici potrebbero rompere il rendering SVG senza essere rilevati.
 
 ### ISSUE-L6 — SVG builder accessibilità duplica logica
+
 - **File**: `api/_lib/svg-builder-accessible.js`
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -126,6 +140,7 @@
 - **Rischio**: Divergenza tra SVG standard e accessibile.
 
 ### ISSUE-L7 — Client-side cooldown usa sessionStorage (bypassabile)
+
 - **File**: `api/_lib/spin-cooldown.js`
 - **Priorità**: P4
 - **Stato**: **APERTA** (non un bug, limitazione nota)
@@ -133,6 +148,7 @@
 - **Test esistente**: `tests/client-spin-cooldown.test.js` (4.918 caratteri) copre il comportamento client-side.
 
 ### ISSUE-L8 — No test per `api/_lib/shutdown.js`
+
 - **File**: `api/_lib/shutdown.js`
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -140,13 +156,26 @@
 - **Test esistente**: `tests/shutdown.test.js` (7.132 caratteri, test base).
 
 ### ISSUE-L9 — No test per `api/ratelimit-status.js`
+
 - **File**: `api/ratelimit-status.js`
 - **Priorità**: P4
-- **Stato**: **APERTA**
+- **Stato**: **RISOLTA** (2026-08-10)
 - **Descrizione**: L'endpoint che interroga GitHub `/rate_limit` per esporre lo stato del rate limit non ha test dedicati. Verifica solo indirettamente attraverso `tests/ratelimit.test.js` e `tests/ratelimit-tracker.test.js`.
 - **Test mancante**: Nessun test end-to-end per `GET /api/ratelimit-status`.
+- **Fix**: aggiunto `tests/ratelimit-status-e2e.test.js` (23 test): percentuali
+  `percentageUsed` e soglie `status` sul limite reale dal body
+  (`resources.core.limit`, 5000 autenticato / 60 anonimo, allineato alla fix
+  N10), confini ok/warning/critical, robustezza (header assenti, body
+  non-JSON, fetch fallita, reset non numerico) e protocollo (405 non-GET,
+  CORS, Bearer su GitHub). La chiamata a GitHub è sempre mockata
+  (`vi.stubGlobal('fetch')`). Il primo run dei test ha scoperto un bug reale:
+  gli header X-RateLimit-* venivano letti dall'intera response invece che da
+  `response.headers` (via `parseRateLimitHeaders`), quindi `remaining`/`reset`
+  risultavano sempre `null` → `status` sempre `'unknown'` anche a valle della
+  fix N10. Corretto il call-site in `api/ratelimit-status.js`.
 
 ### ISSUE-L10 — No test per `api/cache-refresh.js`
+
 - **File**: `api/cache-refresh.js`
 - **Priorità**: P4
 - **Stato**: **APERTA**
@@ -158,15 +187,19 @@
 ## RISOLTE
 
 ### ISSUE-C1 — Race condition nello stato della community
+
 **Stato: CHIUSA** — Contatori atomici INCR di Redis.
 
 ### ISSUE-C2 — SVG Injection tramite nome repo
+
 **Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
 
 ### ISSUE-C3 — No rate limiting su `/api/lever`
+
 **Stato: RISOLTA (2026-08-09) — cooldown RIMOSSO per bug t_a81cdf35.**
+
 - **Fix originale**: `checkSpinCooldown` in `lever.js` — ma `checkSpinCooldown` è
-  *check-and-set*: un GET passivo registrava l'IP del chiamante, quindi lo spin
+  _check-and-set_: un GET passivo registrava l'IP del chiamante, quindi lo spin
   successivo dello stesso IP entro la finestra veniva RIFIUTATO con un 302
   silenzioso verso il profilo → nessuno spin eseguito e l'utente rivedeva il
   risultato precedente ("come se l'svg non venisse aggiornato").
@@ -176,22 +209,29 @@
   circuit-breaker KV e dai rate limit GitHub (vedi ISSUE-L2).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
+
 **Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.
 
 ### ISSUE-H4 — No input validation su `/api/image`
+
 **Stato: RISOLTA** — Filename hardcoded `'slot.svg'`.
 
 ### ISSUE-L1 (vecchio) — SVG injection basso impatto
+
 **Stato: CHIUSA** — Duplicato di C2.
 
 ### ISSUE-L2 (vecchio) — logger.js Sentry
+
 **Stato: RISOLTA** — Lazy import di Sentry.
 
 ### ISSUE-L5 (vecchio) — No health check Redis
+
 **Stato: RISOLTA** — `kvSet` + `kvGet` nell'health check.
 
 ### ISSUE-L6 — kv.js usava endpoint REST Upstash INESISTENTI (Redis mai attivo)
+
 **Stato: RISOLTA** (2026-08-08, fix contatori community).
+
 - **Problema**: `kvGet`/`kvSet`/`kvMget`/`kvMset` chiamavano `/key/{key}` e
   `/db` (con body `{key,value}` / `{keys}` / `{pairs}`). La REST API di
   Upstash NON ha questi endpoint → rispondeva 400 "Command is not
@@ -213,38 +253,86 @@
   sync Redis→GitHub di state.json funziona (fix 422 sha mancante nel
   percorso KV, vedi commit ghPut).
 
+### ISSUE-N6 — /api/cache-refresh mai schedulato (cron inesistente)
+
+**Stato: RISOLTA (2026-08-10)** — Scelta la prima opzione del fix: l'endpoint
+resta ed è stato aggiunto il cron.
+
+- Il commento in testa a `api/cache-refresh.js` prometteva un warm-up
+  "ogni 30 minuti" che non esisteva: `vercel.json` schedulava solo
+  `/api/health` giornaliero, e l'endpoint era POST-only + JWT (i cron Vercel
+  fanno GET senza Authorization → 401 garantito).
+- **Fix**: cron `GET /api/cache-refresh` ogni 30 minuti (`*/30 * * * *`) in
+  `vercel.json`; il GET è autenticato con la env `CRON_SECRET` (Vercel la
+  inietta come `Authorization: Bearer <secret>` sui cron job; accettato anche
+  l'header `x-cron-secret`, confronto timing-safe via digest SHA-256). Senza
+  `CRON_SECRET` il GET risponde 401 fail-closed. Il POST manuale resta
+  autenticato con JWT (require-auth).
+- **File toccati**: `api/cache-refresh.js`, `vercel.json`, `.env.example`,
+  `AGENTS.md`, `README.md`, `tests/cors-all-endpoints.test.js`.
+- **Aggiornamento (2026-08-10)**: il cron è stato ridotto a una volta al
+  giorno (`0 1 * * *`) perché il piano Hobby di Vercel ammette solo cron con
+  frequenza massima giornaliera — `*/30 * * * *` farebbe fallire il deploy.
+  `/api/health` (già giornaliero) resta invariato; entrambi i cron sono ora
+  entro i limiti Hobby.
+
+### ISSUE-N10 — `ratelimit-status.js`: limite hardcoded 5000 (anonimo = 60)
+
+**Stato: RISOLTA (2026-08-10)** — Il limite reale viene letto dal body.
+
+- `totalLimit` era hardcoded a 5000 in `api/ratelimit-status.js`: senza token
+  GitHub il limite reale è 60/h, quindi `percentageUsed` e lo `status`
+  (critical ≤2 / warning ≤10 assoluti, calibrati su 5000) erano distorti per
+  i client anonimi (es. 55/60 rimasti = 98.9% "usato" fasullo).
+- **Fix**: il body di `/rate_limit` (`resources.core.limit`) viene parsato e
+  usato come limite reale; fallback difensivo ai limiti documentati (5000 con
+  token, 60 anonimo) quando il body non è leggibile. Soglie ora PERCENTUALI:
+  warning ≤ 10% del limite, critical ≤ 5% (arrotondati per eccesso);
+  `percentageUsed` clampata a 0.
+- **Bonus (bug pre-esistente emerso dai test)**: gli header X-RateLimit-* non
+  venivano mai letti (`safeGetHeader(response, …)` passava l'intera Response
+  invece di `response.headers`) → `remaining`/`status` erano sempre
+  `null`/`unknown`. Ora si usa `parseRateLimitHeaders(response)`.
+- **Test**: `tests/ratelimit-status-e2e.test.js` (23 test, copertura completa
+  del gap ISSUE-L9: percentuali su 5000 e 60, confini 10%/5%, robustezza,
+  CORS, Authorization).
+
 ---
 
 ## MIGLIORAMENTI GENERALI
 
 ### IMPROVE-1 — Test coverage
+
 - **File**: `tests/`
 - **Stato**: 370 test su 42 file, **tutti passanti**.
 - **Comando**: `npm test`
-- **Gap principali**: SVG components (`api/_lib/svg/*.js`), `cache-refresh.js`, `ratelimit-status.js`, `languages.js` (copertura minima).
+- **Gap principali**: SVG components (`api/_lib/svg/*.js`), `cache-refresh.js`, `languages.js` (copertura minima).
 
 ### IMPROVE-2 — Type safety
+
 - **File**: Tutti i file JS
 - **Descrizione**: JavaScript puro senza TypeScript. JSDoc typing possibile ma non implementato.
 
 ### IMPROVE-3 — Error tracking
+
 - **File**: `api/_lib/logger.js`
 - **Descrizione**: Sentry configurato ma senza context tracking negli endpoint API. Errori non catturati in `spin.js` sono loggati ma non tracciati con stato.
 
 ### IMPROVE-4 — Monitoring dashboards
+
 - **Descrizione**: Logging strutturato JSON ma nessun dashboard o alerting configurato.
 
 ---
 
 ## Riepilogo Priorità
 
-| Priorità | Count | Stato | Azione |
-|----------|-------|-------|--------|
-| P1 (Critico) | 0 | — | — |
-| P2 (Alto) | 0 (H1-H3 risolti) | — | — |
-| P3 (Medio) | 0 (M1-M5 risolte) | — | — |
-| P4 (Basso) | 9 (L2-L10) | 1 aperta | Rate limiting, test SVG, CORS |
-| **P1 (Perf)** | 6 (B1-B6) | 0 aperti | **Ottimizzazione lever.js** |
+| Priorità      | Count             | Stato    | Azione                        |
+| ------------- | ----------------- | -------- | ----------------------------- |
+| P1 (Critico)  | 0                 | —        | —                             |
+| P2 (Alto)     | 0 (H1-H3 risolti) | —        | —                             |
+| P3 (Medio)    | 0 (M1-M5 risolte) | —        | —                             |
+| P4 (Basso)    | 9 (L2-L10)        | 1 aperta | Rate limiting, test SVG, CORS |
+| **P1 (Perf)** | 6 (B1-B6)         | 0 aperti | **Ottimizzazione lever.js**   |
 
 **Totale problemi aperti: 9 (tutti P4)**
 
@@ -311,15 +399,19 @@
 ## RISOLTE
 
 ### ISSUE-C1 — Race condition nello stato della community
+
 **Stato: CHIUSA** — Contatori atomici INCR di Redis.
 
 ### ISSUE-C2 — SVG Injection tramite nome repo
+
 **Stato: RISOLTA** — `escapeXml` in `utils.js`, `safeLang` in `badge.js`.
 
 ### ISSUE-C3 — No rate limiting su `/api/lever`
+
 **Stato: RISOLTA (2026-08-09) — cooldown RIMOSSO per bug t_a81cdf35.**
+
 - **Fix originale**: `checkSpinCooldown` in `lever.js` — ma `checkSpinCooldown` è
-  *check-and-set*: un GET passivo registrava l'IP del chiamante, quindi lo spin
+  _check-and-set_: un GET passivo registrava l'IP del chiamante, quindi lo spin
   successivo dello stesso IP entro la finestra veniva RIFIUTATO con un 302
   silenzioso verso il profilo → nessuno spin eseguito e l'utente rivedeva il
   risultato precedente ("come se l'svg non venisse aggiornato").
@@ -329,35 +421,41 @@
   circuit-breaker KV e dai rate limit GitHub (vedi ISSUE-L2).
 
 ### ISSUE-C4 — Cold start stall di 3 secondi
+
 **Stato: RISOLTA** — `COLD_START_WAIT_MS` ridotto a 1000ms.
 
 ### ISSUE-H4 — No input validation su `/api/image`
+
 **Stato: RISOLTA** — Filename hardcoded `'slot.svg'`.
 
 ### ISSUE-L1 (vecchio) — SVG injection basso impatto
+
 **Stato: CHIUSA** — Duplicato di C2.
 
 ### ISSUE-L2 (vecchio) — logger.js Sentry
+
 **Stato: RISOLTA** — Lazy import di Sentry.
 
 ### ISSUE-L5 (vecchio) — No health check Redis
+
 **Stato: RISOLTA** — `kvSet` + `kvGet` nell'health check.
 
 ---
 
 ## Riepilogo Priorità
 
-| Priorità | Count | Stato | Azione |
-|----------|-------|-------|--------|
-| P1 (Critico) | 0 | — | — |
-| P2 (Alto) | 0 (H1-H3 risolti) | — | — |
-| P3 (Medio) | 0 (M1-M5 risolte) | — | — |
-| P4 (Basso) | 9 (L2-L10) | 1 aperta | Rate limiting, test SVG, CORS |
-| **P1 (Perf)** | 6 (B1-B6) | 0 aperti | **Ottimizzazione lever.js** |
+| Priorità      | Count             | Stato    | Azione                        |
+| ------------- | ----------------- | -------- | ----------------------------- |
+| P1 (Critico)  | 0                 | —        | —                             |
+| P2 (Alto)     | 0 (H1-H3 risolti) | —        | —                             |
+| P3 (Medio)    | 0 (M1-M5 risolte) | —        | —                             |
+| P4 (Basso)    | 9 (L2-L10)        | 1 aperta | Rate limiting, test SVG, CORS |
+| **P1 (Perf)** | 6 (B1-B6)         | 0 aperti | **Ottimizzazione lever.js**   |
 
 **Totale problemi aperti: 9 (tutti P4) + 6 bottleneck performance da risolvere**
 
 **Piano di ottimizzazione lever.js (stimato)**:
+
 1. Cache linguaggio principale (B1) → **-200/500ms** (impatto maggiore)
 2. Doppia chiamata KV cooldown (B2) → **-10ms**
 3. INCR+SET separati (B3) → **-10ms**
@@ -374,6 +472,7 @@
 > Task kanban t_2dd28800: dopo lunga inattività (cold start Vercel + cache scadute) lo spin è lento. Analisi del percorso critico e fix applicati:
 
 **Cosa pesava sullo spin a freddo (in ordine di impatto):**
+
 1. **GET README in serie al percorso critico** — la GET GitHub della README (~150-400ms) partiva solo DOPO la build SVG: su spin a freddo (cache `gsm:readme` TTL 60s scaduta → GET quasi certa) aggiungeva la sua latenza IN SERIE al redirect. **Fix**: la GET è ora anticipata (`readmeGetPromise`, parte subito dopo la lettura dello stato) e si sovrappone a repo lookup + build SVG. Il redirect aspetta solo la PUT (~150-300ms).
 2. **Timeout GET README troppo largo** — usava il default `GITHUB_API_TIMEOUT_MS` (2s) pur essendo una lettura di contenuto sul percorso critico. **Fix**: ora usa `GH_CONTENTS_TIMEOUT_MS` (800ms, come state.json) → worst case GET+retry = 2.1s invece di 4.5s (il cap di sicurezza README_TIMEOUT_MS=4s resta come ultima rete).
 3. **Preload cache repo rotto (TDZ)** — `loadFromKv()` al caricamento del modulo (repos.js) era chiamata PRIMA della dichiarazione di `kvLoaded` → `ReferenceError: Cannot access 'kvLoaded' before initialization` a OGNI cold start: il preload KV non è mai partito, e il primo `getRepoForLanguage` poteva cascare nel falso cold start (stall GitHub fino a 1s) pur avendo i repo in KV. **Fix**: chiamata spostata dopo le dichiarazioni + dedup della promise in corso (`kvLoadPromise`) così i chiamanti concorrenti attendono la STESSA load.
@@ -382,6 +481,7 @@
 **Impatto stimato**: spin a freddo ~-300/400ms tipici (GET fuori dal percorso critico), worst case GitHub lento 4.5s → ~2.1s, e spariti: ReferenceError al boot, GET extra per 409 a ogni cache HIT, falso cold start da 1s quando KV ha i repo.
 
 **Rimasto fuori (valutato, non applicato)**:
+
 - **Keep-warm**: un cron che bussi a `/api/spin` non è proponibile (farebbe spin veri: contatori + PUT README); un endpoint `/api/warm` dedicato richiederebbe un nuovo deploy/cron e su Vercel il keep-warm non garantisce isolati caldi. Si può valutare "Minimum Instances" (piano Pro) se il cold start Vercel (~300-600ms) diventa il collo di bottiglia percepito.
 - **Tier "lastgood" per la cache README**: scarteremmo la GET su spin a freddo, ma allargherebbe la finestra di sovrascrittura di edit manuali alla README (ora limitata a 60s di TTL). Non applicato per non cambiare il contratto P1.
 
@@ -392,6 +492,7 @@
 > Task kanban t_1754398f: "verificare se possibile velocizzare il caricamento dal click sulla leva all'inizio della rotazione effettiva dei rulli, sia a caldo che a freddo". Misure LIVE su github-slot-machine.vercel.app + fix applicati.
 
 **Misure live (probe + commit GitHub correlati):**
+
 - `/api/spin` (server-side, 4 spin): **2.05-2.35s TTFB** costanti, su 4 istanze diverse (NON è cold start).
 - `/api/image` dopo lo spin: 110-190ms (KV serve bene).
 - `/api/lever`: 34ms a caldo.
@@ -401,6 +502,7 @@
 **Causa radice del collo di bottiglia**: la PUT di backup di slot.svg su GitHub parte SENZA sha (il percorso KV di `loadSlotSvg` non propaga lo sha GitHub) → GitHub risponde 422 garantito "sha wasn't supplied" → `ghPut` rifetcha → riprova: **3 round trip (PUT+GET+PUT, ~1.2-1.5s)** che sforano `SLOT_SVG_GITHUB_TIMEOUT_MS` (1.5s) e diventano il polo del `Promise.allSettled` pre-redirect. La PUT README (~1s) è il secondo polo.
 
 **Fix applicati:**
+
 1. **`ghPut` GET-first quando sha manca** (api/_lib/github.js): prima PUT(422)→GET→PUT (3 round trip); ora GET dello sha (o 404 → file nuovo) → UNA PUT. Beneficia TUTTI i chiamanti senza sha (backup slot.svg, sync state.json). Niente più 422 garantito a ogni spin.
 2. **Sha di slot.svg memoizzato in KV** (`gsm:slotSvg:sha`, scritto da `saveSlotSvg` dopo la PUT di backup, letto da `loadSlotSvg` via `kvMget` in una sola round trip): sul percorso caldo la PUT di backup diventa UNA sola chiamata (~0.5-1s), sotto il polo della PUT README. Se la memoizzazione non atterra, si casca nel GET-first di ghPut (corretto, solo più lento).
 3. **`readmeGetPromise` parte PRIMA** (api/spin.js): la GET della README (cache KV → GitHub) ora si sovrappone ANCHE alla lettura di slot.svg+stato, non solo a repo lookup + build.
@@ -408,8 +510,23 @@
 **Impatto atteso**: spin server-side ~2.1-2.35s → ~1.2-1.5s a caldo (~35-40% in meno); spin a freddo ~1.5-1.7s. In più il backup GitHub di slot.svg atterra a OGNI spin (robustezza: prima 1 su 4).
 
 **Rimasto fuori (non applicato)**:
+
 - Il resto della latenza percepita (redirect → render README su GitHub → Camo → fetch immagine) è fuori dal nostro controllo server-side; la PUT README (~1s) resta il polo inevitabile perché il `?v=` deve stare nel profilo PRIMA che il browser lo renderizzi.
 - Cold start Vercel (~300-600ms per richiesta su istanza nuova): infrastruttura, mitigabile solo con Minimum Instances (piano Pro).
 - Cooldown KV in 2 round trip (B2): -10ms, non toccato per non cambiare la semantica check-and-set.
+
+---
+
+## SYNC STATE.JSON — MEMOIZZAZIONE SHA (2026-08-10)
+
+> Task kanban t_02838af5 (ISSUES.md §4, osservazione 1): il sync fire-and-forget di state.json su GitHub passava dal GET-first di `ghPut` → 2 round trip per spin. Pattern speculare alla memoizzazione di slot.svg (`gsm:slotSvg:sha`, fix 2026-08-09).
+
+**Fix applicato** (api/_lib/state.js):
+
+- **`gsm:state:sha` memoizzato in KV** (TTL 7gg, come slot.svg): `syncStateToGitHub` lo scrive dopo ogni PUT riuscita (sha POST-PUT ritornato da `ghPut`); `readState` (percorso KV) lo rilegge con `kvMget(STATE_KEY, STATE_SHA_KEY)` in UNA sola round trip e lo propaga a `writeState` → `syncStateToGitHub` → `ghPut`. Sul percorso caldo il sync diventa UNA sola PUT (niente GET-first né 422).
+- Se la memoizzazione non atterra (es. Vercel congela il processo prima della kvSet), si casca nel GET-first di ghPut: corretto, solo più lento.
+- Su modifica esterna di state.json, lo sha stale produce un 409 che `ghPut` risolve da solo (refetch → PUT) e lo sha nuovo viene rimemoizzato.
+
+**Impatto**: -1 round trip GitHub (~150-300ms) per spin sul sync fire-and-forget (non percepito dall'utente — gira in parallelo al redirect), con guadagno su consumo rate-limit e affidabilità del backup.
 
 ---

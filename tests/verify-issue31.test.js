@@ -10,7 +10,9 @@ const captured = { initArgs: null };
 // sentry.config.js fa `import * as Sentry` e accede a Sentry.init / Sentry.httpIntegration
 // come named export -> il mock deve esporli come named (non sotto default).
 vi.mock('@sentry/node', () => ({
-  init: (opts) => { captured.initArgs = opts; },
+  init: (opts) => {
+    captured.initArgs = opts;
+  },
   httpIntegration: () => ({ name: 'http' }),
 }));
 
@@ -20,7 +22,9 @@ async function loadConfigWithEnv(env) {
   vi.resetModules();
   const saved = {};
   const keys = ['SENTRY_DSN', 'SENTRY_DEBUG', 'NODE_ENV'];
-  for (const k of keys) { saved[k] = process.env[k]; }
+  for (const k of keys) {
+    saved[k] = process.env[k];
+  }
   for (const k of keys) {
     if (k in env) process.env[k] = env[k];
     else delete process.env[k];
@@ -34,20 +38,32 @@ async function loadConfigWithEnv(env) {
 }
 
 describe('ISSUE-31: Sentry debug flag', () => {
-  beforeEach(() => { captured.initArgs = null; });
+  beforeEach(() => {
+    captured.initArgs = null;
+  });
 
   it('NODE_ENV=development + SENTRY_DSN set + SENTRY_DEBUG unset => debug false', async () => {
-    const opts = await loadConfigWithEnv({ NODE_ENV: 'development', SENTRY_DSN: 'https://x@y/1' });
+    const opts = await loadConfigWithEnv({
+      NODE_ENV: 'development',
+      SENTRY_DSN: 'https://x@y/1',
+    });
     expect(opts.debug).toBe(false);
   });
 
   it('NODE_ENV=development + SENTRY_DSN set + SENTRY_DEBUG=true => debug true', async () => {
-    const opts = await loadConfigWithEnv({ NODE_ENV: 'development', SENTRY_DSN: 'https://x@y/1', SENTRY_DEBUG: 'true' });
+    const opts = await loadConfigWithEnv({
+      NODE_ENV: 'development',
+      SENTRY_DSN: 'https://x@y/1',
+      SENTRY_DEBUG: 'true',
+    });
     expect(opts.debug).toBe(true);
   });
 
   it('NODE_ENV=production + SENTRY_DEBUG unset => debug false', async () => {
-    const opts = await loadConfigWithEnv({ NODE_ENV: 'production', SENTRY_DSN: 'https://x@y/1' });
+    const opts = await loadConfigWithEnv({
+      NODE_ENV: 'production',
+      SENTRY_DSN: 'https://x@y/1',
+    });
     expect(opts.debug).toBe(false);
   });
 });

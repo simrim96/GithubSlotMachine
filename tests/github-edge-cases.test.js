@@ -18,7 +18,8 @@ vi.mock('../../sentry.config.js', () => ({
 }));
 
 const github = await import('../api/_lib/github.js');
-const { ghGetJson, ghGetContentsJson, ghHeaders, auditToken, detectTokenType } = github;
+const { ghGetJson, ghGetContentsJson, ghHeaders, auditToken, detectTokenType } =
+  github;
 
 // Helper: crea risposta fetch mockata con status, headers e opzionale body
 function makeFetchResponse(status, headers = {}, body = null) {
@@ -27,7 +28,7 @@ function makeFetchResponse(status, headers = {}, body = null) {
     status,
     headers: new Map(Object.entries(headers)),
     json: async () => body,
-    text: async () => body ? JSON.stringify(body) : '',
+    text: async () => (body ? JSON.stringify(body) : ''),
   };
 }
 
@@ -50,7 +51,11 @@ function makeRateLimitAwareFetch(mockMap = {}) {
       if (mock instanceof Error) {
         setTimeout(() => reject(mock), 10);
       } else {
-        setTimeout(() => resolve(makeFetchResponse(mock.status, mock.headers, mock.body)), 10);
+        setTimeout(
+          () =>
+            resolve(makeFetchResponse(mock.status, mock.headers, mock.body)),
+          10
+        );
       }
     });
   });
@@ -74,24 +79,27 @@ describe('M9: GitHub API edge cases', () => {
   describe('403 rate_limit_exceeded', () => {
     it('ghGetJson ritorna null su 403 rate_limit_exceeded', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 403,
-          headers: {
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': Date.now() / 1000 + 3600,
-            'Retry-After': '60',
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 403,
+            headers: {
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': Date.now() / 1000 + 3600,
+              'Retry-After': '60',
+            },
+            body: {
+              message: 'rate_limit_exceeded',
+              documentation_url:
+                'https://docs.github.com/rest/overview/resources-in-the-rest-api',
+            },
           },
-          body: {
-            message: 'rate_limit_exceeded',
-            documentation_url: 'https://docs.github.com/rest/overview/resources-in-the-rest-api',
-          },
-        },
-      }));
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       // Su 403, ghGetJson ritorna null (response.ok = false)
@@ -100,21 +108,23 @@ describe('M9: GitHub API edge cases', () => {
 
     it('ghGetJson NON lancia su 403 con altre cause (es. forbidden)', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 403,
-          headers: {
-            'X-RateLimit-Remaining': '0',
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 403,
+            headers: {
+              'X-RateLimit-Remaining': '0',
+            },
+            body: {
+              message: 'Resource not accessible by integration',
+            },
           },
-          body: {
-            message: 'Resource not accessible by integration',
-          },
-        },
-      }));
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       // Anche su 403, ritorna null (non è un errore che va lanciato)
@@ -124,17 +134,19 @@ describe('M9: GitHub API edge cases', () => {
     it('ghGetJson propaga errori 500 anche su 403 rate limit (se non gestito)', async () => {
       // Caso raro: 403 che non è rate limit e non dovrebbe essere ignorato
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 403,
-          headers: {},
-          body: { message: 'forbidden' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 403,
+            headers: {},
+            body: { message: 'forbidden' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       // ghGetJson tratta tutti i 403 come null (non-ok)
@@ -146,17 +158,19 @@ describe('M9: GitHub API edge cases', () => {
   describe('502 bad_gateway / 504 gateway_timeout', () => {
     it('ghGetJson ritorna null su 502 bad_gateway', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 502,
-          headers: {},
-          body: { message: 'Bad Gateway' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 502,
+            headers: {},
+            body: { message: 'Bad Gateway' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       // 502 = response.ok = false → ritorna null
@@ -165,17 +179,19 @@ describe('M9: GitHub API edge cases', () => {
 
     it('ghGetJson ritorna null su 504 gateway_timeout', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 504,
-          headers: {},
-          body: { message: 'Gateway Timeout' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 504,
+            headers: {},
+            body: { message: 'Gateway Timeout' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       // 504 = response.ok = false → ritorna null
@@ -184,17 +200,19 @@ describe('M9: GitHub API edge cases', () => {
 
     it('ghGetJson ritorna null su 503 service_unavailable', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 503,
-          headers: {},
-          body: { message: 'Service Unavailable' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 503,
+            headers: {},
+            body: { message: 'Service Unavailable' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       expect(result).toBeNull();
@@ -207,38 +225,49 @@ describe('M9: GitHub API edge cases', () => {
       // Nota: il filtraggio dei forked repo è fatto nel layer superiore (repos.js),
       // non in github.js. Quindi ghGetJson deve funzionare normalmente anche per fork.
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 200,
-          headers: {},
-          body: {
-            name: 'test.json',
-            sha: 'abc123',
-            size: 100,
-            path: 'p',
-            content: Buffer.from('test content').toString('base64'),
-            encoding: 'base64',
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 200,
+            headers: {},
+            body: {
+              name: 'test.json',
+              sha: 'abc123',
+              size: 100,
+              path: 'p',
+              content: Buffer.from('test content').toString('base64'),
+              encoding: 'base64',
+            },
           },
-        },
-      }));
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p');
 
       expect(result).not.toBeNull();
       expect(result.name).toBe('test.json');
-      expect(result.content).toEqual(Buffer.from('test content').toString('base64'));
+      expect(result.content).toEqual(
+        Buffer.from('test content').toString('base64')
+      );
     });
 
     it('ghGetContentsJson su forked repo usa il timeout stretto (800ms)', async () => {
       // Simula forked repo lento: la chiamata dovrebbe essere abortita al timeout
       const url = 'https://api.github.com/repos/o/r/contents/state.json';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: new Error('timeout: forked repo lento'),
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: new Error('timeout: forked repo lento'),
+        })
+      );
 
-      const result = await ghGetContentsJson('token', 'o', 'r', 'state.json').then(
-        r => r,
-        e => e
+      const result = await ghGetContentsJson(
+        'token',
+        'o',
+        'r',
+        'state.json'
+      ).then(
+        (r) => r,
+        (e) => e
       );
 
       // Timeout → errore lanciato (non null)
@@ -251,17 +280,19 @@ describe('M9: GitHub API edge cases', () => {
   describe('additional edge cases', () => {
     it('ghGetJson ritorna null su 404 Not Found', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 404,
-          headers: {},
-          body: { message: 'Not Found' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 404,
+            headers: {},
+            body: { message: 'Not Found' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       expect(result).toBeNull();
@@ -269,17 +300,19 @@ describe('M9: GitHub API edge cases', () => {
 
     it('ghGetJson ritorna null su 401 Unauthorized', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 401,
-          headers: {},
-          body: { message: 'Bad credentials' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 401,
+            headers: {},
+            body: { message: 'Bad credentials' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       expect(result).toBeNull();
@@ -287,17 +320,19 @@ describe('M9: GitHub API edge cases', () => {
 
     it('ghGetJson ritorna null su 403 Forbidden (resource non accessibile)', async () => {
       const url = 'https://api.github.com/repos/o/r/contents/p';
-      vi.mocked(fetch).mockImplementation(makeRateLimitAwareFetch({
-        [url]: {
-          status: 403,
-          headers: {},
-          body: { message: 'Resource not accessible by integration' },
-        },
-      }));
+      vi.mocked(fetch).mockImplementation(
+        makeRateLimitAwareFetch({
+          [url]: {
+            status: 403,
+            headers: {},
+            body: { message: 'Resource not accessible by integration' },
+          },
+        })
+      );
 
       const result = await ghGetJson('token', 'o', 'r', 'p').then(
-        r => r,
-        e => e
+        (r) => r,
+        (e) => e
       );
 
       expect(result).toBeNull();
@@ -324,7 +359,9 @@ describe('M9: GitHub API edge cases', () => {
         accept: 'application/vnd.github.v3+json; format=json',
         userAgent: 'Custom-Client/1.0',
       });
-      expect(headers.Accept).toBe('application/vnd.github.v3+json; format=json');
+      expect(headers.Accept).toBe(
+        'application/vnd.github.v3+json; format=json'
+      );
       expect(headers['User-Agent']).toBe('Custom-Client/1.0');
       expect(headers.Authorization).toBe('Bearer token');
     });
@@ -340,7 +377,7 @@ describe('M9: GitHub API edge cases', () => {
 
     it('detectTokenType riconosce classic PAT (ghp_, gho_, ghu_, ghs_, ghr_)', () => {
       const prefixes = ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_'];
-      prefixes.forEach(prefix => {
+      prefixes.forEach((prefix) => {
         const result = detectTokenType(`${prefix}abc123`);
         expect(result.kind).toBe('classic');
         expect(result.safe).toBe(false);

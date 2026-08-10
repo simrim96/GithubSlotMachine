@@ -5,20 +5,21 @@
 // A differenza della versione precedente, NON manteniamo più uno stato
 // osservazionale in-process (la classe RateLimitTracker era puramente
 // cosmetica e non bloccava nulla — vedi ISSUE-12). Leggiamo lo stato LIVE
-// dall'endpoint GitHub /rate_limit — che NON consuma il budget delle 5000
-// req/h — e parsiamo gli header X-RateLimit-* per il logging.
+// dall'endpoint GitHub /rate_limit — che NON consuma il budget di rate
+// limit — e parsiamo gli header X-RateLimit-* per il logging.
 //
-// Esempio di risposta:
+// Esempio di risposta (client anonimo, limite reale 60/h da
+// resources.core.limit — ISSUE-N10):
 //   {
-//     "remaining": 50,
-//     "limit": 5000,
+//     "remaining": 55,
+//     "limit": 60,
 //     "reset": 1784267400,
 //     "resetTime": "17/07/2026, 08:10:00",
 //     "secondsUntilReset": 300,
-//     "percentageUsed": 99,
-//     "status": "warning", // 'ok', 'warning', 'critical', 'unknown'
+//     "percentageUsed": 8.33,
+//     "status": "ok", // 'ok', 'warning', 'critical', 'unknown'
 //     "totalRequests": null,
-//     "isBelowWarningThreshold": true
+//     "isBelowWarningThreshold": false
 //   }
 //
 // Endpoints correlati:
@@ -26,12 +27,7 @@
 //   • GET /api/stats      - Statistiche dell'applicazione
 //
 
-import {
-  GITHUB_RATE_LIMIT_HEADER_REMAINING,
-  GITHUB_RATE_LIMIT_HEADER_RESET,
-  GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
-  safeGetHeader,
-} from './_lib/ratelimit-tracker.js';
+import { parseRateLimitHeaders } from './_lib/ratelimit-tracker.js';
 import { logger } from './_lib/logger.js';
 import { ghHeaders } from './_lib/github.js';
 import { corsHeaders } from './_lib/cors.js';
@@ -60,7 +56,9 @@ export default async function handler(req) {
   try {
     response = await fetch('https://api.github.com/rate_limit', { headers });
   } catch (error) {
-    logger.warn('ratelimit-status fetch /rate_limit failed', { error: error?.message });
+    logger.warn('ratelimit-status fetch /rate_limit failed', {
+      error: error?.message,
+    });
     return buildResponse({
       status: 200,
       headers: {
@@ -72,32 +70,52 @@ export default async function handler(req) {
     });
   }
 
-  const remainingRaw = safeGetHeader(response, GITHUB_RATE_LIMIT_HEADER_REMAINING);
-  const resetRaw = safeGetHeader(response, GITHUB_RATE_LIMIT_HEADER_RESET);
+  // Gli header X-RateLimit-* vivono su response.headers; parseRateLimitHeaders
+  // estrae remaining/reset in modo difensivo (Headers standard o plain object)
+  // e normalizza i non-numerici a null.
+  const { remaining, reset } = parseRateLimitHeaders(response);
 
-  const remaining =
-    remainingRaw !== null && remainingRaw !== undefined
-      ? parseInt(remainingRaw, 10)
-      : null;
-  const reset =
-    resetRaw !== null && resetRaw !== undefined ? parseInt(resetRaw, 10) : null;
+  // Il body /rate_limit espone il limite reale (resources.core.limit): 5000/h
+  // con token, 60/h anonimo (ISSUE-N10). Prima questo valore era hardcoded a
+  // 5000, quindi con un client anonimo percentageUsed e status venivano
+  // calcolati su un budget sbagliato (es. 55/60 rimasti = 98.9% "usato").
+  let totalLimit = null;
+  try {
+    const rateLimitBody = await response.json();
+    totalLimit = rateLimitBody?.resources?.core?.limit ?? null;
+  } catch {
+    totalLimit = null;
+  }
+  if (
+    typeof totalLimit !== 'number' ||
+    !Number.isFinite(totalLimit) ||
+    totalLimit <= 0
+  ) {
+    // Fallback difensivo ai limiti documentati GitHub quando il body non è
+    // leggibile o non espone il campo.
+    totalLimit = token ? 5000 : 60;
+  }
 
-  // Calcola il limite totale (GitHub free tier: 5000 richieste/ora)
-  const totalLimit = 5000;
+  // Soglie percentuali sul limite reale: gli assoluti 2/10 erano calibrati
+  // sul limite 5000 e distorti per i client anonimi. warning ≤ 10% del
+  // limite, critical ≤ 5% (arrotondati per eccesso per restare su interi).
+  const warningThreshold = Math.ceil(totalLimit * 0.1);
+  const criticalThreshold = Math.ceil(totalLimit * 0.05);
 
-  // Calcola la percentuale utilizzata
+  // Calcola la percentuale utilizzata (clampata a 0: remaining non dovrebbe
+  // mai superare il limite, ma un header stale non deve produrre negativi)
   const percentageUsed =
     remaining !== null
-      ? (((totalLimit - remaining) / totalLimit) * 100).toFixed(2)
+      ? ((Math.max(0, totalLimit - remaining) / totalLimit) * 100).toFixed(2)
       : null;
 
   // Determina lo stato del rate limit (solo visualizzazione)
   let status = 'unknown';
   if (remaining === null) {
     status = 'unknown';
-  } else if (remaining <= 2) {
+  } else if (remaining <= criticalThreshold) {
     status = 'critical';
-  } else if (remaining <= 10) {
+  } else if (remaining <= warningThreshold) {
     status = 'warning';
   } else {
     status = 'ok';
@@ -119,7 +137,7 @@ export default async function handler(req) {
     // Non teniamo più uno stato in-process: il conteggio è live, non cumulativo.
     totalRequests: null,
     isBelowWarningThreshold:
-      remaining !== null && remaining <= GITHUB_RATE_LIMIT_WARNING_THRESHOLD,
+      remaining !== null && remaining <= warningThreshold,
   };
 
   return buildResponse({

@@ -11,7 +11,7 @@
 // Tutte le chiamate KV passano dai wrapper con timeout in kv.js, così Redis
 // lento/cross-region non blocca mai lo spin.
 
-import { kvGet, kvSet, kvEnabled, kvIncr } from './kv.js';
+import { kvGet, kvSet, kvEnabled, kvIncr, kvMget } from './kv.js';
 import { ghGetContentsJson, ghPut } from './github.js';
 import { promises as fsp } from 'fs';
 import { logger } from '../_lib/logger.js';
@@ -139,13 +139,18 @@ function recordStateSyncFailure(err) {
   } else if (_alertRaised) {
     // Continuiamo a loggare (a livello warn, meno rumoroso) finché l'alert
     // è già stato sollevato, così chi guarda i log vede la persistenza.
-    logger.warn('state sync Redis→GitHub failed', { consecutive_failures: _syncFailureCount, error: err?.message || err });
+    logger.warn('state sync Redis→GitHub failed', {
+      consecutive_failures: _syncFailureCount,
+      error: err?.message || err,
+    });
   }
 }
 
 function recordStateSyncSuccess() {
   if (_syncFailureCount !== 0 || _alertRaised) {
-    logger.info('state sync Redis→GitHub recovered', { consecutive_failures: _syncFailureCount });
+    logger.info('state sync Redis→GitHub recovered', {
+      consecutive_failures: _syncFailureCount,
+    });
   }
   _syncFailureCount = 0;
   _alertRaised = false;
@@ -182,7 +187,23 @@ async function syncStateToGitHub(token, owner, repo, state, sha) {
       // così chi legge state.json (frontend/profilo) sa che c'è stata una
       // divergenza temporanea che è stata recuperata.
       const stateToSync = _stateStale ? { ...state, stale: true } : state;
-      await writeStateGitHub(token, owner, repo, stateToSync, sha);
+      const newSha = await writeStateGitHub(
+        token,
+        owner,
+        repo,
+        stateToSync,
+        sha
+      );
+      // Memoizza lo sha POST-PUT in KV (fire-and-forget, come saveSlotSvg fa
+      // per gsm:slotSvg:sha): il prossimo sync parte con lo sha → UNA sola
+      // PUT, niente GET-first né 422. Se la kvSet non atterra (Vercel
+      // congela il processo), lo spin successivo casca nel GET-first di
+      // ghPut: corretta, solo un po' più lenta. Su modifica esterna dello
+      // stato, lo sha stale produce un 409 che ghPut risolve da solo e
+      // questo kvSet rimemoizza lo sha nuovo.
+      if (newSha && kvEnabled) {
+        kvSet(STATE_SHA_KEY, newSha, STATE_SHA_TTL_SEC).catch(() => {});
+      }
       // Sync riuscito: la divergenza è risolta. Azzeriamo il flag stale
       // DOPO la scrittura, così questo body porta ancora "stale": true (per
       // segnalare il recupero) ma i sync successivi non lo rimarcheranno.
@@ -190,7 +211,11 @@ async function syncStateToGitHub(token, owner, repo, state, sha) {
       return true;
     } catch (err) {
       lastErr = err;
-      logger.warn('state sync Redis→GitHub attempt failed', { attempt: attempt + 1, max_retries: STATE_SYNC_MAX_RETRIES, error: err?.message || err });
+      logger.warn('state sync Redis→GitHub attempt failed', {
+        attempt: attempt + 1,
+        max_retries: STATE_SYNC_MAX_RETRIES,
+        error: err?.message || err,
+      });
       if (attempt < STATE_SYNC_MAX_RETRIES - 1) {
         const delay = STATE_SYNC_BACKOFF_BASE_MS * 2 ** attempt;
         await new Promise((r) => setTimeout(r, delay));
@@ -208,6 +233,21 @@ async function syncStateToGitHub(token, owner, repo, state, sha) {
 const STATE_KEY = 'gsm:state';
 const STATE_PATH = 'state.json';
 const TMP_STATE_PATH = '/tmp/GithubSlotMachine_state.json';
+
+// Chiave KV che memoizza lo sha GitHub di state.json dopo l'ultima PUT di
+// sync riuscita (pattern speculare a SLOT_SVG_SHA_KEY in github.js).
+// readState (percorso KV) la rilegge con kvMget in UNA sola round trip e la
+// passa a writeState → syncStateToGitHub → ghPut: senza di essa il sync
+// partiva senza sha → GET-first di ghPut (2 round trip per spin, ~150-300ms
+// di GitHub consumato a ogni spin). Con lo sha memoizzato il sync è UNA sola
+// PUT. Se la memoizzazione non atterra, si casca nel GET-first di ghPut
+// (corretto, solo più lento); su modifica esterna lo sha stale produce un
+// 409 che ghPut risolve da solo (refetch → PUT → sha nuovo rimemoizzato).
+const STATE_SHA_KEY = 'gsm:state:sha';
+// TTL per lo sha memoizzato: state.json viene riscritto a OGNI spin, quindi
+// il TTL viene di fatto rinnovato a ogni sync riuscito. Se scade (es. Redis
+// reset), si torna al GET-first di ghPut: corretto, solo più lento.
+const STATE_SHA_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni (come slot.svg)
 
 // Versione attuale dello schema di stato
 export const STATE_VERSION = 2;
@@ -333,7 +373,9 @@ async function readStateGitHub(token, owner, repo) {
 
 async function writeStateGitHub(token, owner, repo, state, sha) {
   const encoded = JSON.stringify(state, null, 2);
-  await ghPut(
+  // Ritorna lo sha POST-PUT (ghPut lo estrae dal body della risposta): il
+  // chiamante lo memoizza in KV (gsm:state:sha) per il prossimo sync.
+  return ghPut(
     token,
     owner,
     repo,
@@ -347,7 +389,11 @@ async function writeStateGitHub(token, owner, repo, state, sha) {
 // ── API pubblica ───────────────────────────────────────────────────────────────
 export async function readState(token, owner, repo) {
   if (kvEnabled) {
-    const state = await kvGet(STATE_KEY);
+    // MGET in una sola round trip: lo stato + lo sha dell'ultima PUT di sync
+    // riuscita (memoizzato da syncStateToGitHub in gsm:state:sha). Con lo
+    // sha presente, writeState → ghPut fa UNA sola chiamata (niente
+    // GET-first né 422), come loadSlotSvg fa per slot.svg.
+    const [state, memoSha] = await kvMget(STATE_KEY, STATE_SHA_KEY);
     if (state) {
       // Esegui la migrazione se necessario
       const currentVersion = state.version || 1;
@@ -355,13 +401,13 @@ export async function readState(token, owner, repo) {
         const migrated = migrateState(state, currentVersion);
         // Salva lo stato migrato in KV
         await kvSet(STATE_KEY, migrated);
-        return { state: migrated, sha: null };
+        return { state: migrated, sha: memoSha || null };
       }
       // Assicurati che la version sia presente
       if (state.version === undefined) {
         state.version = 1;
       }
-      return { state: { ...DEFAULTS, ...state }, sha: null };
+      return { state: { ...DEFAULTS, ...state }, sha: memoSha || null };
     }
     // Primo avvio (o KV vuoto/timeout): importa lo storico da GitHub per non
     // perderlo, poi seed-a KV. Se anche GitHub fallisce, torniamo ai default.
@@ -376,7 +422,9 @@ export async function readState(token, owner, repo) {
         stateToSeed = migrateState(stateToSeed, stateToSeed.version);
       }
       await kvSet(STATE_KEY, stateToSeed);
-      return { state: stateToSeed, sha: null };
+      // Propaga lo sha GitHub appena letto: il primo writeState dopo il seed
+      // può così fare UNA sola PUT invece del GET-first.
+      return { state: stateToSeed, sha: gh.sha || null };
     }
     return { state: { ...DEFAULTS }, sha: null };
   }
@@ -433,7 +481,13 @@ export async function writeState(token, owner, repo, state, _sha) {
     //
     // FIX ISSUE-M5: quando il sync fallisce, impostiamo il flag dirty in KV
     // così il prossimo spin controllerà se fare un retry blocking.
-    const _fireAndForgetSync = syncStateToGitHub(token, owner, repo, stateToSave, _sha)
+    const _fireAndForgetSync = syncStateToGitHub(
+      token,
+      owner,
+      repo,
+      stateToSave,
+      _sha
+    )
       .then((ok) => {
         if (ok) {
           recordStateSyncSuccess();

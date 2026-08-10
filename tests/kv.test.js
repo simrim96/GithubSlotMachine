@@ -119,13 +119,13 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toMatch(/nessun token di SCRITTURA/i);
     expect(warnSpy.mock.calls[0][0]).toMatch(/SCRITTURA/i);
-    
+
     warnSpy.mockRestore();
   });
 
   it('con UPSTASH_REDIS_REST_TOKEN: kvWritable=true e kvSet usa fetch diretto', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
 
     vi.resetModules();
 
@@ -143,10 +143,10 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
     const result = await kvSet('gsm:slotSvg', '<svg/>');
     expect(result).toBe(true);
-    
+
     // Verifica che fetch sia stato chiamato
     expect(globalThis.fetch).toHaveBeenCalled();
-    
+
     // Ripristina fetch originale
     if (originalFetch) {
       globalThis.fetch = originalFetch;
@@ -155,7 +155,7 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
   it('kvSet logga un warning esplicito su errore 401/403 invece di fallire in silenzio', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
 
     vi.resetModules();
 
@@ -175,7 +175,7 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     expect(result).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     expect(warnSpy.mock.calls[0][0]).toMatch(/scrittura negata|401|403/i);
-    
+
     warnSpy.mockRestore();
     if (originalFetch) {
       globalThis.fetch = originalFetch;
@@ -217,7 +217,7 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       expect(result).toBeNull();
     });
 
-    it('kvIncr ritorna null quando non c\'è token di scrittura', async () => {
+    it("kvIncr ritorna null quando non c'è token di scrittura", async () => {
       process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
       process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
 
@@ -228,14 +228,17 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
       const result = await kvIncr('gsm:counter:spins');
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[kvIncr] no write token configured', {
-        key: 'gsm:counter:spins',
-      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[kvIncr] no write token configured',
+        {
+          key: 'gsm:counter:spins',
+        }
+      );
     });
 
     it('kvIncr incrementa correttamente un contatore su Upstash (simulato)', async () => {
       process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN='***';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
 
       vi.resetModules();
 
@@ -259,7 +262,7 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
       // Secondo increment
       const result2 = await kvIncr('gsm:counter:spins');
       expect(result2).toBe(2);
-      
+
       if (originalFetch) {
         globalThis.fetch = originalFetch;
       }
@@ -267,17 +270,20 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
     it('kvIncr gestisce correttamente il timeout', async () => {
       process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN='***';
+      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
 
       vi.resetModules();
 
       // Mock fetch che timeouta
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn().mockImplementation(() =>
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('fetch timeout')), 1000)
-        )
-      );
+      globalThis.fetch = vi
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('fetch timeout')), 1000)
+            )
+        );
 
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -285,10 +291,13 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
       const result = await kvIncr('gsm:counter:spins');
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith('[kvIncr] failed', expect.objectContaining({
-        key: 'gsm:counter:spins',
-      }));
-      
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[kvIncr] failed',
+        expect.objectContaining({
+          key: 'gsm:counter:spins',
+        })
+      );
+
       warnSpy.mockRestore();
       if (originalFetch) {
         globalThis.fetch = originalFetch;
@@ -407,7 +416,7 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
     });
   });
 
-  describe('SEC-2: test mancanti per kvMset e kvMget', () => {
+  describe('SEC-2: test mancanti per kvMget', () => {
     beforeEach(() => {
       delete process.env.UPSTASH_REDIS_REST_URL;
       delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -470,88 +479,6 @@ describe('ISSUE-23: separazione token lettura/scrittura', () => {
 
       const result = await kvMget('key1', 'key2');
       expect(result).toEqual([null, null]);
-
-      if (originalFetch) globalThis.fetch = originalFetch;
-    });
-
-    it('kvMset ritorna false quando Redis non è abilitato', async () => {
-      vi.resetModules();
-      const { kvMset } = await import('../api/_lib/kv.js');
-
-      const result = await kvMset({ key1: 'val1', key2: 'val2' });
-      expect(result).toBe(false);
-    });
-
-    it('kvMset ritorna false e logga warning senza token di scrittura', async () => {
-      process.env.KV_REST_API_URL = 'https://read-only.upstash.io';
-      process.env.KV_REST_API_READ_ONLY_TOKEN = 'read-only-token';
-
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      vi.resetModules();
-      const { kvMset } = await import('../api/_lib/kv.js');
-
-      const result = await kvMset({ key1: 'val1', key2: 'val2' });
-      expect(result).toBe(false);
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[kvMset] nessun token di SCRITTURA configurato:',
-        expect.objectContaining({
-          keys: 'key1, key2',
-        })
-      );
-
-      warnSpy.mockRestore();
-    });
-
-    it('kvMset salva correttamente le coppie su Upstash (simulato)', async () => {
-      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
-
-      vi.resetModules();
-
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ result: 'OK' }),
-      });
-
-      const { kvMset } = await import('../api/_lib/kv.js');
-
-      const result = await kvMset({ a: '1', b: '2' });
-      expect(result).toBe(true);
-
-      // FIX REST format (2026-08-08): MSET va in path (k1/v1/k2/v2), non in body.
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://kv.upstash.io/mset/a/1/b/2',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer ***',
-          }),
-        })
-      );
-
-      if (originalFetch) globalThis.fetch = originalFetch;
-    });
-
-    it('kvMset gestisce correttamente il timeout', async () => {
-      process.env.UPSTASH_REDIS_REST_URL = 'https://kv.upstash.io';
-      process.env.UPSTASH_REDIS_REST_TOKEN = '***';
-
-      vi.resetModules();
-
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn().mockImplementation(() =>
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('fetch timeout')), 1000)
-        )
-      );
-
-      const { kvMset } = await import('../api/_lib/kv.js');
-
-      const result = await kvMset({ key: 'value' });
-      // kvMset non logga su errore, ritorna solo false
-      expect(result).toBe(false);
 
       if (originalFetch) globalThis.fetch = originalFetch;
     });

@@ -1,13 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { badgeCooldown } from '../api/_lib/badge-cooldown.js';
 
-// Reset state between tests (module singleton is shared across the test run)
-let _cooldownState;
-function snapshotState() {
-  // Access the internal map via module introspection
-  // We store it once and restore, or just use unique IPs per test
-}
-
 // Since badgeCooldown uses a module-level Map, we must use unique IPs
 // for the "first request" tests and never reuse IPs across tests.
 // The cooldown is 1 second — if we reuse an IP, we need to wait or
@@ -34,7 +27,7 @@ describe('badge-cooldown', () => {
     return {
       headers: {
         'x-forwarded-for': ip,
-        get: (name) => name === 'x-vercel-ip' ? ip : null,
+        get: (name) => (name === 'x-vercel-ip' ? ip : null),
       },
     };
   }
@@ -81,5 +74,48 @@ describe('badge-cooldown', () => {
     const req = makeRequest(ip);
     const result = badgeCooldown(req);
     expect(result.ip).toBe(ip);
+  });
+
+  // ── Anti-spoofing (N12, ISSUES.md) ────────────────────────────────────────
+  // Il client può forgiare x-forwarded-for: la gerarchia deve preferire
+  // x-vercel-ip (proxy Vercel, non spoofabile), poi x-real-ip, e di XFF
+  // usare SOLO l'ultimo elemento (aggiunto dal proxy finale).
+
+  test('N12: x-vercel-ip vince su x-forwarded-for spoofato', () => {
+    const ip = nextIp();
+    const req = {
+      headers: {
+        'x-forwarded-for': '1.2.3.4', // spoofato dal client
+        get: (name) => (name === 'x-vercel-ip' ? ip : null),
+      },
+    };
+    expect(badgeCooldown(req).ip).toBe(ip);
+  });
+
+  test('N12: x-real-ip vince su x-forwarded-for spoofato', () => {
+    const ip = nextIp();
+    const req = {
+      headers: {
+        'x-forwarded-for': '1.2.3.4', // spoofato dal client
+        'x-real-ip': ip,
+      },
+    };
+    expect(badgeCooldown(req).ip).toBe(ip);
+  });
+
+  test("N12: di x-forwarded-for usa l'ULTIMO elemento (quello del proxy finale)", () => {
+    const ip = nextIp();
+    const req = {
+      headers: {
+        'x-forwarded-for': `1.2.3.4, 203.0.113.9, ${ip}`,
+      },
+    };
+    expect(badgeCooldown(req).ip).toBe(ip);
+  });
+
+  test('N12: x-forwarded-for a elemento singolo è accettato come fallback', () => {
+    const ip = nextIp();
+    const req = { headers: { 'x-forwarded-for': ip } };
+    expect(badgeCooldown(req).ip).toBe(ip);
   });
 });

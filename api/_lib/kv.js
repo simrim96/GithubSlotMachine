@@ -43,14 +43,9 @@ const url =
   process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
 
 const writeToken =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  '';
+  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || '';
 
-const readToken =
-  writeToken ||
-  process.env.KV_REST_API_READ_ONLY_TOKEN ||
-  '';
+const readToken = writeToken || process.env.KV_REST_API_READ_ONLY_TOKEN || '';
 
 // ─── Circuit-breaker per Redis (ISSUE-M1) ─────────────────────────────────
 // Dopo CIRCUIT_BREAKER_FAILURE_THRESHOLD fallimenti consecutivi, il circuit
@@ -107,10 +102,17 @@ function _cbSuccess() {
 }
 function _cbFailure() {
   _cbFailureCount += 1;
-  if (_cbFailureCount >= CIRCUIT_BREAKER_FAILURE_THRESHOLD && _cbState !== 'open') {
+  if (
+    _cbFailureCount >= CIRCUIT_BREAKER_FAILURE_THRESHOLD &&
+    _cbState !== 'open'
+  ) {
     _cbState = 'open';
     _cbOpenAt = Date.now();
-    logger.warn('[kv] circuit-breaker OPEN after', { failures: _cbFailureCount, threshold: CIRCUIT_BREAKER_FAILURE_THRESHOLD, reset_ms: CIRCUIT_BREAKER_RESET_MS });
+    logger.warn('[kv] circuit-breaker OPEN after', {
+      failures: _cbFailureCount,
+      threshold: CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+      reset_ms: CIRCUIT_BREAKER_RESET_MS,
+    });
   }
 }
 
@@ -180,7 +182,10 @@ export async function kvGet(key) {
     return kvDeserialize(data.result);
   } catch (err) {
     _cbFailure();
-    logger.debug('[kv] kvGet failed, circuit-breaker updated', { key, error: err?.message });
+    logger.debug('[kv] kvGet failed, circuit-breaker updated', {
+      key,
+      error: err?.message,
+    });
     return null;
   }
 }
@@ -225,7 +230,10 @@ export async function kvSet(key, val, ttlSec = 0) {
     }
     if (!response.ok) {
       if (isAuthError({ status: response.status })) {
-        console.warn('[kvSet] scrittura negata (401/403):', { key, status: response.status });
+        console.warn('[kvSet] scrittura negata (401/403):', {
+          key,
+          status: response.status,
+        });
       }
       _cbFailure();
       return false;
@@ -254,10 +262,9 @@ export async function kvMget(...keys) {
   }
   try {
     const response = await withTimeout(
-      fetch(
-        `${url}/mget/${keys.map((k) => encodeURIComponent(k)).join('/')}`,
-        { headers: getHeaders(readToken) }
-      )
+      fetch(`${url}/mget/${keys.map((k) => encodeURIComponent(k)).join('/')}`, {
+        headers: getHeaders(readToken),
+      })
     );
     if (!response.ok) {
       _cbFailure();
@@ -265,51 +272,13 @@ export async function kvMget(...keys) {
     }
     _cbSuccess();
     const data = await response.json();
-    const result = Array.isArray(data.result) ? data.result : keys.map(() => null);
+    const result = Array.isArray(data.result)
+      ? data.result
+      : keys.map(() => null);
     return result.map((v) => kvDeserialize(v));
   } catch {
     _cbFailure();
     return keys.map(() => null);
-  }
-}
-
-export async function kvMset(obj) {
-  if (!kvEnabled) return false;
-  if (!kvWritable) {
-    console.warn('[kvMset] nessun token di SCRITTURA configurato:', {
-      message: 'Solo KV_REST_API_READ_ONLY_TOKEN presente. Chiavi non salvate.',
-      keys: Object.keys(obj).join(', '),
-    });
-    return false;
-  }
-  if (evaluateCircuitBreaker() === 'blocked') {
-    logger.debug('[kv] circuit-breaker open, kvMset skipped', { keys: Object.keys(obj) });
-    return false;
-  }
-  try {
-    const args = [];
-    for (const [k, v] of Object.entries(obj)) {
-      args.push(k, kvSerialize(v));
-    }
-    const response = await withTimeout(
-      fetch(
-        `${url}/mset/${args.map((a) => encodeURIComponent(a)).join('/')}`,
-        {
-          method: 'POST',
-          headers: getHeaders(writeToken),
-        }
-      )
-    );
-    if (!response.ok) {
-      _cbFailure();
-      return false;
-    }
-    _cbSuccess();
-    const data = await response.json();
-    return data.result === 'OK';
-  } catch {
-    _cbFailure();
-    return false;
   }
 }
 

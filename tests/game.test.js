@@ -26,7 +26,6 @@ import {
   wrap,
   COLS,
   ROWS,
-  PAYLINES,
   SYMBOL_IDS,
   WILD_ID,
   SCATTER_ID,
@@ -133,6 +132,26 @@ describe('checkWins', () => {
     g[1][0] = SCATTER_ID;
     g[2][0] = SCATTER_ID;
     expect(checkWins(g).some((w) => w.symbol === SCATTER_ID)).toBe(false);
+  });
+
+  it('SCATTER termina la run come qualsiasi altro simbolo (colonna 4 non annulla la win)', () => {
+    // Run di 4 completata nelle colonne 0-3: uno scatter in colonna 4 non la
+    // annulla — la win resta valida con il count accumulato.
+    const g = filledGrid('c');
+    g[0][1] = 'python';
+    g[1][1] = 'python';
+    g[2][1] = 'python';
+    g[3][1] = 'python';
+    g[4][1] = SCATTER_ID;
+    expect(
+      checkWins(g).some((w) => w.symbol === 'python' && w.count === 4)
+    ).toBe(true);
+
+    // Scatter PRIMA del 3° simbolo: la run si interrompe e la win non parte.
+    g[2][1] = SCATTER_ID;
+    g[3][1] = 'python';
+    g[4][1] = 'python';
+    expect(checkWins(g).some((w) => w.symbol === 'python')).toBe(false);
   });
 
   it('detects wins on every payline geometry (top/bottom/V/Λ/center)', () => {

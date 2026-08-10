@@ -68,9 +68,9 @@ describe('S1 — spin redirect validation (allowlist, not blocklist)', () => {
 
     it('REJECTS dangerous protocols (javascript:, data:, vbscript:)', () => {
       expect(isValidRedirectUrl('javascript:alert(1)')).toBe(false);
-      expect(isValidRedirectUrl('data:text/html,<script>alert(1)</script>')).toBe(
-        false
-      );
+      expect(
+        isValidRedirectUrl('data:text/html,<script>alert(1)</script>')
+      ).toBe(false);
       expect(isValidRedirectUrl('vbscript:msgbox(1)')).toBe(false);
     });
 

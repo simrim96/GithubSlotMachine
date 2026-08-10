@@ -37,30 +37,30 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
   it('kvIncr usa operazioni ATOMICHE per evitare race condition', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
     process.env.KV_TIMEOUT_MS = '1000';
 
     // Simuliamo un Redis con Map per tenere traccia dei counter
     const counters = new Map();
-    
+
     // Mock di fetch per simulare l'endpoint INCR REST
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
-      
+
       // Simuliamo risposta per endpoint /incr/:key
       if (path.startsWith('/incr/')) {
         const key = decodeURIComponent(path.split('/').pop());
         const current = counters.get(key) || 0;
         const newValue = current + 1;
         counters.set(key, newValue);
-        
+
         return {
           ok: true,
           json: async () => ({ result: newValue }),
         };
       }
-      
+
       // Fallback per altre chiamate
       return {
         ok: false,
@@ -78,11 +78,11 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     // Con l'approccio atomico INCR, ogni increment è indipendente
     const spin1 = await kvIncr('gsm:counter:spins');
     const spin2 = await kvIncr('gsm:counter:spins');
-    
+
     // Verifichiamo che i counter siano stati incrementati correttamente
     expect(spin1).toBe(1);
     expect(spin2).toBe(2);
-    
+
     // Anche se gli spin arrivano "contemporaneamente" (in sequenza nei test),
     // INCR garantisce che ogni incremento sia atomico
     expect(counters.get('gsm:counter:spins')).toBe(2);
@@ -90,7 +90,7 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
   it('writeState persiste i contatori calcolati dal chiamante (wins +1 solo su vincita)', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
     process.env.KV_TIMEOUT_MS = '500';
 
     // Simuliamo un Redis con Map per stato e counter
@@ -134,6 +134,18 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
         return {
           ok: true,
           json: async () => ({ result: value }),
+        };
+      }
+
+      if (segments[0] === 'mget') {
+        // MGET (usato da readState per stato + sha memoizzato in una sola
+        // round trip): /mget/{key1}/{key2} → { result: [val1, val2] }.
+        const keys = segments.slice(1).map((s) => decodeURIComponent(s));
+        const result = keys.map((k) => redisState.get(k) ?? null);
+
+        return {
+          ok: true,
+          json: async () => ({ result }),
         };
       }
 
@@ -225,27 +237,27 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
 
   it('due incrementi paralleli (simulati) producono risultati atomici corretti', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://write.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN='***';
+    process.env.UPSTASH_REDIS_REST_TOKEN = '***';
 
     const counters = new Map();
-    
+
     // Mock di fetch per INCR
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       const urlObj = new URL(url);
       const path = urlObj.pathname;
-      
+
       if (path.startsWith('/incr/')) {
         const key = decodeURIComponent(path.split('/').pop());
         const current = counters.get(key) || 0;
         const newValue = current + 1;
         counters.set(key, newValue);
-        
+
         return {
           ok: true,
           json: async () => ({ result: newValue }),
         };
       }
-      
+
       return {
         ok: false,
         json: async () => null,
@@ -261,14 +273,14 @@ describe('ISSUE-4: incremento atomico dei counter (race condition fix)', () => {
     for (let i = 0; i < N; i++) {
       promises.push(kvIncr('gsm:counter:spins'));
     }
-    
+
     // Esegui tutti gli incrementi (in parallelo, ma INCR è atomica)
     const results = await Promise.all(promises);
-    
+
     // Ogni risultato deve essere unico e sequenziale: 1, 2, 3, ..., N
     const expected = Array.from({ length: N }, (_, i) => i + 1);
     const sortedResults = [...results].sort((a, b) => a - b);
-    
+
     expect(sortedResults).toEqual(expected);
     expect(counters.get('gsm:counter:spins')).toBe(N);
   });

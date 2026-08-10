@@ -10,8 +10,7 @@ Sentry.init({
 
   // Error sampling: default to 10% (0.1) to control costs at scale.
   // Override with SENTRY_ERROR_SAMPLE_RATE (0.0–1.0).
-  sampleRate:
-    parseFloat(process.env.SENTRY_ERROR_SAMPLE_RATE ?? '0.1') || 0.1,
+  sampleRate: parseFloat(process.env.SENTRY_ERROR_SAMPLE_RATE ?? '0.1') || 0.1,
 
   // Read sample rates from env vars instead of hardcoding 1.0.
   // Defaults to 0 (tracing/profiling off) when the vars are not set, so a
@@ -25,8 +24,7 @@ Sentry.init({
   integrations: [Sentry.httpIntegration()],
   // Debug: solo se esplicitamente abilitato via SENTRY_DEBUG, per evitare di
   // inviare eventi/logger a Sentry in locale durante lo sviluppo (ISSUE-31).
-  debug:
-    process.env.SENTRY_DEBUG === 'true',
+  debug: process.env.SENTRY_DEBUG === 'true',
 });
 
 export default Sentry;

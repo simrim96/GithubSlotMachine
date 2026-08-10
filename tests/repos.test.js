@@ -217,7 +217,7 @@ describe('repos.js — ISSUE-28 (cold-start non-bloccante ma popolato)', () => {
     expect(Date.now() - t0).toBeLessThan(800);
   });
 
-  it('al cold start con rete troppo lenta ritorna null senza sforare l\'800ms', async () => {
+  it("al cold start con rete troppo lenta ritorna null senza sforare l'800ms", async () => {
     const { repos } = await freshImport();
     const reposList = [makeRepo('slowapp', { Python: 100 })];
     // fetch /repos? lenta (900ms) → sfora il cold-start timeout di 800ms.
@@ -270,7 +270,9 @@ describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () 
       if (key === 'gsm:repoCache:lastgood') {
         return {
           ts: Date.now() - 1000 * 60 * 60, // 1h fa → stale, ma servibile
-          byLangId: { python: { name: 'pyapp', url: 'https://github.com/owner/pyapp' } },
+          byLangId: {
+            python: { name: 'pyapp', url: 'https://github.com/owner/pyapp' },
+          },
         };
       }
       return null;
@@ -302,13 +304,23 @@ describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () 
         if (key === 'gsm:repoCache') {
           return {
             ts: Date.now(), // fresh
-            byLangId: { python: { name: 'freshRepo', url: 'https://github.com/owner/freshRepo' } },
+            byLangId: {
+              python: {
+                name: 'freshRepo',
+                url: 'https://github.com/owner/freshRepo',
+              },
+            },
           };
         }
         if (key === 'gsm:repoCache:lastgood') {
           return {
             ts: Date.now() - 1000 * 60 * 60,
-            byLangId: { python: { name: 'staleRepo', url: 'https://github.com/owner/staleRepo' } },
+            byLangId: {
+              python: {
+                name: 'staleRepo',
+                url: 'https://github.com/owner/staleRepo',
+              },
+            },
           };
         }
         return null;
@@ -370,7 +382,12 @@ describe('repos.js — R5 (cache tiered resiliente a Upstash cross-region)', () 
     const reposList = [makeRepo('pyapp', { Python: 90, JavaScript: 10 })];
     global.fetch = buildFetch(reposList);
     const t0 = Date.now();
-    const match = await repos.getRepoForLanguage('tok', 'owner', LANGUAGES[0], LANGUAGES);
+    const match = await repos.getRepoForLanguage(
+      'tok',
+      'owner',
+      LANGUAGES[0],
+      LANGUAGES
+    );
     expect(match).not.toBeNull();
     expect(match.name).toBe('pyapp');
     expect(Date.now() - t0).toBeLessThan(800);

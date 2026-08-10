@@ -4,7 +4,11 @@
 // /api/lever servono con CORS wildcard `*` in contesti cross-origin.
 
 import { describe, it, expect } from 'vitest';
-import { sanitizeSvg, buildSVG, errorSVGString } from '../api/_lib/svg-builder.js';
+import {
+  sanitizeSvg,
+  buildSVG,
+  errorSVGString,
+} from '../api/_lib/svg-builder.js';
 import { SCATTER_ID } from '../api/_lib/languages.js';
 import { COLS, ROWS } from '../api/_lib/game.js';
 
@@ -25,7 +29,8 @@ describe('sanitizeSvg — hardening ISSUE-25 / S3', () => {
   });
 
   it('rimuove attributi di evento on*', () => {
-    const dirty = '<svg><rect onload="alert(1)" onclick="x()" onmouseover=\'y()\'/></svg>';
+    const dirty =
+      '<svg><rect onload="alert(1)" onclick="x()" onmouseover=\'y()\'/></svg>';
     const clean = sanitizeSvg(dirty);
     expect(clean).not.toMatch(/onload\s*=/i);
     expect(clean).not.toMatch(/onclick\s*=/i);
@@ -45,7 +50,8 @@ describe('sanitizeSvg — hardening ISSUE-25 / S3', () => {
   });
 
   it('lascia intatto un SVG legittimo', () => {
-    const ok = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>';
+    const ok =
+      '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>';
     expect(sanitizeSvg(ok)).toBe(ok);
   });
 

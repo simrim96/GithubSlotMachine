@@ -3,8 +3,11 @@
 // i casi win / no-win.
 // NOTA: jackpot e near-miss sono stati RIMOSSI (su richiesta). Ogni
 // vincita è "normale", il rullo gira normalmente.
-import { describe, it, expect, beforeEach } from 'vitest';
-import { buildSVG, clearCache } from '../api/_lib/svg-builder.js';
+import { describe, it, expect } from 'vitest';
+import { buildSVG } from '../api/_lib/svg-builder.js';
+import * as svgBuilderModule from '../api/_lib/svg-builder.js';
+import { buildAccessibleSVG } from '../api/_lib/svg-builder-accessible.js';
+import * as accessibleModule from '../api/_lib/svg-builder-accessible.js';
 import {
   checkWins,
   COLS,
@@ -53,10 +56,6 @@ const repoMatch = {
 };
 
 describe('buildSVG — forma', () => {
-  beforeEach(() => {
-    clearCache();
-  });
-
   it('restituisce un <svg> ben formato', () => {
     const svg = buildSVG({
       grid: emptyGrid(),
@@ -107,10 +106,6 @@ describe('buildSVG — forma', () => {
 });
 
 describe('buildSVG — casi di gioco', () => {
-  beforeEach(() => {
-    clearCache();
-  });
-
   it('win: mostra la payline vincente e il pannello linguaggio', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     expect(checkWins(grid).length).toBeGreaterThan(0);
@@ -156,10 +151,6 @@ describe('buildSVG — casi di gioco', () => {
 });
 
 describe('buildSVG — counter WINS ritardato (non rivela la vincita prima della fine rotazione)', () => {
-  beforeEach(() => {
-    clearCache();
-  });
-
   it('win: durante la rotazione mostra il valore PRECEDENTE, poi anima al nuovo a ED', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     expect(checkWins(grid).length).toBeGreaterThan(0);
@@ -213,10 +204,6 @@ describe('buildSVG — counter WINS ritardato (non rivela la vincita prima della
 });
 
 describe('buildSVG — header: contatori centrati sotto la propria etichetta', () => {
-  beforeEach(() => {
-    clearCache();
-  });
-
   it('etichette ai bordi (design originale), valori centrati in corrispondenza', () => {
     const svg = buildSVG({
       grid: emptyGrid(),
@@ -266,10 +253,6 @@ describe('buildSVG — header: contatori centrati sotto la propria etichetta', (
 });
 
 describe('buildSVG — escape', () => {
-  beforeEach(() => {
-    clearCache();
-  });
-
   it('escapa i caratteri pericolosi nei fatti', () => {
     const grid = winGrid(SYMBOL_IDS[0]);
     const svg = buildSVG({
@@ -282,5 +265,159 @@ describe('buildSVG — escape', () => {
     });
     expect(svg).toContain('&lt;script&gt;');
     expect(svg).not.toContain('<script>');
+  });
+});
+
+// ─── ISSUE-N1 / M10: la cache SVG è stata RIMOSSA (scelta (b)) ────────────────
+// La vecchia cache LRU (getCachedSvg/setCachedSvg) era inattiva al 100%: hash
+// con uid in lettura, senza uid in scrittura → miss garantito, {hits:0,
+// misses:2}. Anche riparata non avrebbe servito nessuno spin (uid univoco per
+// spin, nessun replay in produzione). Rimossa: buildSVG è pura (nessun side
+// effect, nessuno stato condiviso, ~2ms) e la cache era costo senza beneficio.
+// NB: "pura" NON significa "deterministica" — i reel girano con Math.random
+// (reels.js), quindi due chiamate con gli stessi input producono simboli
+// diversi. I test qui sotto blindano la DECISIONE: nessun residuo di API
+// cache nei due builder, nessun valore stantio (anti-miss), nessuna mutazione
+// degli input, e stabilità delle parti DETERMINISTICHE sotto carico (l'ex
+// "eviction" LRU non può esistere senza capacità né stato).
+describe('buildSVG — nessuna dipendenza dalla cache SVG (ISSUE-N1 / M10)', () => {
+  // Estrae i contatori dell'header (parte deterministica dell'output):
+  // [communitySpins, wins] dagli elementi <text> dopo le etichette.
+  function headerCounters(svg) {
+    const spins = svg.match(
+      /COMMUNITY SPINS<\/text><text[^>]*>(\d+)<\/text>/
+    )?.[1];
+    const wins = svg.match(/WINS<\/text><text[^>]*>(\d+)<\/text>/)?.[1];
+    return { spins, wins };
+  }
+
+  // Conta i simboli nei reel (le <use> dentro i clip-path): la STRUTTURA
+  // (21 simboli × 5 colonne) è deterministica anche se i simboli sono random.
+  function reelStructure(svg) {
+    const cols = [];
+    for (let c = 0; c < 5; c++) {
+      const m = svg.match(
+        new RegExp(`clip-path="url\\(#cp\\d+c${c}\\)">.*?<\\/g><\\/g>`, 's')
+      );
+      cols.push(m ? (m[0].match(/<use /g) || []).length : 0);
+    }
+    return cols;
+  }
+
+  it('svg-builder.js non esporta più le API di cache rimosse', () => {
+    const cacheApis = [
+      'getCachedSvg',
+      'setCachedSvg',
+      'getCacheStats',
+      'clearCache',
+      'computeStateHash',
+      'LRU',
+      'MAX_CACHE_SIZE',
+      'CACHE_TTL_MS',
+    ];
+    for (const name of cacheApis) {
+      expect(
+        svgBuilderModule[name],
+        `export cache residuo: ${name}`
+      ).toBeUndefined();
+    }
+  });
+
+  it('svg-builder-accessible.js non esporta più getAccessibleCachedSvg', () => {
+    expect(accessibleModule.getAccessibleCachedSvg).toBeUndefined();
+  });
+
+  it('buildSVG non muta i suoi input (nessuno stato condiviso/cache laterale)', () => {
+    // Se buildSVG scrivesse su grid/state (come faceva la vecchia cache che
+    // annotava gli hash sugli oggetti), un deep-freeze lancerebbe in strict
+    // mode. La purezza "senza side effect" è ciò che rende superflua la cache.
+    function deepFreeze(o) {
+      if (o && typeof o === 'object') {
+        for (const k of Object.keys(o)) deepFreeze(o[k]);
+        Object.freeze(o);
+      }
+      return o;
+    }
+    const params = deepFreeze({
+      grid: emptyGrid(),
+      uid: 11,
+      state,
+      winningLang: null,
+      fact,
+    });
+    expect(() => buildSVG(params)).not.toThrow();
+  });
+
+  it("anti-miss: lo stato corrente appare SEMPRE nell'output (niente valori stantii da cache)", () => {
+    const base = { grid: emptyGrid(), winningLang: null, fact };
+    // Chiamata con stato A
+    const svgA = buildSVG({
+      ...base,
+      uid: 12,
+      state: { totalSpins: 42, totalWins: 7, lastWin: null },
+    });
+    expect(headerCounters(svgA)).toEqual({ spins: '42', wins: '7' });
+    // Chiamata con stato B (stesso uid: la vecchia cache con uid nel key
+    // avrebbe servito un hit STALE se le chiavi avessero coinciso)
+    const svgB = buildSVG({
+      ...base,
+      uid: 12,
+      state: { totalSpins: 43, totalWins: 8, lastWin: null },
+    });
+    expect(headerCounters(svgB)).toEqual({ spins: '43', wins: '8' });
+    // E tornando ad A l'output riflette di nuovo A — mai un valore vecchio
+    const svgA2 = buildSVG({
+      ...base,
+      uid: 12,
+      state: { totalSpins: 42, totalWins: 7, lastWin: null },
+    });
+    expect(headerCounters(svgA2)).toEqual({ spins: '42', wins: '7' });
+  });
+
+  it('anti-eviction: le parti deterministiche restano stabili dopo molte build (niente capacità massima)', () => {
+    const base = { grid: emptyGrid(), winningLang: null, fact };
+    const stateA = { totalSpins: 42, totalWins: 7, lastWin: null };
+    const baseline = buildSVG({ ...base, uid: 15, state: stateA });
+    const baselineCounters = headerCounters(baseline);
+    const baselineReels = reelStructure(baseline);
+    // Simula il carico che avrebbe esercitato l'eviction LRU: 200 build con
+    // input diversi (uid+stato) come farebbero spin reali.
+    for (let i = 0; i < 200; i++) {
+      buildSVG({
+        ...base,
+        uid: 100 + i,
+        state: { totalSpins: i, totalWins: i, lastWin: null },
+      });
+    }
+    // Dopo il carico, la build originale è ancora identica nelle parti
+    // deterministiche (contatori) e nella struttura dei reel: una cache LRU
+    // con capacità finita avrebbe scartato/mutato stato, qui non c'è nulla.
+    const after = buildSVG({ ...base, uid: 15, state: stateA });
+    expect(headerCounters(after)).toEqual(baselineCounters);
+    expect(reelStructure(after)).toEqual(baselineReels);
+  });
+
+  it('buildAccessibleSVG: nessuna cache nel percorso accessibile, stesso anti-miss', () => {
+    const base = {
+      grid: emptyGrid(),
+      winningLang: null,
+      fact,
+      isWin: false,
+    };
+    const svgA = buildAccessibleSVG({
+      ...base,
+      uid: 16,
+      state: { totalSpins: 42, totalWins: 7, lastWin: null },
+    });
+    const svgB = buildAccessibleSVG({
+      ...base,
+      uid: 16,
+      state: { totalSpins: 43, totalWins: 8, lastWin: null },
+    });
+    // Lo stato corrente si riflette nei contatori dell'header
+    expect(headerCounters(svgA)).toEqual({ spins: '42', wins: '7' });
+    expect(headerCounters(svgB)).toEqual({ spins: '43', wins: '8' });
+    // Il titolo accessibile riflette l'esito (isWin), non un valore stantio
+    expect(svgA).toContain('>Dev Stack Slot Machine - Nessuna vincita</title>');
   });
 });

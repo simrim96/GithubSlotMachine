@@ -42,3 +42,9 @@ jobs:
       # I warning restano visibili ma non bloccano la CI.
       - name: Lint
         run: npm run lint
+
+      # Format gate (ISSUE-N5): Prettier fallisce su qualsiasi file non
+      # formattato (single quotes, semicolons, 80ch, no tabs), impedendo il
+      # drift di stile che era passato inosservato senza questo check.
+      - name: Format check
+        run: npm run format:check

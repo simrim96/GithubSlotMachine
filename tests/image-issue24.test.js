@@ -195,7 +195,10 @@ describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () =>
     // Content-Type esplicito (ISSUE-B4).
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
     // L'avviso viene loggato (S15, O3).
-    expect(logger.warn).toHaveBeenCalledWith('github image fetch failed, serving degradation SVG', expect.objectContaining({ status: 404 }));
+    expect(logger.warn).toHaveBeenCalledWith(
+      'github image fetch failed, serving degradation SVG',
+      expect.objectContaining({ status: 404 })
+    );
   });
 
   it('500 GitHub → 200 con SVG di degrado + logger.warn (nessun crash)', async () => {
@@ -225,6 +228,9 @@ describe('B4 · /api/image errore GitHub (!r.ok) non torna 404 in chiaro', () =>
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<svg');
     expect(res.headers['Content-Type']).toBe('image/svg+xml');
-    expect(logger.warn).toHaveBeenCalledWith('github image fetch failed, serving degradation SVG', expect.objectContaining({ status: 500 }));
+    expect(logger.warn).toHaveBeenCalledWith(
+      'github image fetch failed, serving degradation SVG',
+      expect.objectContaining({ status: 500 })
+    );
   });
 });

@@ -44,8 +44,7 @@ import { randomInt } from 'node:crypto';
 export function isRepoExcluded(repName, owner, slotRepo) {
   const n = String(repName).toLowerCase();
   return (
-    n === String(owner).toLowerCase() ||
-    n === String(slotRepo).toLowerCase()
+    n === String(owner).toLowerCase() || n === String(slotRepo).toLowerCase()
   );
 }
 
@@ -91,16 +90,25 @@ async function ghFetchWithTimeout(url, headers) {
 
     // 429 rate limit: log e fallisci subito (non blocca l'utente con 1-7s di attesa).
     if (r.status === 429) {
-      logger.warn('GitHub rate limit hit on repos.js (429), failing fast', { url });
+      logger.warn('GitHub rate limit hit on repos.js (429), failing fast', {
+        url,
+      });
       return r; // restituisce il 429 così il chiamante vede il codice di stato
     }
     return r;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      logger.warn('GitHub API timeout', { url, timeout: GITHUB_API_TIMEOUT_MS });
+      logger.warn('GitHub API timeout', {
+        url,
+        timeout: GITHUB_API_TIMEOUT_MS,
+      });
     } else {
-      logger.error('ghFetchWithTimeout ERROR', { url, name: error?.name, message: error?.message });
+      logger.error('ghFetchWithTimeout ERROR', {
+        url,
+        name: error?.name,
+        message: error?.message,
+      });
     }
     throw error;
   }
@@ -172,10 +180,14 @@ function saveToKv() {
   // Scriviamo SIA il tier fresh (con TTL) SIA il tier lastgood (senza TTL,
   // R5) così i repo recenti restano sempre disponibili anche a cold start
   // e anche se Upstash è cross-region.
-  kvSet(KV_KEY, { ts: cache.ts, byLangId: cache.byLangId }, Math.round(TTL_MS / 1000)).catch(
+  kvSet(
+    KV_KEY,
+    { ts: cache.ts, byLangId: cache.byLangId },
+    Math.round(TTL_MS / 1000)
+  ).catch(() => {});
+  kvSet(KV_LASTGOOD_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(
     () => {}
   );
-  kvSet(KV_LASTGOOD_KEY, { ts: cache.ts, byLangId: cache.byLangId }).catch(() => {});
 }
 
 async function refreshCache(token, owner, languages, slotRepo) {
@@ -196,9 +208,7 @@ async function refreshCache(token, owner, languages, slotRepo) {
     if (!r.ok) throw new Error(`repos list: ${r.status}`);
     return (await r.json()).filter(
       (rep) =>
-        !rep.fork &&
-        !rep.archived &&
-        !isRepoExcluded(rep.name, owner, slotRepo)
+        !rep.fork && !rep.archived && !isRepoExcluded(rep.name, owner, slotRepo)
     );
   }
 
@@ -206,22 +216,28 @@ async function refreshCache(token, owner, languages, slotRepo) {
   try {
     repos = await fetchRepos(authedHeaders);
   } catch (e) {
-    logger.warn('repos refresh authed failed, retry anon', { error: e.message });
+    logger.warn('repos refresh authed failed, retry anon', {
+      error: e.message,
+    });
     repos = await fetchRepos(anonHeaders);
   }
 
   // Per ogni repo, fetch /languages a BATCH (cap pratico: 100 repo × 1 call,
   // ma mai più di REPO_SEARCH_CONCURRENCY in parallelo). Una fetch
   // lenta/piantata è protetta da AbortController (timeout).
-  const langMaps = await mapBatch(repos, REPO_SEARCH_CONCURRENCY, async (rep) => {
-    try {
-      const lr = await ghFetchWithTimeout(rep.languages_url, authedHeaders);
-      if (!lr.ok) return null;
-      return await lr.json();
-    } catch {
-      return null;
+  const langMaps = await mapBatch(
+    repos,
+    REPO_SEARCH_CONCURRENCY,
+    async (rep) => {
+      try {
+        const lr = await ghFetchWithTimeout(rep.languages_url, authedHeaders);
+        if (!lr.ok) return null;
+        return await lr.json();
+      } catch {
+        return null;
+      }
     }
-  });
+  );
 
   const byLangId = {};
   repos.forEach((rep, i) => {
@@ -285,7 +301,9 @@ export async function getRandomRepo(
   owner,
   slotRepo = process.env.SLOT_REPO || 'GithubSlotMachine'
 ) {
-  const headers = token ? ghHeaders(token) : { Accept: 'application/vnd.github+json' };
+  const headers = token
+    ? ghHeaders(token)
+    : { Accept: 'application/vnd.github+json' };
   try {
     const r = await ghFetchWithTimeout(
       `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
@@ -294,9 +312,7 @@ export async function getRandomRepo(
     if (!r.ok) return TEST_REPO_FALLBACK;
     const repos = (await r.json()).filter(
       (rep) =>
-        !rep.fork &&
-        !rep.archived &&
-        !isRepoExcluded(rep.name, owner, slotRepo)
+        !rep.fork && !rep.archived && !isRepoExcluded(rep.name, owner, slotRepo)
     );
     if (repos.length === 0) {
       // Nessun repo "esterno": fallback hardcoded di test (vedi nota sopra).
@@ -314,7 +330,9 @@ export async function getRandomRepo(
       pct: 0,
     };
   } catch (e) {
-    logger.warn('getRandomRepo failed, uso fallback hardcoded', { error: e?.message });
+    logger.warn('getRandomRepo failed, uso fallback hardcoded', {
+      error: e?.message,
+    });
     return TEST_REPO_FALLBACK;
   }
 }

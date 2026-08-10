@@ -61,7 +61,7 @@ describe('M4: monitor sync Redis→GitHub (fallimenti consecutivi)', () => {
     expect(STATE_SYNC_FAILURE_ALERT_THRESHOLD).toBe(5);
   });
 
-  it('primi N-1 fallimenti NON sollevano l\'alert', () => {
+  it("primi N-1 fallimenti NON sollevano l'alert", () => {
     const threshold = STATE_SYNC_FAILURE_ALERT_THRESHOLD;
     for (let i = 0; i < threshold - 1; i++) {
       recordStateSyncFailure(new Error('boom'));
@@ -71,7 +71,7 @@ describe('M4: monitor sync Redis→GitHub (fallimenti consecutivi)', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('al raggiungimento della soglia l\'alert viene sollevato (console.error + Sentry)', () => {
+  it("al raggiungimento della soglia l'alert viene sollevato (console.error + Sentry)", () => {
     const threshold = STATE_SYNC_FAILURE_ALERT_THRESHOLD;
     const captureMessage = stateMod.default
       ? stateMod.default.captureMessage
@@ -85,9 +85,7 @@ describe('M4: monitor sync Redis→GitHub (fallimenti consecutivi)', () => {
     expect(isAlertRaised()).toBe(true);
     // Deve aver loggato l'ALERT via logger.error() + Sentry.
     expect(logger.error).toHaveBeenCalled();
-    const alertMsg = logger.error.mock.calls
-      .map((c) => c[0])
-      .join('\n');
+    const alertMsg = logger.error.mock.calls.map((c) => c[0]).join('\n');
     expect(alertMsg).toMatch(/ALERT.*sync Redis→GitHub/i);
     expect(alertMsg).toMatch(new RegExp(`fallito ${threshold} volte`));
 
@@ -97,7 +95,7 @@ describe('M4: monitor sync Redis→GitHub (fallimenti consecutivi)', () => {
     }
   });
 
-  it('fallimenti oltre la soglia continuano a loggare (warn) ma non duplicano l\'alert', () => {
+  it("fallimenti oltre la soglia continuano a loggare (warn) ma non duplicano l'alert", () => {
     const threshold = STATE_SYNC_FAILURE_ALERT_THRESHOLD;
     for (let i = 0; i < threshold + 3; i++) {
       recordStateSyncFailure(new Error('still failing'));
@@ -112,7 +110,7 @@ describe('M4: monitor sync Redis→GitHub (fallimenti consecutivi)', () => {
     expect(logger.warn.mock.calls.length).toBe(3);
   });
 
-  it('un successo azzera il contatore e fa riabbassare l\'alert', () => {
+  it("un successo azzera il contatore e fa riabbassare l'alert", () => {
     const threshold = STATE_SYNC_FAILURE_ALERT_THRESHOLD;
     for (let i = 0; i < threshold; i++) {
       recordStateSyncFailure(new Error('fail'));

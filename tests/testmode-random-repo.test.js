@@ -22,10 +22,14 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       stars: 0,
       pct: 0,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
-    expect(out).toContain(
-      'check out this repo I wrote in C++'
+    const out = updateReadmeMarkers(
+      baseReadme,
+      {},
+      lang,
+      randomRepo,
+      1700000000000
     );
+    expect(out).toContain('check out this repo I wrote in C++');
     expect(out).toContain('<a href="https://github.com/simrim96/BetterSpin">');
     expect(out).not.toContain('check my work in');
   });
@@ -39,7 +43,13 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       stars: 128,
       pct: 0,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
+    const out = updateReadmeMarkers(
+      baseReadme,
+      {},
+      lang,
+      randomRepo,
+      1700000000000
+    );
     expect(out).toContain('&amp;stars=128');
     expect(out).toContain('check out this repo I wrote in C++');
   });
@@ -53,7 +63,13 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
       stars: 0,
       pct: 0,
     };
-    const out = updateReadmeMarkers(baseReadme, {}, lang, randomRepo, 1700000000000);
+    const out = updateReadmeMarkers(
+      baseReadme,
+      {},
+      lang,
+      randomRepo,
+      1700000000000
+    );
     expect(out).not.toContain('★');
     expect(out).not.toContain('&stars=');
     expect(out).toContain('check out this repo I wrote in C++');
@@ -75,7 +91,14 @@ describe('test-mode SLOT_TEST_RANDOM_REPO', () => {
   it('su vincita senza repoMatch scrive comunque il badge (fallback al profilo owner)', () => {
     // FIX "contrario": una vincita reale senza repo trovato non deve finire
     // senza pulsante — il badge punta al profilo owner come fallback.
-    const out = updateReadmeMarkers(baseReadme, {}, { name: 'Rust' }, null, 1700000000000, 'simrim96');
+    const out = updateReadmeMarkers(
+      baseReadme,
+      {},
+      { name: 'Rust' },
+      null,
+      1700000000000,
+      'simrim96'
+    );
     expect(out).toContain('check out this repo I wrote in Rust');
     expect(out).toContain('<a href="https://github.com/simrim96">');
     expect(out).not.toContain('](');

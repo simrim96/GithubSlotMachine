@@ -24,7 +24,6 @@ const MODULES = [
   '../api/_lib/game.js',
   '../api/_lib/languages.js',
   '../api/_lib/state.js',
-  '../api/_lib/ratelimit.js',
   '../api/_lib/ratelimit-tracker.js',
   '../api/_lib/config-loader.js',
   '../api/_lib/svg-builder.js',

@@ -56,7 +56,8 @@ export function buildResponse({
   // costruiamo comunque un `Response` vuoto (la primitiva resta univoca) ma
   // restituiamo i metadati originali così il flush su `res` è bit-a-bit
   // identico al comportamento precedente.
-  const NO_BODY = finalStatus === 204 || finalStatus === 205 || finalStatus === 304;
+  const NO_BODY =
+    finalStatus === 204 || finalStatus === 205 || finalStatus === 304;
   try {
     return new ResponseCtor(NO_BODY ? null : redirect ? '' : body, {
       status: finalStatus,
@@ -93,7 +94,9 @@ export function sendResponse(res, opts = {}) {
   if (opts.redirect) finalHeaders.Location = String(opts.redirect);
   for (const [k, v] of Object.entries(finalHeaders)) res.setHeader(k, v);
 
-  const location = opts.redirect ? String(opts.redirect) : finalHeaders.Location;
+  const location = opts.redirect
+    ? String(opts.redirect)
+    : finalHeaders.Location;
 
   if (location) {
     if (typeof res.redirect === 'function') {
@@ -101,7 +104,11 @@ export function sendResponse(res, opts = {}) {
     } else {
       res.end();
     }
-  } else if (response.status === 204 || response.status === 205 || response.status === 304) {
+  } else if (
+    response.status === 204 ||
+    response.status === 205 ||
+    response.status === 304
+  ) {
     // Risposta senza corpo: comportamento identico a `res.status(204).end()`.
     res.end();
   } else {

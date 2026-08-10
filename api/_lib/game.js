@@ -109,12 +109,11 @@ export function checkWins(grid) {
   for (let p = 0; p < PAYLINES.length; p++) {
     const pl = PAYLINES[p];
 
-    // SCATTER in qualsiasi posizione sulla payline: nessuna win possibile
-    for (let c = 0; c < COLS; c++) {
-      if (grid[c][pl[c]] === SCATTER_ID) {
-        continue;
-      }
-    }
+    // Nessun check dedicato allo SCATTER: la payline vince solo come run da
+    // sinistra a destra di anchor/WILD, e SCATTER (come qualsiasi simbolo
+    // non corrispondente) interrompe la run nel punto in cui compare. Uno
+    // scatter prima del 3° simbolo annulla la win; uno scatter dopo la run
+    // completata (es. colonna 4) no — la win resta valida col count accumulato.
 
     // Trova l'anchor: primo simbolo non-WILD e non-SCATTER
     let anchor = null;

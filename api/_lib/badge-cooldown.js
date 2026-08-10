@@ -24,15 +24,44 @@ function cleanup() {
   }
 }
 
+// Anti-spoofing (N12, ISSUES.md): stessa gerarchia di header fidati di
+// spin-cooldown.js. L'ordine conta: x-vercel-ip è impostato dal proxy Vercel
+// (non spoofabile), x-real-ip dal proxy upstream, e di X-Forwarded-For è
+// affidabile SOLO l'ultimo elemento (quello aggiunto dal proxy finale — il
+// client può forgiare i primi, quindi NON usarli mai come identità).
+function readHeader(req, name) {
+  const headers = req?.headers;
+  if (!headers) return null;
+  if (typeof headers.get === 'function') {
+    const v = headers.get(name);
+    if (v) return v;
+  }
+  const direct = headers[name];
+  if (typeof direct === 'string' && direct) return direct;
+  return null;
+}
+
+function clientIp(req) {
+  // 1. Vercel edge: header affidabile, impossibile da spoofare
+  const vercelIp = readHeader(req, 'x-vercel-ip');
+  if (vercelIp) return vercelIp.trim();
+  // 2. Proxy: x-real-ip
+  const realIp = readHeader(req, 'x-real-ip');
+  if (realIp) return realIp.trim();
+  // 3. XFF: SOLO l'ultimo elemento (quello aggiunto dal proxy finale)
+  const xff = readHeader(req, 'x-forwarded-for');
+  if (xff) {
+    const parts = xff
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return 'unknown';
+}
+
 export function badgeCooldown(req) {
-  // Estrai IP (stessa gerarchia di spin-cooldown).
-  const xff = req?.headers?.['x-forwarded-for'];
-  const raw = typeof xff === 'string' ? xff : req?.headers?.get?.('x-forwarded-for');
-  const ip = raw ? raw.split(',')[0].trim() :
-             req?.headers?.['x-real-ip']?.split?.(',')[0]?.trim() ??
-             req?.headers?.get?.('x-real-ip')?.trim() ??
-             req?.headers?.get?.('x-vercel-ip')?.trim() ??
-             'unknown';
+  const ip = clientIp(req);
 
   // Cleanup periodico.
   _accessCounter += 1;

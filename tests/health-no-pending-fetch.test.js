@@ -30,9 +30,16 @@ describe('health?full non lancia refreshCache in background (regression bug 500)
       headers,
       statusCode: 200,
       _body: '',
-      setHeader: (k, v) => { headers[k] = v; },
-      status: (c) => { res.statusCode = c; return res; },
-      send: (body) => { res._body = body; },
+      setHeader: (k, v) => {
+        headers[k] = v;
+      },
+      status: (c) => {
+        res.statusCode = c;
+        return res;
+      },
+      send: (body) => {
+        res._body = body;
+      },
       end: () => {},
       redirect: () => {},
     };
@@ -74,6 +81,35 @@ describe('health?full non lancia refreshCache in background (regression bug 500)
     expect(body.repo_cache).toBeDefined();
     expect(body.repo_cache.populated).toBe(false);
     expect(repoCacheStats).toHaveBeenCalledTimes(1);
+  });
+
+  it('health scrive la probe con TTL 60s (ISSUE-N9: niente chiavi gsm:__health__* permanenti)', async () => {
+    process.env.KV_REST_API_URL = 'https://fake.upstash.com';
+
+    const kvSetMock = vi.fn().mockResolvedValue(true);
+
+    vi.doMock('../api/_lib/kv.js', () => ({
+      kvEnabled: true,
+      kvWritable: true,
+      kvGet: vi.fn().mockResolvedValue('1'),
+      kvSet: kvSetMock,
+    }));
+    vi.doMock('../api/_lib/repos.js', () => ({
+      getRepoCacheStats: vi.fn().mockResolvedValue({ populated: false }),
+    }));
+
+    const mod = await import('../api/health.js');
+    const handler = mod.default;
+    const res = makeRes();
+
+    await handler({ method: 'GET', query: {}, headers: {} }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(kvSetMock).toHaveBeenCalledTimes(1);
+    const [key, value, ttl] = kvSetMock.mock.calls[0];
+    expect(key).toMatch(/^gsm:__health__\d+$/);
+    expect(value).toBe('1');
+    expect(ttl).toBe(60);
   });
 
   it('health (non-full) risponde 200 e NON chiama getRepoCacheStats', async () => {
