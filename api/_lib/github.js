@@ -448,10 +448,11 @@ export async function loadSlotSvg(token, owner, repo) {
   };
 }
 
-// SVUOTA il blocco tra i marker SENZA condizioni (usato all'inizio dello
-// spin, prima del redirect, così durante la rotazione dei rulli il README
-// non mostra il link della vincita precedente). Il riempimento avviene
-// solo DOPO la rotazione (vedi updateReadmeMarkers, chiamato in fillPromise).
+// SVUOTA il blocco tra i marker SENZA condizioni (usato da spin.js SOLO su
+// spin VINCENTI, prima di riscriverlo col badge della vincita corrente —
+// fix t_5381abfe: su spin perdenti i marker non vengono toccati, così il
+// pulsante dell'ultima vincita resta visibile). Il riempimento avviene
+// subito dopo (vedi updateReadmeMarkers, chiamato in fillPromise).
 export function clearReadmeMarkers(readme) {
   const START = '<!-- SLOT_LAST_WIN_START -->';
   const END = '<!-- SLOT_LAST_WIN_END -->';
@@ -467,7 +468,11 @@ export function clearReadmeMarkers(readme) {
 // Nessun contatore ("Total community spins"), nessun "Last win:", nessun
 // funfact — l'utente vuole vedere ESCLUSIVAMENTE il link alla repo vincente.
 // REGOLA: il badge compare SOLO quando c'è una vincita (lang presente). Su
-// spin perdenti il blocco resta vuoto. Se la repo vincente non è stata
+// spin perdenti il blocco resta vuoto. Il badge è STICKY (fix t_5381abfe):
+// è spin.js a decidere di NON chiamare questa funzione su spin perdenti,
+// così il badge dell'ultima vincita non viene mai svuotato da uno spin
+// perso — il pulsante rappresenta l'ULTIMA VINCITA, non l'ultimo spin.
+// Se la repo vincente non è stata
 // trovata (repoMatch null: cache fredda, linguaggio <30%, nessun repo
 // valido), il badge viene comunque scritto con un link di fallback al
 // profilo dell'owner — così una vincita reale non finisce mai SENZA

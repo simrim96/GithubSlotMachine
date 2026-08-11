@@ -234,10 +234,32 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(writeState).toHaveBeenCalled();
     expect(ghPut).toHaveBeenCalled();
 
+    // Su vincita il badge viene scritto (clear+fill): updateReadmeMarkers
+    // deve essere chiamato con il linguaggio vincente (fix t_5381abfe).
+    const { updateReadmeMarkers } = await import('../api/_lib/github.js');
+    expect(updateReadmeMarkers).toHaveBeenCalled();
+
     const cacheCalls = kvSet.mock.calls.filter((c) =>
       String(c[0]).startsWith('gsm:readme:')
     );
     expect(cacheCalls.length).toBeGreaterThanOrEqual(1);
+  }, 30000);
+
+  // ── 1c) su spin PERDENTE il badge dell'ultima vincita NON viene toccato ──
+  it("su spin perdente NON svuota i marker (badge sticky: il pulsante dell'ultima vincita resta)", async () => {
+    // FIX t_5381abfe: il pulsante con il link alla repo rappresenta
+    // l'ULTIMA VINCITA, non l'ultimo spin. Uno spin perdente non deve
+    // chiamare clearReadmeMarkers/updateReadmeMarkers (che svuoterebbero
+    // il badge della vincita — "vinto qt ma nessun pulsante").
+    const res = makeRes();
+    await handler(req(), res);
+    await new Promise((r) => setTimeout(r, 1_500));
+
+    expect(res.statusCode).toBe(302);
+    const { clearReadmeMarkers, updateReadmeMarkers } =
+      await import('../api/_lib/github.js');
+    expect(clearReadmeMarkers).not.toHaveBeenCalled();
+    expect(updateReadmeMarkers).not.toHaveBeenCalled();
   }, 30000);
 
   // ── 2) degradazione graceful quando il PAT è assente (mai 500) ───────────

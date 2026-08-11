@@ -1,11 +1,20 @@
-// ─── Test self-validation del badge (FIX "pulsante su spin perdente") ────────
-// Il badge nel README può restare STALE (GitHub cachea il render, la PUT
-// asincrona può fallire): un badge scritto da una vincita PRECEDENTE
-// resterebbe visibile anche dopo uno spin perdente, simulando una vincita
-// inesistente. Il fix rende l'endpoint /api/badge self-validante contro lo
-// stato corrente (gsm:state / state.json):
-//   • ultimo spin VINCENTE e coerente (?v + lang) → badge normale;
-//   • ultimo spin PERDENTE (o badge vecchio) → SVG vuoto, niente pulsante.
+// ─── Test self-validation del badge (FIX t_5381abfe — badge STICKY) ────────
+// Il badge nel README è l'unico "pulsante con il link alla repo" dopo una
+// vincita. Bug riportato: "vinto il simbolo qt (rilevato vincente) ma
+// nessun pulsante". Due cause:
+//   1. i check stretti su ?v/lang invalidavano l'URL di un badge di una
+//      vincita vera appena lo stato avanzava (GitHub cachea il render del
+//      README per minuti) → servito SVG vuoto;
+//   2. il gate lastPull !== lastWin.ts (e lo svuotamento marker su spin
+//      perdenti in spin.js) faceva sparire il pulsante appena dopo la
+//      vincita arrivava uno spin perdente.
+// L'endpoint /api/badge è self-validante contro lo stato corrente
+// (gsm:state / state.json):
+//   • almeno UNA vincita reale (lastWin presente) → badge normale;
+//   • nessuna vincita MAI (lastWin null) → SVG vuoto, niente pulsante.
+// ?v e lang NON sono gate di validità: ?v è solo un cache-buster per
+// camo e lang il testo mostrato. Il README (scritto solo dalla slot) è il
+// confine di fiducia.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let kvGetMock;
@@ -90,26 +99,35 @@ describe('isBadgeValidForCurrentSpin (logica pura)', () => {
     );
   });
 
-  it("INVALIDO quando l'ultimo spin è PERDENTE (lastPull > lastWin.ts)", () => {
-    // Vincita a T, ma dopo c'è stato uno spin perdente a T+1000:
-    // il badge di quella vincita non deve più comparire.
+  it("VALIDO anche dopo spin PERDENTI (badge sticky: rappresenta l'ultima vincita)", () => {
+    // FIX t_5381abfe: vincita a T, poi spin perdenti a T+1000. Il badge
+    // della vincita deve RESTARE: prima del fix lastPull !== lastWin.ts
+    // lo invalidava → "vinto qt ma nessun pulsante" appena l'utente
+    // ritirava di nuovo dopo una vincita.
     expect(
       isBadgeValidForCurrentSpin(losingState(T, T + 1000), String(T), 'React')
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('INVALIDO quando ?v non corrisponde alla vincita corrente', () => {
-    // Vincita corrente a T+2000, ma la richiesta chiede il badge di uno spin
-    // più vecchio (T) — README cacheato con badge vecchio.
+  it("VALIDA il badge di una vincita PRECEDENTE quando l'ultimo spin è una vincita NUOVA (README cacheato)", () => {
+    // FIX t_5381abfe: vincita corrente a T+2000 (es. Python), ma la
+    // richiesta chiede il badge di una vincita più vecchia a T (es. Qt),
+    // ancora embeddato in un render del README cacheato da GitHub. La
+    // vincita a T è REALE (è successa): il pulsante deve comparire lo
+    // stesso. Prima del fix questo caso serviva un SVG vuoto → il pulsante
+    // spariva su vincite reali non appena lo stato avanzava.
     expect(
       isBadgeValidForCurrentSpin(winningState(T + 2000), String(T), 'React')
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('INVALIDO quando il linguaggio non combacia', () => {
+  it('VALIDO anche con linguaggio diverso dalla vincita corrente (lang è solo testo)', () => {
+    // FIX t_5381abfe: un render cacheato di una vincita precedente può
+    // embeddare ?lang=<linguaggio vecchio>. La vincita è reale, quindi il
+    // badge si serve con il testo richiesto (coerente col render).
     expect(
       isBadgeValidForCurrentSpin(winningState(T), String(T), 'Python')
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("INVALIDO quando non c'è mai stata una vincita (lastWin null)", () => {
@@ -127,7 +145,7 @@ describe('isBadgeValidForCurrentSpin (logica pura)', () => {
   });
 });
 
-describe('handler /api/badge — serve SVG vuoto su spin perdenti', () => {
+describe('handler /api/badge — badge sticky (mai SVG vuoto dopo una vincita reale)', () => {
   const T = 1786284810807;
 
   beforeEach(() => {
@@ -143,14 +161,51 @@ describe('handler /api/badge — serve SVG vuoto su spin perdenti', () => {
     expect(captured.body).not.toBe('');
   });
 
-  it('ultimo spin PERDENTE → SVG vuoto, nessun pulsante', async () => {
-    // Vincita a T, spin perdente a T+1000: il badge della vincita vecchia
-    // deve sparire anche se il README embeddato è ancora cacheato.
+  it('spin PERDENTE dopo una vincita → il badge della vincita resta (sticky)', async () => {
+    // FIX t_5381abfe: vincita a T, spin perdente a T+1000. Prima del fix
+    // l'endpoint serviva SVG vuoto appena arrivava uno spin perso → il
+    // pulsante della vincita spariva ("vinto qt ma nessun pulsante").
     kvGetMock = vi.fn().mockResolvedValue(losingState(T, T + 1000));
     await badgeHandler(makeReq({ v: String(T), lang: 'React' }), makeRes());
     expect(captured.status).toBe(200);
-    expect(captured.body).not.toContain('check out this repo');
-    expect(captured.body).not.toContain('<text');
+    expect(captured.body).toContain('check out this repo I wrote in React');
+  });
+
+  it("FIX t_5381abfe: badge di una vincita Qt PRECEDENTE servito anche se l'ultimo spin ha vinto altro (README cacheato)", async () => {
+    // Scenario reale del bug: vincita Qt a T, poi vincita Python a T+2000.
+    // GitHub serve ancora il render cacheato del README con l'URL del badge
+    // Qt (?v=T&lang=Qt): la vincita Qt è reale, quindi il pulsante DEVE
+    // comparire. Prima del fix l'endpoint serviva un SVG vuoto (i check
+    // stretti su ?v/lang invalidavano il badge appena lo stato avanzava).
+    kvGetMock = vi.fn().mockResolvedValue(winningState(T + 2000));
+    await badgeHandler(makeReq({ v: String(T), lang: 'Qt' }), makeRes());
+    expect(captured.status).toBe(200);
+    expect(captured.body).toContain('check out this repo I wrote in Qt');
+    expect(captured.body).not.toBe('');
+  });
+
+  it('FIX t_5381abfe (scenario esatto): vincita Qt, poi spin perdente → il pulsante Qt resta', async () => {
+    // Bug riportato: "dopo aver vinto il simbolo qt (rilevato vincente)
+    // non è comparso il pulsante con il link alla repo". In produzione:
+    // vincita Qt alle 22:01, spin perdente 8s dopo → badge svuotato per
+    // ore. Il badge deve sopravvivere agli spin perdenti.
+    const qtState = {
+      totalSpins: 78,
+      totalWins: 43,
+      lastPullTimestamp: T + 8000, // spin perdente DOPO la vincita
+      lastWin: { langId: 'qt', langName: 'Qt', ts: T },
+      version: 2,
+      settings: { theme: 'auto', sound: true },
+      stats: { longestStreak: 0, currentStreak: 0, winsByLang: {} },
+    };
+    // Logica pura: valido nonostante lastPull > lastWin.ts
+    expect(isBadgeValidForCurrentSpin(qtState, String(T), 'Qt')).toBe(true);
+    // Endpoint: serve il badge reale, non SVG vuoto
+    kvGetMock = vi.fn().mockResolvedValue(qtState);
+    await badgeHandler(makeReq({ v: String(T), lang: 'Qt' }), makeRes());
+    expect(captured.status).toBe(200);
+    expect(captured.body).toContain('check out this repo I wrote in Qt');
+    expect(captured.body).not.toBe('');
   });
 
   it('senza stato leggibile (KV null + fetch fallita) → badge normale (fail-open)', async () => {

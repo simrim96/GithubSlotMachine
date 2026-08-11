@@ -242,3 +242,225 @@ describe('/api/image — guard anti-stale (KV vs state.lastPullTimestamp)', () =
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('/api/image — self-heal URL ?v stantia (fix t_308e49dc)', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    kvStore.clear();
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      ghResponse({
+        content: Buffer.from('<svg>github-fallback</svg>').toString('base64'),
+      })
+    );
+    process.env.GITHUB_PAT = 'tok-stale-guard';
+  });
+
+  afterEach(() => {
+    if (originalFetch) globalThis.fetch = originalFetch;
+    delete process.env.GITHUB_PAT;
+  });
+
+  it('?v più vecchio di lastPullTimestamp → 302 a /api/image?v=<lastPull>, NESSUNA fetch GitHub', async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-3000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: { v: '1000' } }, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe('/api/image?v=3000');
+    expect(res.headers['Cache-Control']).toBe('no-store');
+    // L'URL vecchio viene corretto PRIMA di servire qualsiasi contenuto.
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('?v == lastPull → 200 da KV, nessun redirect', async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-3000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: { v: '3000' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-3000</svg>');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('?v > lastPull (clock skew/forward) → 200 da KV, nessun redirect', async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-3000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: { v: '9999' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-3000</svg>');
+  });
+
+  it('senza ?v → 200 diretto, nessun redirect (curl e embed senza query invariati)', async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-3000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-3000</svg>');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('?v non numerico → 200 diretto, nessun redirect', async () => {
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-3000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: { v: 'abc' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-3000</svg>');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("?v stantio ma KV vuoto (fallback GitHub): il 302 scatta comunque (corregge l'URL prima del contenuto)", async () => {
+    kvStore.set('gsm:state', { totalSpins: 7, lastPullTimestamp: 3000 });
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: { v: '1000' } }, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe('/api/image?v=3000');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('/api/image — retry anti-propagazione sul fallback GitHub (fix t_308e49dc)', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    kvStore.clear();
+    originalFetch = globalThis.fetch;
+    process.env.GITHUB_PAT = 'tok-stale-guard';
+  });
+
+  afterEach(() => {
+    if (originalFetch) globalThis.fetch = originalFetch;
+    delete process.env.GITHUB_PAT;
+  });
+
+  it('GitHub serve SVG STALE (uid < lastPull) → rilegge una volta e serve il fresco', async () => {
+    // KV svg assente (fallback GitHub attivo), stato con l'ultimo spin = 2000.
+    kvStore.set('gsm:state', { totalSpins: 8, lastPullTimestamp: 2000 });
+
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        ghResponse({
+          content: Buffer.from('<svg>slot-title-1000</svg>').toString('base64'),
+        })
+      )
+      .mockResolvedValueOnce(
+        ghResponse({
+          content: Buffer.from('<svg>slot-title-2000</svg>').toString('base64'),
+        })
+      );
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-2000</svg>');
+  });
+
+  it('GitHub serve STALE due volte → serve il migliore disponibile e logga il retry', async () => {
+    kvStore.set('gsm:state', { totalSpins: 8, lastPullTimestamp: 2000 });
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      ghResponse({
+        content: Buffer.from('<svg>slot-title-1000</svg>').toString('base64'),
+      })
+    );
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-1000</svg>');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'github fallback svg stale vs lastPull, retrying once (CDN propagation)',
+      expect.objectContaining({ uid: 1000, lastPull: 2000 })
+    );
+  });
+
+  it('GitHub fresco (uid >= lastPull) → UNA sola fetch, nessun retry', async () => {
+    kvStore.set('gsm:state', { totalSpins: 8, lastPullTimestamp: 2000 });
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      ghResponse({
+        content: Buffer.from('<svg>slot-title-2000</svg>').toString('base64'),
+      })
+    );
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(res.body).toBe('<svg>slot-title-2000</svg>');
+  });
+
+  it('GitHub più fresco della copia KV ma ancora STALE vs lastPull → retry e serve il fresco', async () => {
+    // KV ha 1000, GitHub (prima lettura) ha 2000, l'ultimo spin è 3000:
+    // il retry vale la pena perché GitHub è il candidato migliore.
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-1000</svg>');
+    kvStore.set('gsm:state', { totalSpins: 9, lastPullTimestamp: 3000 });
+
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        ghResponse({
+          content: Buffer.from('<svg>slot-title-2000</svg>').toString('base64'),
+        })
+      )
+      .mockResolvedValueOnce(
+        ghResponse({
+          content: Buffer.from('<svg>slot-title-3000</svg>').toString('base64'),
+        })
+      );
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-3000</svg>');
+  });
+
+  it("GitHub più VECCHIO della copia KV (già coperto dall'hardening) → NESSUN retry, serve KV", async () => {
+    // KV ha 1500 (stale vs lastPull 2000) ma GitHub è ancora più vecchio
+    // (1000): l'hardening serve KV; il retry non cambierebbe l'esito.
+    kvStore.set('gsm:slotSvg', '<svg>slot-title-1500</svg>');
+    kvStore.set('gsm:state', { totalSpins: 6, lastPullTimestamp: 2000 });
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      ghResponse({
+        content: Buffer.from('<svg>slot-title-1000</svg>').toString('base64'),
+      })
+    );
+
+    const res = makeRes();
+    await handler({ method: 'GET', query: {} }, res);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('<svg>slot-title-1500</svg>');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'github slot.svg older than kv copy, serving kv',
+      expect.objectContaining({ ghUid: 1000, svgUid: 1500 })
+    );
+  });
+});

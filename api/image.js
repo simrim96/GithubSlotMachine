@@ -19,6 +19,13 @@ import { logger } from './_lib/logger.js';
 
 const SVG_PATH = 'slot.svg';
 
+// Backoff del retry anti-propagazione sul fallback GitHub (fix t_308e49dc):
+// subito dopo una PUT, la Contents API può servire per qualche secondo la
+// versione PRECEDENTE del file (cache CDN non ancora invalidata). Se l'SVG
+// letto ha uid < lastPull (l'ultimo spin noto), il contenuto è sicuramente
+// vecchio: rileggiamo UNA volta dopo questo backoff prima di arrenderci.
+const GH_FALLBACK_RETRY_DELAY_MS = 700;
+
 // Estrae lo uid dello spin che ha generato l'SVG (es. `slot-title-1786281466709`
 // scritto da svg-builder-accessible.js). Serve al guard anti-stale: se l'SVG in
 // KV è più vecchio dell'ultimo spin registrato in gsm:state, è una copia STALE
@@ -31,6 +38,54 @@ function extractSvgUid(svg) {
 }
 
 export { extractSvgUid };
+
+// Legge slot.svg dal repo remoto via GitHub Contents API (fallback).
+// Ritorna { svg } oppure { error: 'http', status } (risposta non ok) /
+// { error: 'empty' } (200 ma `content` assente — ISSUE-24).
+async function fetchGitHubSvg(token, owner, repo) {
+  const r = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${SVG_PATH}`,
+    { headers: ghHeaders(token) }
+  );
+  if (!r.ok) return { error: 'http', status: r.status };
+  const data = await r.json();
+  if (!data || !data.content) return { error: 'empty' };
+  return { svg: Buffer.from(data.content, 'base64').toString('utf-8') };
+}
+
+// Lettura fallback con UN retry anti-propagazione CDN (fix t_308e49dc).
+//
+// Il fallback GitHub può essere PIÙ VECCHIO dell'ultimo spin anche subito
+// dopo una PUT riuscita: la Contents API è servita da una cache CDN che
+// impiega qualche secondo a invalidarsi. Se l'SVG letto ha uid < lastPull
+// sappiamo con certezza che è la copia VECCHIA → rileggiamo una volta dopo
+// un breve backoff (bounded: 1 solo retry, solo sul path di fallback, solo
+// quando GitHub è il candidato migliore disponibile).
+async function fetchGitHubSvgFresh(token, owner, repo, lastPull, kvUid) {
+  const first = await fetchGitHubSvg(token, owner, repo);
+  if (first.error) return first;
+
+  const uid = extractSvgUid(first.svg);
+  const stale =
+    uid != null &&
+    Number.isFinite(uid) &&
+    Number.isFinite(lastPull) &&
+    uid < lastPull;
+  // Retry solo se la copia GitHub è uguale o più fresca di quella KV: se KV
+  // ha già una copia più fresca, il retry non cambierebbe l'esito (l'hardening
+  // sotto serve la più fresca delle due) e costerebbe solo latenza.
+  const kvNotBetter = kvUid == null || uid >= kvUid;
+  if (!stale || !kvNotBetter) return first;
+
+  logger.warn(
+    'github fallback svg stale vs lastPull, retrying once (CDN propagation)',
+    { uid, lastPull }
+  );
+  await new Promise((r) => setTimeout(r, GH_FALLBACK_RETRY_DELAY_MS));
+  const second = await fetchGitHubSvg(token, owner, repo);
+  if (second.error) return first; // la prima lettura resta il meglio disponibile
+  return second;
+}
 
 export default async function handler(req, res) {
   const user = process.env.SLOT_OWNER || 'simrim96';
@@ -74,30 +129,12 @@ export default async function handler(req, res) {
       kvSvg = svg;
       if (svg) {
         kvUid = extractSvgUid(svg);
-        lastPull = Number(state?.lastPullTimestamp);
-        const stale =
-          kvUid != null &&
-          Number.isFinite(kvUid) &&
-          Number.isFinite(lastPull) &&
-          kvUid < lastPull;
-        if (!stale) {
-          sendResponse(res, {
-            status: 200,
-            headers: {
-              'Content-Type': 'image/svg+xml',
-              'Cache-Control': 'no-store',
-            },
-            body: svg,
-          });
-          return;
-        }
-        logger.warn(
-          'kv slotSvg is stale (uid < lastPullTimestamp), falling back to github',
-          {
-            svgUid: kvUid,
-            lastPull,
-          }
-        );
+      }
+      // lastPull viene letto dallo stato INDIPENDENTEMENTE dalla presenza
+      // dell'SVG in KV: serve al self-heal dell'URL (?v stantio) e al retry
+      // anti-propagazione anche quando la copia KV è assente.
+      if (state) {
+        lastPull = Number(state.lastPullTimestamp);
       }
     } catch (e) {
       /* Sentry already handled by logger */
@@ -107,20 +144,77 @@ export default async function handler(req, res) {
     }
   }
 
-  // Fallback: leggi slot.svg dal repo.
-  const r = await fetch(
-    `https://api.github.com/repos/${user}/${repo}/contents/${SVG_PATH}`,
-    { headers: ghHeaders(token) }
-  );
-  if (!r.ok) {
+  // ── Self-heal URL stantia (fix t_308e49dc) ───────────────────────────────
+  // "A volte, dopo lo spin, vedo ancora l'svg precedente". Il README del
+  // profilo embedda l'immagine con `api/image?v=<spinStart>`; se il README
+  // non si è ancora ri-renderizzato (PUT fallita/timeout, o cache di render
+  // di GitHub in ritardo), il browser richiede un ?v VECCHIO. Camo (il proxy
+  // immagini di GitHub) cachea PER URL: un ?v vecchio può quindi far servire
+  // l'SVG dello spin precedente senza nemmeno raggiungerci (bug t_690b8db0).
+  // Quando la richiesta arriva qui con un ?v più vecchio dell'ultimo spin
+  // noto (state.lastPullTimestamp), rispondiamo 302 verso l'URL col timestamp
+  // corrente: il client — e Camo, che segue i redirect (CAMO_MAX_REDIRECTS) —
+  // rifetcha l'URL nuovo e riceve l'SVG dell'ULTIMO spin. La cache Camo
+  // dell'URL vecchio converge così al contenuto fresco, anche se il README
+  // resta fermo per qualche secondo. Solo richieste con ?v numerico: curl
+  // /api/image e gli embed senza query restano invariati (200 diretto).
+  if (Number.isFinite(lastPull)) {
+    const rawV = req?.query?.v;
+    const v = typeof rawV === 'string' ? parseInt(rawV, 10) : NaN;
+    if (Number.isFinite(v) && v < lastPull) {
+      logger.info(
+        'image URL ?v older than last spin, redirecting to current version',
+        { requestedV: v, lastPull }
+      );
+      sendResponse(res, {
+        status: 302,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+        redirect: `/api/image?v=${lastPull}`,
+      });
+      return;
+    }
+  }
+
+  // Guard anti-stale: se l'SVG in KV è più vecchio dell'ultimo spin, ignoralo
+  // e ricadi sul fallback GitHub (che saveSlotSvg tiene fresco).
+  if (kvSvg) {
+    const stale =
+      kvUid != null &&
+      Number.isFinite(kvUid) &&
+      Number.isFinite(lastPull) &&
+      kvUid < lastPull;
+    if (!stale) {
+      sendResponse(res, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'no-store',
+        },
+        body: kvSvg,
+      });
+      return;
+    }
+    logger.warn(
+      'kv slotSvg is stale (uid < lastPullTimestamp), falling back to github',
+      {
+        svgUid: kvUid,
+        lastPull,
+      }
+    );
+  }
+
+  // Fallback: leggi slot.svg dal repo (con retry anti-propagazione CDN).
+  const gh = await fetchGitHubSvgFresh(token, user, repo, lastPull, kvUid);
+  if (gh.error === 'http') {
     // ISSUE-24/B4: in caso di errore GitHub il client riceveva testo senza
     // Content-Type e l'evento non finiva in Sentry. Catturiamo l'errore e
     // serviamo l'SVG di degrado come negli altri path (vedi sotto), così
     // l'embed resta valido invece di rompersi su un 404 in chiaro.
-    const status = r.status;
     /* logger already handles Sentry */
     logger.warn('github image fetch failed, serving degradation SVG', {
-      status,
+      status: gh.status,
     });
     sendResponse(res, {
       status: 200,
@@ -132,11 +226,10 @@ export default async function handler(req, res) {
     });
     return;
   }
-  const data = await r.json();
-  // ISSUE-24: se `r.ok` è true ma `data.content` è assente (repo esistente ma
-  // slot.svg vuoto / risposta inattesa), `Buffer.from(undefined)` lancia.
-  // In tal caso servi un SVG di degrado invece di crashare.
-  if (!data || !data.content) {
+  if (gh.error === 'empty') {
+    // ISSUE-24: `r.ok` true ma `data.content` assente (repo esistente ma
+    // slot.svg vuoto / risposta inattesa). Servi un SVG di degrado invece di
+    // crashare su `Buffer.from(undefined)`.
     sendResponse(res, {
       status: 200,
       headers: {
@@ -147,7 +240,7 @@ export default async function handler(req, res) {
     });
     return;
   }
-  const svg = Buffer.from(data.content, 'base64').toString('utf-8');
+  const svg = gh.svg;
 
   // ── Hardening (bug t_a81cdf35) ────────────────────────────────────────────
   // Il fallback GitHub può essere PIÙ VECCHIO della copia KV (propagazione
