@@ -1,20 +1,20 @@
 {
-  "totalSpins": 80,
-  "totalWins": 44,
+  "totalSpins": 81,
+  "totalWins": 45,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "cpp",
+    "langName": "C++",
     "fact": {
-      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
-      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
+      "it": "C++ è nato nel 1985 da Bjarne Stroustrup come \"C with Classes\": oggi alimenta Unreal Engine, Chrome e MongoDB.",
+      "en": "C++ was created in 1985 by Bjarne Stroustrup as \"C with Classes\": today it powers Unreal Engine, Chrome and MongoDB."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786430245841
+    "ts": 1786430256581
   },
   "version": 2,
-  "lastPullTimestamp": 1786430245841,
+  "lastPullTimestamp": 1786430256581,
   "settings": {
     "theme": "auto",
     "sound": true
