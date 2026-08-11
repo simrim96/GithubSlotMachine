@@ -1,20 +1,20 @@
 {
-  "totalSpins": 82,
-  "totalWins": 46,
+  "totalSpins": 83,
+  "totalWins": 47,
   "lastWin": {
     "langId": "qt",
     "langName": "Qt",
     "fact": {
-      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
-      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
+      "it": "Il meccanismo signal/slot di Qt richiede un compilatore aggiuntivo (MOC, Meta-Object Compiler): pre-processa gli header per generare il codice di introspezione che il C++ standard non offre",
+      "en": "Qt's signals & slots system requires an extra compiler (MOC, the Meta-Object Compiler) that pre-processes headers to generate the introspection code that standard C++ does not provide."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786430267092
+    "ts": 1786430274914
   },
   "version": 2,
-  "lastPullTimestamp": 1786430267092,
+  "lastPullTimestamp": 1786430274914,
   "settings": {
     "theme": "auto",
     "sound": true
