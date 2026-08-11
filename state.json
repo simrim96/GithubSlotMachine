@@ -1,20 +1,20 @@
 {
-  "totalSpins": 79,
-  "totalWins": 43,
+  "totalSpins": 80,
+  "totalWins": 44,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Python prende il nome dai Monty Python's Flying Circus, non dal serpente: Guido van Rossum era un grande fan dello show",
-      "en": "Python is named after Monty Python's Flying Circus, not the snake: Guido van Rossum was a huge fan of the show."
+      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
+      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786368655783
+    "ts": 1786430245841
   },
   "version": 2,
-  "lastPullTimestamp": 1786430234988,
+  "lastPullTimestamp": 1786430245841,
   "settings": {
     "theme": "auto",
     "sound": true
