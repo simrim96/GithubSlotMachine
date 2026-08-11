@@ -19,8 +19,10 @@ counter** is shown on the slot and (optionally) inside your profile README.
 - 🧠 **Educational wins** — each language ships with a curated list of
   bilingual (`it`/`en`) fun facts; a random one is shown on every win.
 - 🔗 **Auto-discovery of your repos** — on a win, the API scans your public
-  repos and picks the best one that's at least 30% the winning language (per
-  the GitHub Languages API). You're then redirected to that repo.
+  repos and picks a **random** one that's at least 30% the winning language
+  (per the GitHub Languages API), so the "check out this repo" button in your
+  profile README links to a real repo of yours. The button appears **only on
+  wins** — a losing spin clears it.
 - 💎 **Polished visuals** — gradient cabinet, neon marquee, glowing bulbs,
   animated reels, win overlays. Pure hand-written SVG +
   CSS, **zero runtime dependencies, zero build step**.
@@ -488,13 +490,14 @@ If your profile README contains these markers:
 ```markdown
 <!-- SLOT_LAST_WIN_START -->
 
-> 🎰 **Total community spins:** `1,234` · **Wins:** `89`
->
-> 🏆 **Last win:** `Python` → [my-cool-ml-project](https://github.com/you/my-cool-ml-project)
-> _Python prende il nome dai Monty Python's Flying Circus, non dal serpente..._
+<a href="https://github.com/you/my-cool-ml-project"><img src="https://github-slot-machine.vercel.app/api/badge?v=1234567890123&amp;lang=Python" alt="check out this repo I wrote in Python" width="340" style="border:0;display:inline-block" /></a>
 
 <!-- SLOT_LAST_WIN_END -->
 ```
+
+The block contains the animated **"check out this repo"** button, and **only
+when the last spin was a win** — a losing spin clears it (the button never
+lingers from a previous win).
 
 If the markers aren't present, the README is left untouched (the slot SVG still
 shows everything inline).
@@ -503,9 +506,11 @@ shows everything inline).
 
 ## 🚦 Behavior on click
 
-- **No win** → redirect to your GitHub profile.
-- **Win** → redirect to the matching repo (≥ 30% of the winning language).
-  Falls back to the profile if no repo qualifies.
+- **No win** → redirect to your GitHub profile, no button in the README.
+- **Win** → the lever redirects to your GitHub profile, and the README shows
+  the "check out this repo" button linking to a **random** repo of yours with
+  ≥ 30% of the winning language (falls back to the profile if no repo
+  qualifies).
 
 ---
 

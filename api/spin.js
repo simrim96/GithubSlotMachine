@@ -38,7 +38,6 @@ import { applyCors } from './_lib/cors.js';
 import { sendResponse } from './_lib/response-bridge.js';
 import { WILD_ID, SCATTER_ID } from './_lib/languages.js';
 import { getRepoForLanguage } from './_lib/repos.js';
-import { getRandomRepo } from './_lib/repos.js';
 import { readState, writeState } from './_lib/state.js';
 import { checkSpinCooldown } from './_lib/spin-cooldown.js';
 import { logger } from './_lib/logger.js';
@@ -179,7 +178,6 @@ export {
   resolveRedirectUrl,
   WILD_ID,
   SCATTER_ID,
-  getRandomRepo,
 };
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
@@ -452,32 +450,6 @@ export default async function handler(req, res) {
       };
     }
 
-    // ── TEST MODE (SLOT_TEST_RANDOM_REPO=1) ──────────────────────────────────
-    // MODALITÀ DI TEST: quando c'è UNA VINCITA ma il repo reale non è stato
-    // trovato (cache fredda, linguaggio <30%, o nessun repo valido), forza un
-    // link a un progetto casuale dell'owner così la catena
-    // spin→repo→link nel README resta verificabile. SU SPIN PERDENTI (nessun
-    // winningLang) NON scrive nulla — il link compare SOLO su vincita, come in
-    // produzione. Il redirect resta sul profilo owner. Disattivabile con
-    // env vuoto/0. Da NON usare in produzione.
-    if (
-      process.env.SLOT_TEST_RANDOM_REPO === '1' &&
-      winningLang &&
-      !repoMatch
-    ) {
-      try {
-        const randomRepo = await getRandomRepo(token, OWNER);
-        if (randomRepo) {
-          repoMatch = randomRepo;
-          logger.info('[test-mode] link forzato a repo casuale', {
-            name: repoMatch.name,
-          });
-        }
-      } catch (e) {
-        logger.warn('[test-mode] getRandomRepo failed:', { error: e.message });
-      }
-    }
-
     // Build SVG: sincrona e veloce (~2ms). Il wrapper con timeout (M3) è stato
     // rimosso (ISSUE-N4): una build sincrona non può essere interrotta da un
     // abort signal, quindi il vecchio buildAccessibleSVGWithTimeout era un no-op.
@@ -533,11 +505,10 @@ export default async function handler(req, res) {
     //    PRECEDENTE) e li riempie subito con il link della vittoria corrente.
     //    Durante la rotazione dei rulli il nuovo badge è invisibile (delay
     //    CSS 6.5s in api/badge.js), quindi non compare mai un link vecchio.
-    // 2) Su spin PERDENTI i marker NON vengono toccati (badge STICKY, fix
-    //    t_5381abfe): il pulsante con il link alla repo rappresenta l'ULTIMA
-    //    VINCITA, non l'ultimo spin — prima veniva svuotato a ogni spin e
-    //    una vincita seguita da uno spin perdente lasciava l'utente senza
-    //    pulsante ("vinto qt ma nessun link").
+    // 2) Su spin PERDENTI i marker vengono SVUOTATI (badge NON-sticky,
+    //    t_c9ca9ed9): il pulsante con il link alla repo compare SOLO in caso
+    //    di vincita — uno spin perso rimuove il pulsante (prima, fix
+    //    t_5381abfe, era sticky e restava per sempre nel README).
     // La GET è stata ANTICIPATA (readmeGetPromise, subito dopo la lettura
     // dello stato): qui si attende il suo esito e si scrive la PUT.
     // NESSUN setTimeout artificiale: il link viene scritto il prima possibile,
@@ -595,19 +566,14 @@ export default async function handler(req, res) {
       for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
         try {
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
-          // (1) Badge STICKY (fix t_5381abfe): il pulsante con il link alla
-          // repo rappresenta l'ULTIMA VINCITA, non l'ultimo spin. Su spin
-          // PERDENTI i marker NON vengono toccati → il badge della vincita
-          // precedente resta visibile (prima veniva svuotato a ogni spin e
-          // una vincita seguita da uno spin perdente lasciava l'utente
-          // senza pulsante). Su spin VINCENTI clear+fill sostituiscono il
-          // badge con quello della vincita corrente (il nuovo badge è
-          // invisibile per 6.5s via CSS, quindi durante la rotazione non
-          // compare un link vecchio).
-          let newReadme = oldReadme;
-          if (winningLang) {
-            newReadme = clearReadmeMarkers(oldReadme);
-          }
+          // (1) Badge NON-sticky (t_c9ca9ed9): il pulsante con il link alla
+          // repo compare SOLO in caso di VINCITA. PRIMA (fix t_5381abfe) era
+          // STICKY: su spin perdenti i marker non venivano toccati → il
+          // pulsante dell'ultima vincita restava per sempre nel README.
+          // Ora svuotiamo i marker a OGNI spin: su vincita il clear+fill
+          // sotto scrive il badge della vincita corrente; su perdita il clear
+          // rimuove il pulsante (nessun link fantasma dopo uno spin perso).
+          let newReadme = clearReadmeMarkers(oldReadme);
           // (2) aggiorna versione + riempie con la vittoria corrente
           // FIX "risultato precedente" (t_690b8db0): se l'embed di api/image è
           // SENZA query (?v assente, es. embed aggiunto a mano), il vecchio

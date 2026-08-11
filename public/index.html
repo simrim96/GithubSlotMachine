@@ -411,6 +411,7 @@
 
         // Funzione per annunciare risultati di vincita/perdita
         function announceResult(isWin, winningLang, totalSpins) {
+          if (isWin) {
             announce(
               `🎉 Vinci! Hai abbinato ${winningLang || 'un linguaggio'}.`,
               'polite'
@@ -438,9 +439,16 @@
         // Lo spin fa un redirect a GitHub che RICARICA la pagina, azzerando
         // lo stato in-memory: per sopravvivere alla navigazione persistiamo
         // l'istante dello spin in localStorage (vedi public/_spin-cooldown.js).
-        import('./_spin-cooldown.js').then((m) => m.initSpinCooldown({
-          spinBtn, isSpinningRef: () => isSpinning, setSpinning: (v) => { isSpinning = v; }, announce,
-        }));
+        import('./_spin-cooldown.js').then((m) =>
+          m.initSpinCooldown({
+            spinBtn,
+            isSpinningRef: () => isSpinning,
+            setSpinning: (v) => {
+              isSpinning = v;
+            },
+            announce,
+          })
+        );
 
         // Keyboard navigation: Enter e Space già funzionanti per default
         // Aggiungiamo supporto per T (tira) come scorciatoia
