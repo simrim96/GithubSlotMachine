@@ -288,6 +288,17 @@ export default async function handler(req, res) {
     // coerente con lo stato senza mai forzarla vuota tra spin consecutivi.
     const README_CACHE_KEY = `gsm:readme:${PROFILE_REPO}`;
     const README_CACHE_TTL_SEC = 60;
+    // Copia "ultima nota" della README (fix t_36b41bcb): TTL lungo (7 giorni)
+    // perché serve SOLO come fallback quando la GET GitHub fallisce (API
+    // lenta oltre l'800ms stretto, 429 rate limit, timeout). Senza di essa lo
+    // spin SKIPPEREBBE l'update del README e il ?v cache-buster resterebbe
+    // fermo → Camo (cachea per URL) continuerebbe a servire l'SVG dello spin
+    // precedente ("stesso counter, stessa vincita, stesse icone nei rulli").
+    // Con la copia nota il ?v avanza comunque a OGNI spin; ghPut si
+    // auto-corregge su 409 (sha stale → refetch → PUT). La cache "calda"
+    // (60s) resta per la freschezza e il rilevamento di edit esterni.
+    const README_LAST_KNOWN_KEY = `gsm:readme:last-known:${PROFILE_REPO}`;
+    const README_LAST_KNOWN_TTL_SEC = 60 * 60 * 24 * 7; // 7 giorni
 
     // ── README: GET ANTICIPATA (spin a "freddo" più veloce) ────────────────
     // La GET della README (cache KV → GitHub, ~150-400ms) è la lettura lenta
@@ -353,6 +364,21 @@ export default async function handler(req, res) {
               logger.info('[readme-update] cache populated from GitHub GET');
             } catch (e) {
               logger.warn('[readme-update] cache set failed:', {
+                error: e.message,
+              });
+            }
+            // Fix t_36b41bcb: aggiorna anche la copia "ultima nota" (TTL
+            // lungo). È il fallback che garantisce l'avanzamento del ?v anche
+            // quando una GET successiva fallisce — senza, Camo servirebbe
+            // l'SVG dello spin precedente.
+            try {
+              await kvSet(
+                README_LAST_KNOWN_KEY,
+                { content: rf.content, sha: rf.sha },
+                README_LAST_KNOWN_TTL_SEC
+              );
+            } catch (e) {
+              logger.warn('[readme-update] last-known cache set failed:', {
                 error: e.message,
               });
             }
@@ -490,7 +516,17 @@ export default async function handler(req, res) {
     //     sovrappone a repo lookup + build SVG — vedi readmeGetPromise)
     // Timeout di sicurezza per il path README: copre clear + fill (PUT
     // GitHub, ~1.5s) con margine. Non deve mai bloccare il redirect.
-    const README_TIMEOUT_MS = 4000;
+    //
+    // Fix t_36b41bcb: 6s (era 4s). La PUT README ha timeout 2s per tentativo
+    // e fino a 2 tentativi (+500ms di delay): il caso peggiore (~4.5s)
+    // sforava il vecchio cap di 4s → la Promise.race scattava e il redirect
+    // partiva con la PUT ancora in volo → su Vercel il processo viene
+    // congelato appena inviata la risposta → il ?v nel README NON atterrava →
+    // Camo serviva l'SVG dello spin precedente. Il cap resta un tetto di
+    // sicurezza (6s): su GitHub veloce la PUT finisce in ~1.5s e il redirect
+    // non paga nulla; il cap si tocca solo quando GitHub è lento, ed è
+    // esattamente il caso in cui vogliamo che il ?v atterri comunque.
+    const README_TIMEOUT_MS = 6000;
 
     // ── README: UNICA GET+PUT (clear + fill insieme, senza delay) ──────────
     // 1) Su spin VINCENTI svuota i marker (rimuove il link della vittoria
@@ -511,10 +547,43 @@ export default async function handler(req, res) {
     // deve) bloccare l'SVG o il redirect con un timer.
     const readmePromise = (async () => {
       logger.info('[readme-update] START', { spin: spinStart });
-      const rf = await readmeGetPromise;
+      let rf = await readmeGetPromise;
+      if (!rf) {
+        // Fix t_36b41bcb: la GET è fallita (GitHub lento/429/timeout). PRIMA
+        // si tornava SUBITO → il ?v cache-buster del README non avanzava → a
+        // ogni spin Camo serviva l'SVG dello spin precedente ("stesso counter,
+        // stessa vincita, stesse icone"). Ora ricadiamo sulla copia "ultima
+        // nota" (KV, TTL 7gg) per far avanzare comunque il ?v: il contenuto
+        // può essere di qualche minuto fa (il ?v viene comunque riscritto con
+        // spinStart) e ghPut si auto-corregge su 409 (sha stale → refetch →
+        // PUT). Solo se manca ANCHE la copia nota lo spin non può aggiornare
+        // il README (niente da scrivere).
+        if (kvEnabled) {
+          try {
+            const lastKnown = await kvGet(README_LAST_KNOWN_KEY);
+            if (lastKnown) {
+              const parsed =
+                typeof lastKnown === 'string'
+                  ? JSON.parse(lastKnown)
+                  : lastKnown;
+              if (parsed && parsed.content) {
+                logger.warn(
+                  '[readme-update] GET fallita — uso copia last-known per avanzare ?v',
+                  { sha_present: Boolean(parsed.sha) }
+                );
+                rf = { content: parsed.content, sha: parsed.sha ?? null };
+              }
+            }
+          } catch (e) {
+            logger.warn('[readme-update] last-known read failed:', {
+              error: e.message,
+            });
+          }
+        }
+      }
       if (!rf) {
         logger.info(
-          '[readme-update] ghGetJson returned null (README assente/illegibile)'
+          '[readme-update] nessuna README disponibile (GET fallita e nessuna copia last-known)'
         );
         return;
       }
@@ -596,6 +665,22 @@ export default async function handler(req, res) {
                 logger.info('[readme-update] cache refreshed after PUT');
               } catch (e) {
                 logger.warn('[readme-update] cache refresh failed:', {
+                  error: e.message,
+                });
+              }
+              // Fix t_36b41bcb: mantieni fresca anche la copia last-known
+              // (fallback per le GET future fallite → ?v avanza comunque).
+              try {
+                await kvSet(
+                  README_LAST_KNOWN_KEY,
+                  {
+                    content: Buffer.from(newReadme, 'utf-8').toString('base64'),
+                    sha: newSha ?? rf.sha,
+                  },
+                  README_LAST_KNOWN_TTL_SEC
+                );
+              } catch (e) {
+                logger.warn('[readme-update] last-known refresh failed:', {
                   error: e.message,
                 });
               }

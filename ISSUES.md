@@ -549,6 +549,57 @@ resta ed è stato aggiunto il cron.
 
 ---
 
+## README ?v — AVANZAMENTO GARANTITO A OGNI SPIN (fix t_36b41bcb)
+
+> Task kanban t_36b41bcb: "a volte capita che eseguendo un nuovo spin, l'svg sia
+> quello dello spin precedente. Stesso counter, stessa vincita/perdita, stesse
+> icone nei rulli. Ogni volta che viene cliccata la leva e fatto partire uno
+> spin nuovo l'svg deve essere rigenerato e cambiare rispetto a quello in cache".
+
+**Causa radice**: il README del profilo embedda l'immagine con
+`api/image?v=<spinStart>` come cache-buster verso Camo (che cachea PER URL,
+bug t_690b8db0). Quando la GET della README falliva (API GitHub lenta oltre
+l'800ms stretto, 429 rate limit, timeout), `readmeGetPromise` tornava `null` e
+`readmePromise` usciva SUBITO senza fare la PUT → il `?v` nel README restava
+fermo all'ultimo spin riuscito → Camo continuava a servire l'SVG dello spin
+PRECEDENTE (stesso counter, stessa vincita, stesse icone) senza nemmeno
+raggiungere /api/image — quindi il self-heal 302 (t_308e49dc) non poteva
+scattare. Il "limite noto" di t_308e49dc ("README mai aggiornato") era
+esattamente questo buco.
+
+**Fix applicato** (api/spin.js):
+
+1. **Copia "ultima nota" della README in KV** (`gsm:readme:last-known:<owner>`,
+   TTL 7 giorni), scritta a ogni GET riuscita e a ogni PUT riuscita. Quando la
+   GET GitHub fallisce, `readmePromise` NON esce più subito: ricade sulla copia
+   last-known (il contenuto può essere di qualche minuto fa — il `?v` viene
+   comunque riscritto con lo `spinStart` corrente) e fa la PUT. `ghPut` si
+   auto-corregge su 409 (sha stale → refetch → PUT). Il `?v` avanza quindi a
+   OGNI spin, anche con GitHub lento/429, e Camo riceve sempre un URL nuovo.
+   La cache "calda" (60s, per la freschezza e il rilevamento di edit esterni)
+   resta invariata.
+2. **`README_TIMEOUT_MS` 4s → 6s**: la PUT README ha timeout 2s per tentativo
+   con fino a 2 tentativi (+500ms di delay) — il caso peggiore (~4.5s)
+   sforava il vecchio cap di 4s e la `Promise.race` scattava col PUT ancora in
+   volo → su Vercel il processo veniva congelato appena inviata la risposta →
+   il `?v` NON atterrava. Il cap resta un tetto di sicurezza (6s): su GitHub
+   veloce la PUT finisce in ~1.5s e il redirect non paga nulla; il cap si tocca
+   solo quando GitHub è lento, ed è il caso in cui vogliamo che il `?v`
+   atterri comunque.
+
+**Test**: +4 test in `tests/readme-last-known.test.js` (GET fallita + copia
+last-known → PUT comunque eseguita con ?v nuovo; GET fallita + nessuna copia →
+nessuna PUT ma spin non rotto; GET riuscita → last-known scritta con TTL lungo;
+fallback con marker di vincita preservati). Suite completa: 714 test verdi,
+lint pulito, Prettier pulito.
+
+**Comportamento residuo**: solo se la GET fallisce E la copia last-known è
+assente (primo spin in assoluto con KV vuoto e GitHub giù) il README non viene
+aggiornato — niente da scrivere. Con KV attivo la copia viene seminata alla
+prima GET/PUT riuscita e poi sopravvive 7 giorni.
+
+---
+
 ## BADGE VINCITA — PULSANTE STICKY (2026-08-11)
 
 > Task kanban t_5381abfe: "dopo aver vinto il simbolo qt (è stato rilevato
