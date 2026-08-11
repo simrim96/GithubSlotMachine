@@ -530,3 +530,65 @@ resta ed è stato aggiunto il cron.
 **Impatto**: -1 round trip GitHub (~150-300ms) per spin sul sync fire-and-forget (non percepito dall'utente — gira in parallelo al redirect), con guadagno su consumo rate-limit e affidabilità del backup.
 
 ---
+
+## /API/IMAGE — SELF-HEAL URL STANTIA + RETRY ANTI-PROPAGAZIONE (2026-08-11)
+
+> Task kanban t_308e49dc: "a volte dopo aver cliccato la leva per un nuovo spin, vedo comunque l'svg precedente".
+
+**Causa radice**: l'immagine è embeddata nel README del profilo con `api/image?v=<spinStart>` come cache-buster verso Camo (il proxy immagini di GitHub, che cachea PER URL — bug t_690b8db0). Quando il README non si è ancora ri-renderizzato dopo lo spin (PUT fallita/timeout, o cache di render di GitHub in ritardo), il browser richiede un `?v` VECCHIO: Camo può servire l'SVG dello spin precedente senza nemmeno raggiungere /api/image. In più, sul path di fallback GitHub, la Contents API può servire la versione PRECEDENTE del file per qualche secondo dopo la PUT (cache CDN non invalidata).
+
+**Fix applicato** (api/image.js):
+
+1. **Self-heal URL stantia**: se la richiesta arriva con un `?v` numerico più vecchio dell'ultimo spin noto (`state.lastPullTimestamp` da KV), /api/image risponde `302` → `/api/image?v=<lastPull>` (Location relativa, `Cache-Control: no-store`). Il client — e Camo, che segue i redirect (CAMO_MAX_REDIRECTS=4) — rifetcha l'URL nuovo e riceve l'SVG dell'ULTIMO spin; la cache Camo dell'URL vecchio converge al contenuto fresco anche se il README resta fermo. Le richieste senza `?v` (curl, embed senza query) restano invariati (200 diretto).
+2. **Retry anti-propagazione sul fallback GitHub**: se l'SVG letto dalla Contents API ha `uid < lastPull` (copia sicuramente vecchia) e GitHub è il candidato migliore (uid >= uid KV), rileggiamo UNA volta dopo 700ms (bounded: 1 solo retry, solo sul path di fallback). Completa l'hardening t_a81cdf35, che prima serviva solo la "meno vecchia" delle due copie stale.
+3. **`lastPull` letto dallo stato KV indipendentemente dalla presenza dell'SVG in KV** (prima era annidato dentro `if (svg)`): serve a (1) e (2) anche quando la copia KV è assente.
+
+**Test**: +11 test in `tests/image-stale-guard.test.js` (302 su ?v stantio, no-redirect su ?v fresco/assente/non numerico, retry con esito fresco/stale, skip retry quando KV batte GitHub). Suite completa: 708 test verdi, lint pulito, Prettier pulito.
+
+**Limite noto**: se Camo ha già in cache l'URL vecchio, la richiesta non raggiunge /api/image e il 302 non può scattare (la cache Camo converge al fresco al primo MISS successivo). Il caso "README mai aggiornato" resta coperto solo dal prossimo spin (il ?v avanza comunque nel README quando la PUT riesce).
+
+---
+
+## BADGE VINCITA — PULSANTE STICKY (2026-08-11)
+
+> Task kanban t_5381abfe: "dopo aver vinto il simbolo qt (è stato rilevato
+> vincente) non è comparso il pulsante con il link alla repo".
+
+**Causa radice**: il "pulsante con il link alla repo" è il badge animato nel
+README del profilo (`<a href="repo"><img src="/api/badge?v=...&lang=..."/></a>`).
+Evidenza di produzione (vincita Qt del 09/08, ts 1786312864697): il badge
+veniva scritto correttamente, ma due meccanismi lo facevano sparire subito:
+
+1. **Svuotamento marker a ogni spin** (api/spin.js): `clearReadmeMarkers` +
+   `updateReadmeMarkers` giravano a OGNI spin — anche perdenti. La vincita Qt
+   alle 22:01:04 è stata seguita da uno spin perdente alle 22:01:12: badge
+   svuotato 8 secondi dopo, e il README è rimasto senza pulsante per 12+ ore
+   pur avendo `state.lastWin = qt`. Con il delay CSS di 6.5s del badge,
+   l'utente non lo vedeva MAI.
+2. **Self-validation troppo stretta** (api/badge.js): `isBadgeValidForCurrentSpin`
+   invalidava il badge se `lastPull !== lastWin.ts` (spin perdente dopo la
+   vincita) o se `?v`/`lang` non combaciavano ESATTAMENTE con `lastWin`
+   (GitHub cachea il render del README per minuti: un badge di una vincita
+   vera ancora embeddato in un render cacheato veniva servito come SVG vuoto
+   appena lo stato avanzava).
+
+**Fix applicato** (badge STICKY — il pulsante rappresenta l'ULTIMA VINCITA,
+non l'ultimo spin):
+
+- **api/spin.js**: `clearReadmeMarkers` + `updateReadmeMarkers` vengono
+  eseguiti SOLO su spin VINCENTI. Su spin perdenti i marker non vengono
+  toccati → il badge dell'ultima vincita resta visibile (il `?v` di
+  api/image e api/lever continua ad avanzare a ogni spin).
+- **api/badge.js**: `isBadgeValidForCurrentSpin` ora serve il badge se
+  `state.lastWin` esiste (una vincita è successa davvero); SVG vuoto solo se
+  non c'è MAI stata una vincita. Rimossi i gate su `?v`/`lang` (cache-buster
+  e testo, non identità) e su `lastPull` (uno spin perdente non cancella la
+  vincita). L'anti-ghost residuo: senza `lastWin` niente pulsante.
+
+**Test**: aggiornati i 2 test che codificavano il vecchio comportamento
+(spin perdente → SVG vuoto) + nuovi regression test dello scenario esatto
+(vincita Qt → spin perdente → pulsante Qt ancora servito; spin.js non
+svuota i marker su spin perdente; su vincita `updateReadmeMarkers` parte).
+Suite completa: 710 test verdi, lint pulito, Prettier pulito.
+
+---

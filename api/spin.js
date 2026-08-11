@@ -493,9 +493,15 @@ export default async function handler(req, res) {
     const README_TIMEOUT_MS = 4000;
 
     // ── README: UNICA GET+PUT (clear + fill insieme, senza delay) ──────────
-    // 1) Svuota i marker (rimuove il link della vittoria PRECEDENTE) così
-    //    durante la rotazione dei rulli NON compare nessun link vecchio.
-    // 2) Li riempie subito con il link della vittoria corrente.
+    // 1) Su spin VINCENTI svuota i marker (rimuove il link della vittoria
+    //    PRECEDENTE) e li riempie subito con il link della vittoria corrente.
+    //    Durante la rotazione dei rulli il nuovo badge è invisibile (delay
+    //    CSS 6.5s in api/badge.js), quindi non compare mai un link vecchio.
+    // 2) Su spin PERDENTI i marker NON vengono toccati (badge STICKY, fix
+    //    t_5381abfe): il pulsante con il link alla repo rappresenta l'ULTIMA
+    //    VINCITA, non l'ultimo spin — prima veniva svuotato a ogni spin e
+    //    una vincita seguita da uno spin perdente lasciava l'utente senza
+    //    pulsante ("vinto qt ma nessun link").
     // La GET è stata ANTICIPATA (readmeGetPromise, subito dopo la lettura
     // dello stato): qui si attende il suo esito e si scrive la PUT.
     // NESSUN setTimeout artificiale: il link viene scritto il prima possibile,
@@ -520,8 +526,19 @@ export default async function handler(req, res) {
       for (let attempt = 0; attempt < README_MAX_RETRIES; attempt++) {
         try {
           const oldReadme = Buffer.from(rf.content, 'base64').toString('utf-8');
-          // (1) svuota i marker della vittoria precedente
-          let newReadme = clearReadmeMarkers(oldReadme);
+          // (1) Badge STICKY (fix t_5381abfe): il pulsante con il link alla
+          // repo rappresenta l'ULTIMA VINCITA, non l'ultimo spin. Su spin
+          // PERDENTI i marker NON vengono toccati → il badge della vincita
+          // precedente resta visibile (prima veniva svuotato a ogni spin e
+          // una vincita seguita da uno spin perdente lasciava l'utente
+          // senza pulsante). Su spin VINCENTI clear+fill sostituiscono il
+          // badge con quello della vincita corrente (il nuovo badge è
+          // invisibile per 6.5s via CSS, quindi durante la rotazione non
+          // compare un link vecchio).
+          let newReadme = oldReadme;
+          if (winningLang) {
+            newReadme = clearReadmeMarkers(oldReadme);
+          }
           // (2) aggiorna versione + riempie con la vittoria corrente
           // FIX "risultato precedente" (t_690b8db0): se l'embed di api/image è
           // SENZA query (?v assente, es. embed aggiunto a mano), il vecchio
@@ -541,14 +558,16 @@ export default async function handler(req, res) {
             /api\/lever(?:\?(?:v|cache_buster)=[0-9]*)?/g,
             `api/lever?v=${spinStart}`
           );
-          newReadme = updateReadmeMarkers(
-            newReadme,
-            state,
-            winningLang,
-            repoMatch,
-            spinStart,
-            OWNER
-          );
+          if (winningLang) {
+            newReadme = updateReadmeMarkers(
+              newReadme,
+              state,
+              winningLang,
+              repoMatch,
+              spinStart,
+              OWNER
+            );
+          }
           if (newReadme !== oldReadme) {
             const newSha = await ghPut(
               token,
