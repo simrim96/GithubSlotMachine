@@ -1,20 +1,20 @@
 {
-  "totalSpins": 86,
-  "totalWins": 48,
+  "totalSpins": 87,
+  "totalWins": 49,
   "lastWin": {
-    "langId": "cpp",
-    "langName": "C++",
+    "langId": "glsl",
+    "langName": "GLSL",
     "fact": {
-      "it": "C++20 ha introdotto Concepts, Coroutines, Modules e std::ranges: forse l'update più rivoluzionario dai tempi del C++11.",
-      "en": "C++20 introduced Concepts, Coroutines, Modules and std::ranges: arguably the most revolutionary update since C++11."
+      "it": "GLSL gira direttamente sulla GPU: ogni pixel del tuo schermo in un gioco moderno è il risultato di milioni di esecuzioni parallele di un fragment shader",
+      "en": "GLSL runs directly on the GPU: every pixel on your screen in a modern game is the result of millions of parallel fragment-shader executions."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786430288236
+    "ts": 1786431801680
   },
   "version": 2,
-  "lastPullTimestamp": 1786431789438,
+  "lastPullTimestamp": 1786431801680,
   "settings": {
     "theme": "auto",
     "sound": true
