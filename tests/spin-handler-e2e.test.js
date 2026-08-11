@@ -245,12 +245,14 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(cacheCalls.length).toBeGreaterThanOrEqual(1);
   }, 30000);
 
-  // ── 1c) su spin PERDENTE il badge dell'ultima vincita NON viene toccato ──
-  it("su spin perdente NON svuota i marker (badge sticky: il pulsante dell'ultima vincita resta)", async () => {
-    // FIX t_5381abfe: il pulsante con il link alla repo rappresenta
-    // l'ULTIMA VINCITA, non l'ultimo spin. Uno spin perdente non deve
-    // chiamare clearReadmeMarkers/updateReadmeMarkers (che svuoterebbero
-    // il badge della vincita — "vinto qt ma nessun pulsante").
+  // ── 1c) su spin PERDENTE i marker vengono SVUOTATI (badge non-sticky) ────
+  it('su spin perdente SVUOTA i marker (il pulsante compare solo in caso di vincita)', async () => {
+    // t_c9ca9ed9: il pulsante con il link alla repo NON è più sticky.
+    // Rappresenta la vincita DELL'ULTIMO SPIN: uno spin perdente DEVE
+    // svuotare i marker (clearReadmeMarkers chiamato) e NON deve scrivere
+    // alcun badge (updateReadmeMarkers NON chiamato) — niente link fantasma
+    // dopo una perdita (prima, fix t_5381abfe, i marker non venivano toccati
+    // e il pulsante dell'ultima vincita restava per sempre).
     const res = makeRes();
     await handler(req(), res);
     await new Promise((r) => setTimeout(r, 1_500));
@@ -258,7 +260,7 @@ describe('T1 — spin.js come handler (e2e, GitHub + KV mockati)', () => {
     expect(res.statusCode).toBe(302);
     const { clearReadmeMarkers, updateReadmeMarkers } =
       await import('../api/_lib/github.js');
-    expect(clearReadmeMarkers).not.toHaveBeenCalled();
+    expect(clearReadmeMarkers).toHaveBeenCalled();
     expect(updateReadmeMarkers).not.toHaveBeenCalled();
   }, 30000);
 

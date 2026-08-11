@@ -20,6 +20,7 @@ vi.mock('../api/_lib/github.js', () => ({
   saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
   ghGetJson: vi.fn(),
   ghPut: vi.fn(),
+  clearReadmeMarkers: vi.fn((r) => r),
   updateReadmeMarkers: vi.fn((r) => r),
   GH_CONTENTS_TIMEOUT_MS: 800,
 }));

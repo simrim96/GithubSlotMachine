@@ -1,4 +1,4 @@
-// Look-up cache per (linguaggio → miglior repo dell'owner con ≥30% di quel lang).
+// Look-up cache per (linguaggio → repo casuale dell'owner con ≥30% di quel lang).
 //
 // Cache a TRE livelli (R5 — resilienza cross-region):
 //   1. in-memory (module-level) — velocissima finché l'istanza Vercel resta calda
@@ -162,16 +162,28 @@ async function loadFromKv() {
     if (fresh && fresh.ts && fresh.byLangId) {
       // Tier fresh (TTL 30m) ancora valido → usiamo quello.
       cache.ts = fresh.ts;
-      cache.byLangId = fresh.byLangId;
+      cache.byLangId = normalizeCacheShape(fresh.byLangId);
     } else if (lastgood && lastgood.byLangId) {
       // Tier lastgood: dati semi-stale ma SEMPRE servibili. Non azzeriamo
       // cache.ts (resta = lastgood.ts) così la refresh gira in background
       // nel branch !fresh, mantenendo i repo disponibili nel frattempo.
       cache.ts = lastgood.ts || 0;
-      cache.byLangId = lastgood.byLangId;
+      cache.byLangId = normalizeCacheShape(lastgood.byLangId);
     }
   })();
   return kvLoadPromise;
+}
+
+// Normalizza la cache letta da KV: il formato NUOVO conserva un ARRAY di
+// candidati per linguaggio (selezione casuale), il formato VECCHIO un singolo
+// oggetto (il "migliore"). Converte i vecchi valori singoli in array per
+// retro-compatibilità con i dati KV già in produzione.
+function normalizeCacheShape(byLangId) {
+  const out = {};
+  for (const [langId, value] of Object.entries(byLangId || {})) {
+    out[langId] = Array.isArray(value) ? value : value ? [value] : [];
+  }
+  return out;
 }
 
 function saveToKv() {
@@ -239,6 +251,13 @@ async function refreshCache(token, owner, languages, slotRepo) {
     }
   );
 
+  // Per ogni linguaggio conserviamo TUTTI i repo qualificanti (≥30% + topic
+  // ok): getRepoForLanguage ne pesca uno a caso. PRIMA si teneva solo il
+  // "migliore" (pct più alta, poi stelle) → il link della vincita era sempre
+  // lo stesso repo. Ora la vincita può linkare a uno qualsiasi dei repo che
+  // contengono almeno il 30% del linguaggio vinto (richiesta utente).
+  // (Il repo profilo / della slot sono già stati esclusi a monte in
+  // refreshCache tramite isRepoExcluded, così non competono mai.)
   const byLangId = {};
   repos.forEach((rep, i) => {
     const langs = langMaps[i];
@@ -261,80 +280,14 @@ async function refreshCache(token, owner, languages, slotRepo) {
         stars: rep.stargazers_count || 0,
         pct,
       };
-      const cur = byLangId[lang.id];
-      // Privilegia repo con percentuale più alta, poi più stelle.
-      // (Il repo profilo / della slot sono già stati esclusi a monte in
-      // refreshCache tramite isRepoExcluded, così non competono mai.)
-      if (
-        !cur ||
-        pct > cur.pct ||
-        (pct === cur.pct && candidate.stars > cur.stars)
-      ) {
-        byLangId[lang.id] = candidate;
-      }
+      if (!byLangId[lang.id]) byLangId[lang.id] = [];
+      byLangId[lang.id].push(candidate);
     }
   });
 
   cache.ts = Date.now();
   cache.byLangId = byLangId;
   saveToKv();
-}
-
-// ─── Test-only: repo casuale tra i progetti dell'owner ──────────────────────
-// Usato SOLO quando SLOT_TEST_RANDOM_REPO=1 (modalità test): garantisce che
-// ogni spin generi un link a un progetto reale dell'owner nel README, anche
-// senza vincita o senza repo ≥30%. Esclude il repo profilo e quello della slot
-// (vedi isRepoExcluded), così il link punta sempre a un progetto "vero".
-// FALLBACK HARDCODED (scelta utente): se NON esistono repo validi (es. la
-// pagina dell'owner ha solo profilo + slot + fork, come simrim96), si ritorna
-// un repo di test predefinito così la catena spin→link è comunque verificabile.
-// Overridabile via env SLOT_TEST_REPO_URL / SLOT_TEST_REPO_NAME.
-const TEST_REPO_FALLBACK = {
-  url: process.env.SLOT_TEST_REPO_URL || 'https://github.com/simrim96/simrim96',
-  name: process.env.SLOT_TEST_REPO_NAME || 'simrim96',
-  description: 'Repo di test (fallback modalità test)',
-  stars: 0,
-  pct: 0,
-};
-export async function getRandomRepo(
-  token,
-  owner,
-  slotRepo = process.env.SLOT_REPO || 'GithubSlotMachine'
-) {
-  const headers = token
-    ? ghHeaders(token)
-    : { Accept: 'application/vnd.github+json' };
-  try {
-    const r = await ghFetchWithTimeout(
-      `https://api.github.com/users/${owner}/repos?per_page=100&sort=updated&type=owner`,
-      headers
-    );
-    if (!r.ok) return TEST_REPO_FALLBACK;
-    const repos = (await r.json()).filter(
-      (rep) =>
-        !rep.fork && !rep.archived && !isRepoExcluded(rep.name, owner, slotRepo)
-    );
-    if (repos.length === 0) {
-      // Nessun repo "esterno": fallback hardcoded di test (vedi nota sopra).
-      logger.info('[test-mode] nessun repo valido, uso fallback hardcoded', {
-        url: TEST_REPO_FALLBACK.url,
-      });
-      return TEST_REPO_FALLBACK;
-    }
-    const rep = repos[randomInt(repos.length)];
-    return {
-      url: rep.html_url,
-      name: rep.name,
-      description: rep.description || '',
-      stars: rep.stargazers_count || 0,
-      pct: 0,
-    };
-  } catch (e) {
-    logger.warn('getRandomRepo failed, uso fallback hardcoded', {
-      error: e?.message,
-    });
-    return TEST_REPO_FALLBACK;
-  }
 }
 
 export async function getRepoForLanguage(token, owner, lang, languages) {
@@ -378,15 +331,17 @@ export async function getRepoForLanguage(token, owner, lang, languages) {
     );
   }
   // Se hasData && fresh → serviamo immediatamente, nessuna refresh.
-  const match = cache.byLangId[lang.id] || null;
-  // Difesa finale: se anche la cache (memoria/KV, magari popolata prima
-  // della fix) contiene ancora il repo della slot o il repo profilo come
+  // Selezione CASUALE tra i repo qualificanti (≥30% del linguaggio vinto):
+  // la cache conserva un array di candidati per linguaggio e qui ne peschiamo
+  // uno a caso. Difesa finale: se anche la cache (memoria/KV, magari popolata
+  // prima della fix) contiene ancora il repo della slot o il repo profilo come
   // candidato, lo trattiamo come "nessun repo" → lo spin cade sul profilo
   // invece di rimandare dentro la slot stessa.
-  if (match && isRepoExcluded(match.name, owner, slotRepo)) {
-    return null;
-  }
-  return match;
+  const candidates = (cache.byLangId[lang.id] || []).filter(
+    (c) => !isRepoExcluded(c.name, owner, slotRepo)
+  );
+  if (candidates.length === 0) return null;
+  return candidates[randomInt(candidates.length)];
 }
 
 // Lettura diagnostica della cache SENZA triggerare refresh GitHub.

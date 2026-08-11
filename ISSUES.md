@@ -643,3 +643,41 @@ svuota i marker su spin perdente; su vincita `updateReadmeMarkers` parte).
 Suite completa: 710 test verdi, lint pulito, Prettier pulito.
 
 ---
+
+## PULSANTE VINCITA — SOLO IN CASO DI VINCITA + REPO CASUALE ≥30% (2026-08-11)
+
+> Task kanban t_c9ca9ed9: "il pulsante che linka alla repo di github con il
+> linguaggio vinto non deve comparire sempre ma solo in caso di vincita. Ogni
+> volta che viene vinto un linguaggio/framework deve comparire un link ad una
+> mia repo casuale con almeno il 30% di quel linguaggio/framework in essa.
+> Togli tutte le forzature di test presententi e assicurati che funzioni tutto
+> correttamente".
+
+**Cambiamenti** (supera e corregge il badge STICKY di t_5381abfe):
+
+1. **Badge NON-sticky** — il pulsante "check out this repo" nel README compare
+   SOLO se l'ultimo spin è stato una VINCITA:
+   - `api/spin.js`: `clearReadmeMarkers` gira a OGNI spin (vincente o
+     perdente); `updateReadmeMarkers` solo su vincita. Uno spin perso rimuove
+     il pulsante (prima restava per sempre nel README).
+   - `api/badge.js`: `isBadgeValidForCurrentSpin` serve il badge solo quando
+     `lastWin.ts === lastPullTimestamp` (l'ultimo spin è finito in vincita);
+     SVG vuoto se l'ultimo spin è stato perdente o non c'è mai stata una
+     vincita.
+2. **Repo casuale con ≥30%** — `api/_lib/repos.js` conserva nella cache TUTTI
+   i repo qualificanti per linguaggio (≥30% + topic ok) e
+   `getRepoForLanguage` ne pesca uno a caso: il link della vincita non punta
+   più sempre allo stesso "migliore" ma a un repo casuale dell'owner.
+   Retro-compatibile col formato KV precedente (singolo oggetto → array).
+3. **Rimosse tutte le forzature di test**:
+   - test-mode `SLOT_TEST_RANDOM_REPO` (spin.js) e relativi override env
+     `SLOT_TEST_REPO_URL` / `SLOT_TEST_REPO_NAME` (`.env.example`);
+   - `getRandomRepo` + `TEST_REPO_FALLBACK` (repos.js);
+   - `tests/testmode-random-repo.test.js` (eliminato).
+
+**Test**: aggiornati i test che codificavano il badge sticky
+(`badge-state.test.js`, `spin-handler-e2e.test.js`, `readme-last-known.test.js`)
+
+- mock `clearReadmeMarkers` reale dove spin.js ora la chiama a ogni spin.
+  Suite completa: 709 test verdi, lint pulito (solo 2 warning pre-esistenti su
+  `ROWS` inutilizzato in svg/css.js e svg/effects-helpers.js), Prettier pulito.

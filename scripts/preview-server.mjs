@@ -105,6 +105,18 @@ const server = createServer(async (req, res) => {
       return res.end();
     }
 
+    // Static files from public/ (index.html, _spin-cooldown.js, _vercel/…):
+    // il frontend fa import dinamico di _spin-cooldown.js, quindi senza
+    // questa route il modulo non si carica (MIME text/html) e la leva non
+    // si collega — i test E2E sullo spin falliscono.
+    const ext = extname(url.pathname);
+    if (ext && MIME[ext]) {
+      const staticPath = join(ROOT, 'public', url.pathname);
+      const data = await readFile(staticPath);
+      res.writeHead(200, { 'Content-Type': MIME[ext] });
+      return res.end(data);
+    }
+
     // Default to index.html
     const filePath = join(ROOT, 'public', 'index.html');
     const data = await readFile(filePath);

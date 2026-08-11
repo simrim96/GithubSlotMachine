@@ -59,16 +59,23 @@ const { ghGetJson, ghPut } = vi.hoisted(() => ({
   ghPut: vi.fn(),
 }));
 
-vi.mock('../api/_lib/github.js', () => ({
-  ghGetJson: ghGetJson,
-  ghPut: ghPut,
-  saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
-  loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
-  clearReadmeMarkers: vi.fn((r) => r),
-  updateReadmeMarkers: vi.fn((r) => r),
-  auditToken: vi.fn(),
-  GH_CONTENTS_TIMEOUT_MS: 800,
-}));
+vi.mock('../api/_lib/github.js', async (importActual) => {
+  const actual = await importActual();
+  return {
+    ...actual,
+    ghGetJson: ghGetJson,
+    ghPut: ghPut,
+    saveSlotSvg: vi.fn().mockResolvedValue({ sha: 'slot-sha-2' }),
+    loadSlotSvg: vi.fn().mockResolvedValue({ content: '', sha: 'slot-sha' }),
+    // Usa la VERA clearReadmeMarkers: spin.js ora la chiama a OGNI spin
+    // (t_c9ca9ed9 — badge non-sticky) e il test verifica il contenuto
+    // effettivamente scritto nel README.
+    clearReadmeMarkers: actual.clearReadmeMarkers || ((r) => r),
+    updateReadmeMarkers: vi.fn((r) => r),
+    auditToken: vi.fn(),
+    GH_CONTENTS_TIMEOUT_MS: 800,
+  };
+});
 
 vi.mock('../api/_lib/repos.js', () => ({
   getRepoForLanguage: vi.fn().mockResolvedValue(null),
@@ -239,9 +246,11 @@ describe('t_36b41bcb — README ?v avanza anche quando la GET GitHub fallisce', 
     expect(content).toMatch(/api\/image\?v=\d{13}/);
     expect(content).toMatch(/api\/lever\?v=\d{13}/);
     expect(content).not.toContain('api/image?v=111');
-    // I marker della vincita precedente NON vengono toccati su spin perdente
-    // (badge sticky, fix t_5381abfe): il blocco resta com'era.
-    expect(content).toContain('DemoRepo');
+    // Badge NON-sticky (t_c9ca9ed9): su spin perdente i marker vengono
+    // SVUOTATI — il badge della vincita precedente (DemoRepo) sparisce,
+    // restano solo i marker vuoti. (Prima, fix t_5381abfe, il blocco
+    // restava com'era per sempre.)
+    expect(content).not.toContain('DemoRepo');
     expect(content).toContain('SLOT_LAST_WIN_START');
     expect(content).toContain('SLOT_LAST_WIN_END');
   }, 30000);

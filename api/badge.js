@@ -29,13 +29,17 @@ const BADGE_DELAY_S = 6.5;
 const BADGE_ANIM_S = 0.9;
 
 // ─── Self-validation contro lo stato corrente ─────────────────────────────
-// Il badge rappresenta l'ULTIMA VINCITA REALE: se state.lastWin esiste, una
-// vincita è successa davvero e il pulsante va servito. Il README (scritto
-// solo dalla slot) è il confine di fiducia — ?v è solo un cache-buster per
-// camo e lang il testo mostrato, quindi né l'uno né l'altro invalidano un
-// badge di una vincita vera. Serviamo SVG vuoto SOLO se non c'è mai stata
-// una vincita (lastWin null), così il pulsante non compare su profili che
-// non hanno mai vinto.
+// Il badge rappresenta la VINCITA DELL'ULTIMO SPIN: compare SOLO se l'ultimo
+// spin è stato una vincita (t_c9ca9ed9). PRIMA (fix t_5381abfe) era STICKY:
+// bastava che state.lastWin esistesse (una vincita QUALSIASI nel passato)
+// perché il pulsante restasse per sempre nel README, anche dopo spin
+// perdenti. Ora il badge è valido solo quando lastWin.ts ===
+// lastPullTimestamp, cioè quando l'ultimo spin è finito in vincita. Il README
+// (scritto solo dalla slot) è il confine di fiducia — ?v è solo un
+// cache-buster per camo e lang il testo mostrato, quindi né l'uno né l'altro
+// invalidano un badge di una vincita vera. Serviamo SVG vuoto quando
+// l'ultimo spin è stato PERDENTE (o non c'è mai stata una vincita), così il
+// pulsante non compare mai su uno spin perso.
 const STATE_KEY = 'gsm:state';
 const OWNER =
   process.env.PROFILE_REPO_OWNER || process.env.GITHUB_OWNER || 'simrim96';
@@ -71,24 +75,32 @@ async function getCurrentState() {
   }
 }
 
-// Il badge è valido se c'è stata ALMENO UNA vincita reale (lastWin presente).
+// Il badge è valido SOLO se l'ultimo spin è stato una VINCITA (t_c9ca9ed9):
+// lastWin.ts === lastPullTimestamp (lastPullTimestamp avanza a OGNI spin,
+// lastWin.ts solo su vincita — se l'ultimo spin fosse stato perdente,
+// lastPullTimestamp > lastWin.ts e il badge NON va servito). Niente più
+// sticky (t_5381abfe): uno spin perso fa sparire il pulsante.
 // Nessun gate su ?v/lang: il README (scritto solo dalla slot) è il confine
 // di fiducia.
 //
-// FIX t_5381abfe ("vincita Qt ma nessun pulsante"): due cause rimosse qui.
+// FIX t_5381abfe (\"vincita Qt ma nessun pulsante\"): due cause rimosse qui.
 //   1. I check stretti su ?v (== lastWin.ts) e lang (== lastWin.langName)
 //      invalidavano l'URL del badge di una vincita vera non appena lo stato
 //      avanzava (GitHub cachea il render del README per MINUTI, quindi un
 //      badge ancora embeddato in un render cacheato veniva servito vuoto).
 //      ?v è solo un cache-buster per camo, lang è il testo mostrato.
-//   2. Il gate lastPull !== lastWin.ts faceva sparire il pulsante appena
-//      arrivava uno spin PERDENTE dopo la vincita — scenario reale del bug:
-//      vincita Qt alle 22:01, spin perdente 8 secondi dopo, badge svuotato
-//      e mai più visibile per ore nonostante state.lastWin dicesse "Qt".
-//      Il pulsante rappresenta l'ultima vincita, non l'ultimo spin: uno
-//      spin perdente NON deve cancellarlo.
+//   2. (RIVISTO in t_c9ca9ed9) Il gate lastPull !== lastWin.ts faceva
+//      sparire il pulsante appena arrivava uno spin PERDENTE dopo la
+//      vincita. t_5381abfe lo rimosse rendendo il badge sticky; t_c9ca9ed9
+//      lo ripristina COME COMPORTAMENTO VOLUTO: il pulsante deve comparire
+//      SOLO in caso di vincita, quindi uno spin perdente DEVE toglierlo.
 export function isBadgeValidForCurrentSpin(state, _v, _lang) {
-  return Boolean(state && state.lastWin);
+  return Boolean(
+    state &&
+    state.lastWin &&
+    state.lastWin.ts != null &&
+    state.lastWin.ts === state.lastPullTimestamp
+  );
 }
 
 // Sanitizza il linguaggio proveniente dai query param (testo non fidato a
@@ -120,15 +132,14 @@ export default async function handler(req, res) {
   }
 
   // ── Self-validation contro lo stato corrente ────────────────────────────
-  // FIX t_5381abfe ("vincita Qt ma nessun pulsante"): il badge è STICKY —
-  // rappresenta l'ULTIMA VINCITA reale, non l'ultimo spin. Serve il badge
-  // se state.lastWin esiste (una vincita è successa davvero); SVG vuoto
-  // solo se non c'è MAI stata una vincita. Niente gate su ?v/lang (un
-  // render cacheato del README può embeddare l'URL di una vincita vera
-  // per minuti) né su lastPull (uno spin perdente non cancella la
-  // vincita). Se lo stato non è leggibile (KV + GitHub giù) serve comunque
-  // il badge normale: meglio un falso positivo che spezzare la vincita
-  // reale in un'outage.
+  // Il badge compare SOLO se l'ultimo spin è stato una VINCITA (t_c9ca9ed9):
+  // `isBadgeValidForCurrentSpin` serve il badge solo quando lastWin.ts ===
+  // lastPullTimestamp (l'ultimo spin è finito in vincita); SVG vuoto se
+  // l'ultimo spin è stato PERDENTE o non c'è MAI stata una vincita. Niente
+  // più sticky (t_5381abfe): uno spin perso fa sparire il pulsante. Se lo
+  // stato non è leggibile (KV + GitHub giù) serve comunque il badge
+  // normale: meglio un falso positivo che spezzare la vincita reale in
+  // un'outage.
   let badgeAllowed = true;
   try {
     const state = await getCurrentState();
