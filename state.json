@@ -1,20 +1,20 @@
 {
-  "totalSpins": 103,
-  "totalWins": 56,
+  "totalSpins": 104,
+  "totalWins": 57,
   "lastWin": {
-    "langId": "c",
-    "langName": "C",
+    "langId": "qt",
+    "langName": "Qt",
     "fact": {
-      "it": "Lo standard C più recente è C23 (2024): introduce typeof, attributi standard ([[nodiscard]]…), constexpr e tipi a precisione fissa, mantenendo piena retrocompatibilità con K&R",
-      "en": "The most recent C standard is C23 (2024): it introduces typeof, standard attributes ([[nodiscard]]…), constexpr and fixed-width types, while keeping full K&R backward compatibility."
+      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
+      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786447984814
+    "ts": 1786447995298
   },
   "version": 2,
-  "lastPullTimestamp": 1786447984814,
+  "lastPullTimestamp": 1786447995298,
   "settings": {
     "theme": "auto",
     "sound": true
