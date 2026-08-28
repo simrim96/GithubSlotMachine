@@ -1,5 +1,5 @@
 {
-  "totalSpins": 104,
+  "totalSpins": 105,
   "totalWins": 57,
   "lastWin": {
     "langId": "qt",
@@ -14,7 +14,7 @@
     "ts": 1786447995298
   },
   "version": 2,
-  "lastPullTimestamp": 1786447995298,
+  "lastPullTimestamp": 1787888304365,
   "settings": {
     "theme": "auto",
     "sound": true
