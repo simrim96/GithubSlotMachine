@@ -1,20 +1,20 @@
 {
-  "totalSpins": 107,
-  "totalWins": 57,
+  "totalSpins": 110,
+  "totalWins": 58,
   "lastWin": {
-    "langId": "qt",
-    "langName": "Qt",
+    "langId": "python",
+    "langName": "Python",
     "fact": {
-      "it": "Qt nasce nel 1991 in Norvegia da Haavard Nord ed Eirik Chambe-Eng: la prima versione pubblica esce nel 1995. Il nome viene dalla lettera \"Q\" che piaceva al font Emacs di Haavard",
-      "en": "Qt was born in Norway in 1991 by Haavard Nord and Eirik Chambe-Eng: the first public release shipped in 1995. The name comes from the letter \"Q\", which looked nice in Haavard's Emacs font."
+      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
+      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1786447995298
+    "ts": 1791234394768
   },
   "version": 2,
-  "lastPullTimestamp": 1787888320969,
+  "lastPullTimestamp": 1791234405709,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,5 +23,6 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  }
+  },
+  "stale": true
 }
