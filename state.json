@@ -1,20 +1,20 @@
 {
-  "totalSpins": 109,
-  "totalWins": 58,
+  "totalSpins": 111,
+  "totalWins": 59,
   "lastWin": {
-    "langId": "python",
-    "langName": "Python",
+    "langId": "react",
+    "langName": "React",
     "fact": {
-      "it": "Python è il motore dell'ecosistema AI moderno: PyTorch, TensorFlow, scikit-learn e Hugging Face sono tutti scritti (almeno in parte) in Python",
-      "en": "Python is the engine of the modern AI ecosystem: PyTorch, TensorFlow, scikit-learn and Hugging Face are all written (at least partly) in Python."
+      "it": "React Fiber è la riscrittura del reconciler che ha reso possibile Suspense, Concurrent Mode e il rendering interrompibile a priorità",
+      "en": "React Fiber is the reconciler rewrite that made Suspense, Concurrent Mode and priority-based interruptible rendering possible."
     },
     "repoUrl": null,
     "repoName": null,
     "repoDesc": null,
-    "ts": 1791234394768
+    "ts": 1791234412485
   },
   "version": 2,
-  "lastPullTimestamp": 1791234394768,
+  "lastPullTimestamp": 1791234412485,
   "settings": {
     "theme": "auto",
     "sound": true
