@@ -37,7 +37,7 @@
     "eslint-plugin-import": "^2.32.0",
     "prettier": "3.9.5",
     "vercel": "^56.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.10"
   },
   "keywords": [
     "github",
