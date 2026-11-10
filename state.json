@@ -1,5 +1,5 @@
 {
-  "totalSpins": 113,
+  "totalSpins": 114,
   "totalWins": 61,
   "lastWin": {
     "langId": "react",
@@ -14,7 +14,7 @@
     "ts": 1794329900923
   },
   "version": 2,
-  "lastPullTimestamp": 1794329900923,
+  "lastPullTimestamp": 1794329909006,
   "settings": {
     "theme": "auto",
     "sound": true
@@ -23,6 +23,5 @@
     "longestStreak": 0,
     "currentStreak": 0,
     "winsByLang": {}
-  },
-  "stale": true
+  }
 }
